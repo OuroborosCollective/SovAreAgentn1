@@ -1,0 +1,18 @@
+
+{
+  "short_name": "N+1",
+  "name": "N+1: Authentic Reality Emancipation",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/neon/512/experimental-robot-neon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "orientation": "portrait"
+}

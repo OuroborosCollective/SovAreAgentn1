@@ -1,0 +1,54 @@
+{
+  "name": "n-plus-1",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "n1": "./bin/install.js",
+    "n-plus-1": "./bin/install.js"
+  },
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.41.0",
+    "@types/archiver": "^8.0.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/d3": "^7.4.3",
+    "archiver": "^8.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "d3": "^7.9.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.563.0",
+    "memjs": "^1.3.2",
+    "motion": "^12.34.3",
+    "mysql2": "^3.17.4",
+    "octokit": "^5.0.5",
+    "pdfjs-dist": "4.10.38",
+    "pg": "^8.18.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^22.19.11",
+    "@types/pg": "^8.16.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

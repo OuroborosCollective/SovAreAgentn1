@@ -1,0 +1,12 @@
+{
+  "name": "N Plus 1",
+  "description": "Implementation of the N+1 system, based on ARE-Logik.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
