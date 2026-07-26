@@ -31,8 +31,13 @@ import { NeuralNetworkTopology } from './components/NeuralNetworkTopology';
 import { GoogleDriveManager } from './components/GoogleDriveManager';
 import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ArchitectureIntegrityDashboard } from './components/ArchitectureIntegrityDashboard';
 import { WebhookManagement } from './components/WebhookManagement';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
+import { DeviceResolutionBanner } from './components/DeviceResolutionBanner';
+import { useDeviceResolution } from './hooks/useDeviceResolution';
+import { SettingsWorkspace } from './components/SettingsWorkspace';
+import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('trainer');
@@ -51,6 +56,16 @@ const App: React.FC = () => {
   const baseRetryDelay = 1000;
 
   const { theme, getThemeLabel } = useTheme();
+  const telemetry = useDeviceResolution();
+
+  // Auto-adapt sidebar state based on device layout (mobile vs samsung tab a9 vs desktop)
+  useEffect(() => {
+    if (telemetry.deviceType === 'mobile' || telemetry.deviceType === 'phablet') {
+      setIsSidebarOpen(false);
+    } else if (telemetry.deviceType === 'samsung-tab-a9') {
+      setIsSidebarOpen(true); // Samsung Tab A9 tablet optimized baseline
+    }
+  }, [telemetry.deviceType]);
 
   // Check for session expiry (30 mins idle)
   useEffect(() => {
@@ -135,6 +150,7 @@ const App: React.FC = () => {
     { id: 'voice', label: 'Hia Resonance Voice', icon: Mic },
     { id: 'ecosystem', label: 'Ecosystem & MCP Hub', icon: Network },
     { id: 'npm-installer', label: 'NPM Engine Installer', icon: Package },
+    { id: 'architecture-integrity', label: 'Architecture Integrity', icon: GitBranch },
     { id: 'freellm', label: 'FreeLLM Router 0.5.0', icon: Network },
     { id: 'toolchain', label: 'Toolchain 400', icon: Wrench },
     { id: 'bughunt', label: 'Bug Hunt & Self-Healing', icon: Bug },
@@ -148,74 +164,110 @@ const App: React.FC = () => {
     { id: 'integrations', label: 'Integrations', icon: Share2 },
     { id: 'database', label: 'Database', icon: Database },
     { id: 'webhooks', label: 'Webhooks', icon: Webhook },
+    { id: 'settings', label: 'Settings & Biometrics', icon: SettingsIcon },
   ];
 
   return (
-    <div className="min-h-screen bg-black text-zinc-200 flex">
-      {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 border-r border-zinc-800 bg-zinc-950 flex flex-col`}>
-        <div className="p-6 flex items-center justify-between">
-          {isSidebarOpen && <span className="text-xl font-bold text-white tracking-tighter">N+1 SYSTEM</span>}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-zinc-900 rounded-lg">
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
+    <div className="min-h-screen bg-black text-zinc-200 flex flex-col">
+      {/* Dynamic Device & Screen Resolution Detection Bar */}
+      <DeviceResolutionBanner />
 
-        <nav className="flex-1 px-4 space-y-2">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${
-                activeTab === item.id 
-                  ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' 
-                  : 'hover:bg-zinc-900 text-zinc-500'
-              }`}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Backdrop Overlay when sidebar is open on small screens */}
+        {isSidebarOpen && (telemetry.deviceType === 'mobile' || telemetry.deviceType === 'phablet') && (
+          <div 
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden"
+          />
+        )}
+
+        {/* Sidebar */}
+        <aside className={`${
+          isSidebarOpen ? 'w-64' : 'w-20'
+        } ${
+          telemetry.deviceType === 'mobile' || telemetry.deviceType === 'phablet'
+            ? 'fixed inset-y-0 left-0 z-50 shadow-2xl'
+            : 'relative'
+        } transition-all duration-300 border-r border-zinc-800 bg-zinc-950 flex flex-col shrink-0`}>
+          <div className="p-4 sm:p-6 flex items-center justify-between">
+            {isSidebarOpen && <span className="text-lg sm:text-xl font-bold text-white tracking-tighter">N+1 SYSTEM</span>}
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              className="p-2.5 hover:bg-zinc-900 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="Toggle Sidebar"
             >
-              <item.icon size={20} />
-              {isSidebarOpen && <span className="font-medium">{item.label}</span>}
-              {item.id === 'trainer' && trainingStatus === 'training' && (
-                <div className="ml-auto w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-              )}
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-          ))}
-        </nav>
+          </div>
 
-        <div className="p-4 border-t border-zinc-900 flex flex-col gap-2">
-          {/* WebSocket Connection Status */}
-          <div className="flex items-center gap-3 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
-            <div className={`p-1.5 rounded-lg ${
-              wsStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-400' :
-              wsStatus === 'connecting' ? 'bg-amber-500/20 text-amber-400' :
-              'bg-red-500/20 text-red-400'
-            }`}>
-              {wsStatus === 'connected' ? <Wifi size={14} /> : 
-               wsStatus === 'connecting' ? <RefreshCw size={14} className="animate-spin" /> : 
-               <WifiOff size={14} />}
-            </div>
-            {isSidebarOpen && (
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-zinc-300">WebSocket</span>
-                <span className={`text-[10px] font-mono uppercase tracking-wider ${
-                  wsStatus === 'connected' ? 'text-emerald-500' :
-                  wsStatus === 'connecting' ? 'text-amber-500' :
-                  'text-red-500'
-                }`}>
-                  {wsStatus} {wsStatus === 'disconnected' && wsRetryCount > 0 ? `(Retry ${wsRetryCount})` : ''}
-                </span>
+          <nav className="flex-1 px-3 sm:px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  if (telemetry.deviceType === 'mobile' || telemetry.deviceType === 'phablet') {
+                    setIsSidebarOpen(false);
+                  }
+                }}
+                className={`w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl transition-all min-h-[44px] ${
+                  activeTab === item.id 
+                    ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/30 font-bold' 
+                    : 'hover:bg-zinc-900 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <item.icon size={20} className="shrink-0" />
+                {isSidebarOpen && <span className="font-medium text-xs sm:text-sm truncate">{item.label}</span>}
+                {item.id === 'trainer' && trainingStatus === 'training' && (
+                  <div className="ml-auto size-2 rounded-full bg-purple-500 animate-pulse shrink-0" />
+                )}
+              </button>
+            ))}
+          </nav>
+
+          <div className="p-3 sm:p-4 border-t border-zinc-900 flex flex-col gap-2">
+            {/* WebSocket Connection Status */}
+            <div className="flex items-center gap-3 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
+              <div className={`p-1.5 rounded-lg ${
+                wsStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-400' :
+                wsStatus === 'connecting' ? 'bg-amber-500/20 text-amber-400' :
+                'bg-red-500/20 text-red-400'
+              }`}>
+                {wsStatus === 'connected' ? <Wifi size={14} /> : 
+                 wsStatus === 'connecting' ? <RefreshCw size={14} className="animate-spin" /> : 
+                 <WifiOff size={14} />}
               </div>
-            )}
+              {isSidebarOpen && (
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-zinc-300">WebSocket</span>
+                  <span className={`text-[10px] font-mono uppercase tracking-wider ${
+                    wsStatus === 'connected' ? 'text-emerald-500' :
+                    wsStatus === 'connecting' ? 'text-amber-500' :
+                    'text-red-500'
+                  }`}>
+                    {wsStatus} {wsStatus === 'disconnected' && wsRetryCount > 0 ? `(Retry ${wsRetryCount})` : ''}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-zinc-950 flex flex-col">
-        {/* Sticky Top Header with Global Search */}
-        <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-8 py-4 flex items-center justify-between gap-4">
-          <div className="flex-1 max-w-3xl">
-            <GlobalSearchBar onSelectResult={(tab) => setActiveTab(tab)} />
-          </div>
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto bg-zinc-950 flex flex-col min-w-0">
+          {/* Sticky Top Header with Global Search */}
+          <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 max-w-3xl">
+              <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 hover:bg-zinc-900 rounded-xl transition-colors md:hidden shrink-0"
+              >
+                <Menu size={20} />
+              </button>
+              <div className="flex-1">
+                <GlobalSearchBar onSelectResult={(tab) => setActiveTab(tab)} />
+              </div>
+            </div>
           <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] text-zinc-500">
             <button
               onClick={() => setActiveTab('npm-installer')}
@@ -629,6 +681,8 @@ const App: React.FC = () => {
                 </div>
               </div>
 
+              <AxiomFidelityMonitor />
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <NeuralNetworkTopology />
                 <AxiomaticCoreActivityGraph />
@@ -651,6 +705,11 @@ const App: React.FC = () => {
           {activeTab === 'voice' && <HiaResonanceVoice onNavigateTab={(tab) => setActiveTab(tab)} />}
           {activeTab === 'ecosystem' && <SystemEcosystemPanel />}
           {activeTab === 'npm-installer' && <N1NpmInstaller />}
+          {activeTab === 'architecture-integrity' && (
+            <ArchitectureIntegrityDashboard
+              onSendToBugHunt={() => setActiveTab('bughunt')}
+            />
+          )}
           {activeTab === 'freellm' && <FreeLLMRouterService />}
           {activeTab === 'toolchain' && <SelfAwareToolchain />}
           {activeTab === 'bughunt' && <SystemBugHunt />}
@@ -662,6 +721,7 @@ const App: React.FC = () => {
           {activeTab === 'skills' && <SkillUpload />}
           {activeTab === 'integrations' && <Integrations />}
           {activeTab === 'webhooks' && <WebhookManagement />}
+          {activeTab === 'settings' && <SettingsWorkspace />}
           
           {activeTab === 'database' && (
             <div className="flex flex-col items-center justify-center h-[60vh] text-zinc-600">
@@ -671,6 +731,7 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+      </div>
       <AgentCommandCenter />
       <FloatingDebugOverlay />
     </div>

@@ -49,7 +49,7 @@ export const CloudImport: React.FC = () => {
           clearInterval(interval);
           setIsStreaming(false);
           const newLog: CloudImportLog = {
-            id: `log_${Date.now()}`,
+            id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             timestamp: new Date().toLocaleTimeString(),
             fileName: selectedFile.name,
             fileSize: '4.8 MB',
@@ -212,8 +212,8 @@ export const CloudImport: React.FC = () => {
             </div>
 
             <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-              {importLogs.map((log) => (
-                <div key={log.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2">
+              {importLogs.map((log, idx) => (
+                <div key={`${log.id}-${idx}`} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-white flex items-center gap-2">
                       <FileText size={16} className="text-indigo-400" />

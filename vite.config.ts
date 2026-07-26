@@ -18,6 +18,24 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        target: 'es2022',
+        minify: 'esbuild',
+        sourcemap: true,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+              'vendor-ui': ['lucide-react', 'motion', 'framer-motion'],
+              'vendor-data': ['d3', 'recharts']
+            }
+          }
+        }
+      },
+      optimizeDeps: {
+        include: ['react', 'react-dom', 'lucide-react', 'framer-motion', 'd3', 'recharts']
       }
     };
 });
+

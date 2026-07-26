@@ -13,9 +13,23 @@
     <style>
         :root {
             --safe-area-inset-bottom: env(safe-area-inset-bottom);
+            --screen-w: 1280px;
+            --screen-h: 800px;
+            --device-dpr: 1;
+            --fluid-base-font-size: clamp(12px, 1vw + 8px, 16px);
+            --fluid-line-height: 1.5;
+            --touch-min-target: 44px;
+            --card-padding-fluid: 16px;
+            --ui-gap-fluid: 12px;
+        }
+        html {
+            font-size: var(--fluid-base-font-size);
+            line-height: var(--fluid-line-height);
         }
         body {
             font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            line-height: var(--fluid-line-height);
             background-color: #020617;
             color: #f8fafc;
             overflow: hidden;
@@ -48,14 +62,15 @@
             pointer-events: none;
             z-index: 50;
         }
-        /* Optimized for Touch */
-        button, a, .clickable {
+        /* Touch & Fluid Target Ergonomics */
+        button, a, input, select, textarea, .clickable {
             touch-action: manipulation;
-            min-height: 44px;
+            min-height: var(--touch-min-target, 44px);
         }
         /* Custom scrollbar for mobile */
         ::-webkit-scrollbar {
           width: 4px;
+          height: 4px;
         }
         ::-webkit-scrollbar-track {
           background: #020617;

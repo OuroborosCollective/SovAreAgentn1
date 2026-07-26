@@ -12,13 +12,12 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "n1:dev": "tsx server.ts",
+    "n1:start": "node dist/server.cjs",
+    "n1:bug-run": "node bin/install.js --diagnostics"
   },
   "dependencies": {
-    "@google/genai": "^1.41.0",
-    "@types/archiver": "^8.0.0",
-    "@types/cookie-parser": "^1.4.10",
-    "@types/d3": "^7.4.3",
     "archiver": "^8.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -41,7 +40,11 @@
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@google/genai": "^1.41.0",
+    "@types/archiver": "^8.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
+    "@types/d3": "^7.4.3",
     "@types/express": "^5.0.6",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^22.19.11",

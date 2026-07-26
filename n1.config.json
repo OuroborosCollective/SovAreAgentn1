@@ -1,0 +1,28 @@
+{
+  "package": "n-plus-1",
+  "version": "0.0.0",
+  "engine": "tsx",
+  "installedAt": "2026-07-26T22:44:43.807Z",
+  "architecture": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpuCores": 2,
+    "memoryGB": "4.00",
+    "nodeVersion": "v22.23.1",
+    "packageManager": "npm"
+  },
+  "autoDocking": {
+    "enabled": true,
+    "systemAwareness": "FULL_SYSTEM_WIDE",
+    "autoPatchRun": "ENABLED",
+    "sqlSchemaAutoDetection": "ENABLED",
+    "driveSyncIntegration": "ENABLED"
+  },
+  "kellerRoutes": [
+    "keller-01",
+    "keller-02",
+    "keller-03"
+  ],
+  "adeStatus": "ENABLED",
+  "autonomyLevel": "MAXIMUM_AWARENESS"
+}
