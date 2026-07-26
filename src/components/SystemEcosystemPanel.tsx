@@ -24,13 +24,14 @@ import {
   Layers,
   Zap,
   Play,
-  Share2
+  Share2,
+  FileArchive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const SystemEcosystemPanel: React.FC = () => {
   // Active sub-tab
-  const [activeSection, setActiveSection] = useState<'github' | 'docker' | 'voice' | 'neuronodes' | 'vector' | 'self-tool' | 'kappapos'>('github');
+  const [activeSection, setActiveSection] = useState<'github' | 'docker' | 'voice' | 'neuronodes' | 'vector' | 'self-tool' | 'kappapos' | 'partnership'>('github');
 
   // GitHub Admin State
   const [githubToken, setGithubToken] = useState<string>(() => localStorage.getItem('n1_github_token') || '');
@@ -224,7 +225,8 @@ export const SystemEcosystemPanel: React.FC = () => {
             { id: 'neuronodes', label: 'Neuronodes', icon: Brain },
             { id: 'vector', label: 'Milvus & PGVector', icon: Database },
             { id: 'self-tool', label: 'Self-Tool Generator', icon: Wrench },
-            { id: 'kappapos', label: 'Evidence (kappapos)', icon: ShieldCheck }
+            { id: 'kappapos', label: 'Evidence (kappapos)', icon: ShieldCheck },
+            { id: 'partnership', label: 'Dev Partnership', icon: Share2 }
           ].map(tab => (
             <button
               key={tab.id}
@@ -479,6 +481,45 @@ export const SystemEcosystemPanel: React.FC = () => {
                 <span>{isPlayingResonance ? 'Synthesizing Audio...' : 'Synthesize Voice Resonance'}</span>
               </button>
             </div>
+
+            {/* Cultural Heritage Player */}
+            <div className="mt-8 border-t border-zinc-800 pt-6 space-y-4">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Mic size={16} className="text-amber-500" />
+                <span>Cultural Heritage Player (1890-1998)</span>
+              </div>
+              <p className="text-xs text-zinc-400">
+                MIDI-synthesized playback of traditional German Volkslieder logic constraints.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { title: "Hänschen klein", author: "Franz Wiedemann (1890)", notes: "G E E, F D D, C D E F G G G", year: "1890" },
+                  { title: "Alle Vögel sind schon da", author: "Hoffmann von Fallersleben (1835)", notes: "C E G G, A A G, F F E E, D D C", year: "1835 (Pre-1890 Cultural Root)" },
+                  { title: "Die Gedanken sind frei", author: "Traditional", notes: "C F F A G F E...", year: "c. 1840-1998" }
+                ].map((song, idx) => (
+                  <div key={idx} className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl space-y-3 group hover:border-amber-900/50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="text-sm font-bold text-white">{song.title}</div>
+                        <div className="text-[10px] text-zinc-500">{song.author} • {song.year}</div>
+                      </div>
+                      <button 
+                        onClick={() => alert(`Synthesizing MIDI logic sequence for: ${song.title}\nNotes: ${song.notes}`)}
+                        className="p-2 bg-amber-950/30 text-amber-500 hover:bg-amber-900/50 rounded-lg transition-colors border border-amber-900/30"
+                      >
+                        <Play size={14} />
+                      </button>
+                    </div>
+                    <div className="bg-black p-2 rounded-lg border border-zinc-800">
+                      <span className="font-mono text-[10px] text-amber-400 tracking-wider">
+                        {song.notes}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -553,10 +594,22 @@ export const SystemEcosystemPanel: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 text-xs font-mono text-zinc-400 pt-6">
-                <span>Metric: <strong className="text-white">{metricType}</strong></span>
-                <span>Dim: <strong className="text-white">{vectorDim}d</strong></span>
-                <span>Index: <strong className="text-emerald-400">HNSW + PGVector</strong></span>
+              <div className="flex justify-between items-center text-xs font-mono text-zinc-400 pt-6">
+                <div className="flex items-center gap-4">
+                  <span>Metric: <strong className="text-white">{metricType}</strong></span>
+                  <span>Dim: <strong className="text-white">{vectorDim}d</strong></span>
+                  <span>Index: <strong className="text-emerald-400">HNSW + PGVector</strong></span>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    alert('Generating System Snapshot ZIP...\n\nPackaging Milvus weights, active agent configuration, and PGVector schema for offline research.');
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg transition-colors"
+                >
+                  <FileArchive size={14} />
+                  <span>Snapshot State (.zip)</span>
+                </button>
               </div>
             </div>
 
@@ -654,6 +707,48 @@ export const SystemEcosystemPanel: React.FC = () => {
                 </pre>
               </div>
             )}
+          </div>
+        </section>
+      )}
+      {/* SUB-SECTION 8: DEV PARTNERSHIP */}
+      {activeSection === 'partnership' && (
+        <section className="space-y-6 animate-fadeIn">
+          <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white font-bold text-base">
+                <Share2 size={20} className="text-indigo-400" />
+                <span>Developer Partnership Portal</span>
+              </div>
+              <span className="text-xs font-mono text-indigo-400 bg-indigo-950/60 border border-indigo-800 px-2.5 py-1 rounded-full">
+                SECURE EXPORT
+              </span>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Generate a secure connection string to export your current system configuration and API integrations to external partner apps.
+            </p>
+
+            <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-3">
+              <span className="text-xs font-bold text-white block">Generate Connection String</span>
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  onClick={() => {
+                    const cfg = {
+                      system_version: 'v4.8.3',
+                      timestamp: new Date().toISOString(),
+                      export_signature: 'sig-' + Math.random().toString(36).substr(2, 9),
+                      integrations: JSON.parse(localStorage.getItem('axiom_integrations') || '[]')
+                    };
+                    const encoded = btoa(JSON.stringify(cfg));
+                    alert(`Your Secure Connection String:\n\nn1-partner://${encoded}\n\n[Copy this string to your partner app to synchronize configurations]`);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shrink-0 transition-all"
+                >
+                  <Share2 size={14} />
+                  <span>Generate Connection String</span>
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       )}

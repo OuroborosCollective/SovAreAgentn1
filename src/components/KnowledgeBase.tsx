@@ -28,11 +28,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { TECHNOLOGY_LEXIKON } from '../data/technologyLexikon';
+
 export interface KnowledgePattern {
   id: string;
   name: string;
-  source: 'Replit Agent' | 'Manus Agent' | 'N+1 Axiomatic' | 'MCP Toolchain' | 'TypeScript 5+ & ES' | 'React Native & Mobile' | 'Node & Dev Tools';
-  category: 'Coding Engine' | 'Terminal & Process' | 'Self-Healing' | 'Autonomous Web' | 'Full-Stack Architecture' | 'Logic' | 'TypeScript 5.x+' | 'React Native / Mobile' | 'Modern JS & ES2024' | 'Node.js & npm Scripts' | 'Dev Tooling Templates';
+  source: 'Replit Agent' | 'Manus Agent' | 'N+1 Axiomatic' | 'MCP Toolchain' | 'TypeScript 5+ & ES' | 'React Native & Mobile' | 'Node & Dev Tools' | 'Technology Lexikon' | string;
+  category: 'Coding Engine' | 'Terminal & Process' | 'Self-Healing' | 'Autonomous Web' | 'Full-Stack Architecture' | 'Logic' | 'TypeScript 5.x+' | 'React Native / Mobile' | 'Modern JS & ES2024' | 'Node.js & npm Scripts' | 'Dev Tooling Templates' | string;
   description: string;
   patternContent: string;
   impact: string;
@@ -354,7 +356,7 @@ export default tseslint.config(
 ];
 
 export const KnowledgeBase: React.FC = () => {
-  const [patterns, setPatterns] = useState<KnowledgePattern[]>(INITIAL_PATTERNS);
+  const [patterns, setPatterns] = useState<KnowledgePattern[]>([...INITIAL_PATTERNS, ...(TECHNOLOGY_LEXIKON as KnowledgePattern[])]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -369,7 +371,8 @@ export const KnowledgeBase: React.FC = () => {
     'N+1 Axiomatic', 
     'TypeScript 5+ & ES', 
     'React Native & Mobile', 
-    'Node & Dev Tools'
+    'Node & Dev Tools',
+    'Technology Lexikon'
   ];
 
   const categories = [

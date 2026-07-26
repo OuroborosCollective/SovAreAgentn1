@@ -104,12 +104,42 @@ export const NeuralNetworkTopology: React.FC = () => {
         .attr('stroke-opacity', 0.4)
         .attr('stroke-width', 1.5);
 
+      let hoveredNodeId: string | null = null;
+      let connectedNodeIds = new Set<string>();
+
+      const updateHoverStates = () => {
+        if (!hoveredNodeId) {
+          node.transition().duration(200).style('opacity', d => 0.4 + ((d.z || 0) + 100) / 200);
+          link.transition().duration(200).style('stroke-opacity', 0.4).attr('stroke-width', 1.5);
+        } else {
+          node.transition().duration(200).style('opacity', d => connectedNodeIds.has(d.id) ? 1 : 0.1);
+          link.transition().duration(200)
+            .style('stroke-opacity', d => ((d.source as Node).id === hoveredNodeId || (d.target as Node).id === hoveredNodeId) ? 0.8 : 0.05)
+            .attr('stroke-width', d => ((d.source as Node).id === hoveredNodeId || (d.target as Node).id === hoveredNodeId) ? 3 : 1.5);
+        }
+      };
+
       const node = g.append('g')
         .selectAll('g')
         .data(nodes)
         .enter().append('g')
         .style('cursor', 'pointer')
         .on('click', (e, d) => setSelectedNode(d))
+        .on('mouseenter', (e, d) => {
+          hoveredNodeId = d.id;
+          connectedNodeIds.clear();
+          connectedNodeIds.add(d.id);
+          links.forEach(l => {
+            if ((l.source as Node).id === d.id) connectedNodeIds.add((l.target as Node).id);
+            if ((l.target as Node).id === d.id) connectedNodeIds.add((l.source as Node).id);
+          });
+          updateHoverStates();
+        })
+        .on('mouseleave', () => {
+          hoveredNodeId = null;
+          connectedNodeIds.clear();
+          updateHoverStates();
+        })
         .call(d3.drag<SVGGElement, Node>()
           .on('start', dragstarted)
           .on('drag', dragged)
@@ -164,7 +194,10 @@ export const NeuralNetworkTopology: React.FC = () => {
 
         node
           .attr('transform', d => `translate(${d.x},${d.y})`)
-          .style('opacity', d => 0.4 + ((d.z || 0) + 100) / 200);
+          .style('opacity', d => {
+            if (hoveredNodeId) return connectedNodeIds.has(d.id) ? 1 : 0.1;
+            return 0.4 + ((d.z || 0) + 100) / 200;
+          });
           
         // Adjust scale based on simulated depth
         node.selectAll('circle').attr('r', (d: any) => 8 + (d.z || 0) / 40);

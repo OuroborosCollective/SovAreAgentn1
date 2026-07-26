@@ -21,3 +21,9 @@ export interface SystemMetrics {
   entropyLevel: number;
   aiInternStatus: 'ACTIVE' | 'IDLE' | 'HEALING';
 }
+
+declare global {
+  interface Window {
+    aistudio?: any;
+  }
+}

@@ -100,12 +100,29 @@ export const AgentHealthMonitor: React.FC = () => {
       });
 
       // Subtle random fluctuation in nodes
-      setNodes(prev => prev.map(node => ({
-        ...node,
-        latencyMs: Number((node.latencyMs + (Math.random() * 0.4 - 0.2)).toFixed(1)),
-        throughputReqSec: Math.max(100, Math.floor(node.throughputReqSec + (Math.random() * 20 - 10))),
-        memoryMb: Math.max(100, Math.floor(node.memoryMb + (Math.random() * 6 - 3)))
-      })));
+      setNodes(prev => prev.map(node => {
+        const newLatency = Number((node.latencyMs + (Math.random() * 0.4 - 0.2)).toFixed(1));
+        const newThroughput = Math.max(100, Math.floor(node.throughputReqSec + (Math.random() * 20 - 10)));
+        const newMemory = Math.max(100, Math.floor(node.memoryMb + (Math.random() * 6 - 3)));
+        
+        let newStatus = node.status;
+        if (newLatency > 6.0 && node.status !== 'warning') {
+           newStatus = 'warning';
+           if ('vibrate' in navigator) {
+             navigator.vibrate([100, 50, 100]); // Short double burst for warning
+           }
+        } else if (newLatency <= 6.0 && node.status === 'warning') {
+           newStatus = 'optimal';
+        }
+
+        return {
+          ...node,
+          latencyMs: newLatency,
+          throughputReqSec: newThroughput,
+          memoryMb: newMemory,
+          status: newStatus
+        };
+      }));
     }, 3000);
 
     return () => clearInterval(interval);
@@ -197,6 +214,35 @@ export const AgentHealthMonitor: React.FC = () => {
           >
             <Radio size={14} className={isAutoRefreshing ? 'animate-pulse text-emerald-400' : ''} />
             <span>{isAutoRefreshing ? 'Live Stream Active' : 'Stream Paused'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const report = {
+                timestamp: new Date().toISOString(),
+                nodes: nodes,
+                metrics: {
+                  totalThroughput,
+                  avgLatency,
+                  totalMemory,
+                  avgDrift
+                },
+                timeSeries: timeSeriesData
+              };
+              const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `n1-agent-health-report-${new Date().toISOString()}.json`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+            className="px-4 py-2 bg-indigo-900/40 hover:bg-indigo-800/60 border border-indigo-700/50 text-indigo-300 font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-900/20"
+          >
+            <HardDrive size={14} />
+            <span>Export JSON Report</span>
           </button>
 
           <button
