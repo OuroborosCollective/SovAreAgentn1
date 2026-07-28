@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.local
+.cache
+ssl/*.pem
+*.log
+n-plus-one-migration-export.zip
+n-plus-one-migration-export
+.DS_Store

@@ -217,7 +217,7 @@ export const generate400Tools = (): ToolDefinition[] => {
       endpoint: `/api/toolchain/execute/${toolId}`,
       method: 'POST',
       parameters: ['target_scope', 'auto_apply', 'log_level'],
-      executionTimeMs: Math.floor(generateDeterministicNumber(12, 92, performance.now())),
+      executionTimeMs: Math.floor(generateDeterministicNumber(12, 92)),
       tags: [group.cat.toLowerCase().replace(/\s+/g, '-'), 'self-aware', 'v3-engine', 'auto-repair'],
       autoRepairable: true
     });

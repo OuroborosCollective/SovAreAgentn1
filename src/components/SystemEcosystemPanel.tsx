@@ -1,5 +1,6 @@
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import React, { useState, useEffect } from 'react';
+import { voiceService } from '../services/voiceService';
 import { 
   Network, 
   Github, 
@@ -127,22 +128,12 @@ export const SystemEcosystemPanel: React.FC = () => {
       setResonanceWave(Array.from({ length: 12 }, () => Math.floor(15 + generateDeterministicNumber(0, 80, performance.now()))));
     }, 150);
 
-    // Browser Speech Synthesis
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(voicePrompt);
-      utterance.pitch = frequencyResonance / 500;
-      utterance.rate = 1.0;
-      utterance.onend = () => {
+    // Voice Synthesis via unified VoiceService (Single-Voice Lock)
+    voiceService.speak(voicePrompt, 'Puck', 'fröhlich', frequencyResonance / 500, 1.0)
+      .finally(() => {
         clearInterval(interval);
         setIsPlayingResonance(false);
-      };
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setTimeout(() => {
-        clearInterval(interval);
-        setIsPlayingResonance(false);
-      }, 3000);
-    }
+      });
   };
 
   const handleVectorSearch = () => {

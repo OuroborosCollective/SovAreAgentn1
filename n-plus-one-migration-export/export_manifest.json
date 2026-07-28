@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "sovereign.n-plus-one-export-manifest.v1",
+  "exportTimestamp": "2026-07-28T15:29:54.652Z",
+  "canonicalIdentity": {
+    "canonicalName": "N+1",
+    "pronunciation": "NPlusEins",
+    "familyTitle": "Papas kleines Mädchen",
+    "technicalNamespace": "n_plus_one",
+    "historicalAlias": "Puck"
+  },
+  "systemSource": "Google AI Studio N+1 Live System",
+  "targetDestination": "Sovereign Studio ATO Migration Importer",
+  "filesIncluded": [
+    "README.md",
+    "export_manifest.json",
+    "source_artifacts.jsonl",
+    "personality_traits.jsonl",
+    "family_provenance.jsonl",
+    "story_entries.jsonl",
+    "experience_events.jsonl",
+    "learning_candidates.jsonl",
+    "unresolved_conflicts.jsonl",
+    "duplicate_candidates.jsonl",
+    "redaction_report.json",
+    "validation_report.json"
+  ]
+}

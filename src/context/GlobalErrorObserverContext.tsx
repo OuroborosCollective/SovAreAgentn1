@@ -58,7 +58,7 @@ export const GlobalErrorObserverProvider: React.FC<{ children: ReactNode }> = ({
     const unsubscribe = systemErrorBus.subscribe((detail: SystemErrorEventDetail) => {
       setActiveErrorsCount(prev => prev + 1);
 
-      const patchId = `patch_${(1722000000000 + Math.floor(performance.now()))}_${Math.floor(generateDeterministicNumber(0, 1000, performance.now()))}`;
+      const patchId = generateDeterministicId('patch');
       const ruleApplied = detail.ruleApplied || 'Family Rule #2: Optional Chaining & Null-Coalescing Guard';
       const astFixApplied = detail.astFixApplied || 'Injected defensive null-coalescing guard and optional chaining on target reference';
 
@@ -77,7 +77,7 @@ export const GlobalErrorObserverProvider: React.FC<{ children: ReactNode }> = ({
       // Automated Patch Verification Loop (runs after 800ms)
       setTimeout(() => {
         // Simulate re-running SystemBugHunt diagnostic check
-        const diagnosticSuccess = generateDeterministicNumber(0, 1, performance.now()) > 0.05; // 95% success rate for self-healing
+        const diagnosticSuccess = generateDeterministicNumber(0, 1) > 0.05; // 95% success rate for self-healing
 
         setRecentPatches(prev => prev.map(patch => {
           if (patch.id === patchId) {

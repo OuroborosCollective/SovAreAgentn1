@@ -1,0 +1,45 @@
+name: n1-system
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: n1_system_app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - DB_URI=${DB_URI:-postgres://n1_user:n1_password@db:5432/n1_db}
+      - DB_SSL=false
+      - N1_SYNC_TOKEN=${N1_SYNC_TOKEN:-}
+      - N1_OAUTH_ID=${N1_OAUTH_ID:-}
+      - N1_OAUTH_SECRET=${N1_OAUTH_SECRET:-}
+      - MEMCACHED_ENDPOINT=${MEMCACHED_ENDPOINT:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: n1_system_db
+    environment:
+      POSTGRES_DB: n1_db
+      POSTGRES_USER: n1_user
+      POSTGRES_PASSWORD: n1_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n1_user -d n1_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:

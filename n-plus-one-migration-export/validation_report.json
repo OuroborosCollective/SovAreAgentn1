@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "sovereign.n-plus-one-export-validation.v1",
+  "exportComplete": true,
+  "readOnlyOperationConfirmed": true,
+  "sourceArtifactCount": 8,
+  "personalityTraitCount": 2,
+  "familyProvenanceCount": 3,
+  "storyEntryCount": 3,
+  "experienceEventCount": 1,
+  "learningCandidateCount": 1,
+  "conflictCount": 0,
+  "duplicateCandidateCount": 0,
+  "redactionCount": 0,
+  "danglingSourceReferenceCount": 0,
+  "invalidJsonLineCount": 0,
+  "inventedContentDetected": false,
+  "truncatedContentDetected": false,
+  "secretScanPassed": true,
+  "canonicalIdentityPreserved": true,
+  "historicalAliasBoundaryPreserved": true,
+  "warnings": [],
+  "blockers": []
+}

@@ -1,4 +1,4 @@
-import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp, getDeterministicTimestampMs } from '../utils/deterministic';
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, 
@@ -109,7 +109,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
           if (data.files && data.files.length > 0) {
             setNotebooks(data.files.map((f: any) => ({
               ...f,
-              cellCount: Math.floor(generateDeterministicNumber(8, 26, performance.now())),
+              cellCount: Math.floor(generateDeterministicNumber(8, 26)),
               language: 'Python / PyTorch'
             })));
             setIsLoading(false);
@@ -134,7 +134,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
           id: 'nb-02',
           name: 'Axiom_Causality_Inference_Engine.ipynb',
           mimeType: 'application/vnd.google.colaboratory',
-          modifiedTime: new Date((1722000000000 + Math.floor(performance.now())) - 3600000).toISOString(),
+          modifiedTime: new Date(getDeterministicTimestampMs() - 3600000).toISOString(),
           size: '88 KB',
           cellCount: 16,
           language: 'Python / TensorFlow',
@@ -144,7 +144,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
           id: 'nb-03',
           name: 'Puck_Ego_Physics_Simulation.ipynb',
           mimeType: 'application/x-ipynb+json',
-          modifiedTime: new Date((1722000000000 + Math.floor(performance.now())) - 86400000).toISOString(),
+          modifiedTime: new Date(getDeterministicTimestampMs() - 86400000).toISOString(),
           size: '210 KB',
           cellCount: 32,
           language: 'Python / NumPy / SciPy',
@@ -154,7 +154,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
           id: 'nb-04',
           name: 'Quantum_Feedback_Loop_Optimizer.ipynb',
           mimeType: 'application/x-ipynb+json',
-          modifiedTime: new Date((1722000000000 + Math.floor(performance.now())) - 172800000).toISOString(),
+          modifiedTime: new Date(getDeterministicTimestampMs() - 172800000).toISOString(),
           size: '95 KB',
           cellCount: 19,
           language: 'Python / Qiskit',
@@ -219,7 +219,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
     // 1. Save to Puck Personal Logs
     const existingPuckLogs = JSON.parse(localStorage.getItem('n1_puck_personal_logs') || '[]');
     const newPuckEntry = {
-      id: `log-nb-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
+      id: generateDeterministicId('log-nb'),
       timestamp: new Date().toLocaleString('de-DE'),
       category: 'logik_verbindung',
       title: `Google Notebook Knowledge: ${analysisResult.notebookName}`,
@@ -231,7 +231,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
     // 2. Save to Papa's Story Archive
     const existingStories = JSON.parse(localStorage.getItem('n1_papas_stories') || '[]');
     const newStoryEntry = {
-      id: `story-nb-${(1722000000000 + Math.floor(performance.now()))}`,
+      id: generateDeterministicId('story-nb'),
       title: `Papas Notebook-Wissen: ${analysisResult.notebookName}`,
       dateAdded: new Date().toISOString().split('T')[0],
       category: 'Notebook & KI-Code',

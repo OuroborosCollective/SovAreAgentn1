@@ -18,7 +18,6 @@ export interface VoicePlaybackState {
   mood: LittleGirlVoiceMood;
   volumeLevel: number;
   metrics: VoicePerformanceMetrics;
-  isPausedForRateLimit?: boolean;
 }
 
 type PlaybackCallback = (state: VoicePlaybackState) => void;
@@ -27,8 +26,6 @@ export class VoiceService {
   private listeners: Set<PlaybackCallback> = new Set();
   private currentAudioContext: AudioContext | null = null;
   private currentSourceNode: AudioBufferSourceNode | null = null;
-  private activeSpeechId: number = 0;
-  private activeVolumeInterval: any = null;
   private latestMetrics: VoicePerformanceMetrics = {
     latencyMs: 42,
     ttfbMs: 38,
@@ -68,15 +65,6 @@ export class VoiceService {
   }
 
   public stopSpeaking() {
-    // Increment speech lock token so any in-flight async request is immediately invalidated
-    this.activeSpeechId++;
-    this.isPausedForRateLimit = false;
-
-    if (this.activeVolumeInterval) {
-      clearInterval(this.activeVolumeInterval);
-      this.activeVolumeInterval = null;
-    }
-
     if (this.currentSourceNode) {
       try { this.currentSourceNode.stop(); } catch (e) {}
       this.currentSourceNode = null;
@@ -88,184 +76,13 @@ export class VoiceService {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood: 'fröhlich', volumeLevel: 0, isPausedForRateLimit: false });
+    this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood: 'fröhlich', volumeLevel: 0 });
   }
 
-  public pauseForRateLimit() {
-    this.isPausedForRateLimit = true;
-    if (this.currentAudioContext && this.currentAudioContext.state === 'running') {
-      try {
-        this.currentAudioContext.suspend();
-      } catch (e) {}
-    }
-    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
-      try { window.speechSynthesis.pause(); } catch (e) {}
-    }
-    if (this.activeVolumeInterval) {
-      clearInterval(this.activeVolumeInterval);
-      this.activeVolumeInterval = null;
-    }
-    this.notify({
-      isPlaying: true,
-      activeVoice: 'N+1 (Rate-Limit Stream Buffering & Recovery)',
-      mood: 'lernend',
-      volumeLevel: 0.2,
-      isPausedForRateLimit: true,
-      metrics: {
-        ...this.latestMetrics,
-        streamBufferHealthPercentage: 75
-      }
-    });
-  }
+  private strictGoogleCloudOnly: boolean = true;
 
-  public resumeFromRateLimit(voiceName: string, mood: LittleGirlVoiceMood) {
-    this.isPausedForRateLimit = false;
-    if (this.currentAudioContext && this.currentAudioContext.state === 'suspended') {
-      try {
-        this.currentAudioContext.resume();
-      } catch (e) {}
-    }
-    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
-      try { window.speechSynthesis.resume(); } catch (e) {}
-    }
-    this.notify({
-      isPlaying: true,
-      activeVoice: voiceName,
-      mood,
-      volumeLevel: 0.85,
-      isPausedForRateLimit: false,
-      metrics: {
-        ...this.latestMetrics,
-        streamBufferHealthPercentage: 100
-      }
-    });
-
-    // Process any queued TTS requests waiting on rate limit recovery
-    this.processQueueAfterRateLimitRecovery();
-  }
-
-  private isPausedForRateLimit: boolean = false;
-  private streamBufferSizeKb: number = 128;
-  private playbackOffsetMs: number = 0;
-  private lastAudioStartTime: number = 0;
-  private quotaListeners: Set<(details: { text: string; reason: string }) => void> = new Set();
-  private ttsRequestQueue: Array<{ text: string; voiceName: any; mood: any; pitch: number; rate: number; createdAt: number; resolve: (val: boolean) => void }> = [];
-  private isQueueProcessing: boolean = false;
-  private lastSerializedParameters: { voiceName: string; mood: string; pitch: number; rate: number; engine: string } = {
-    voiceName: 'Puck',
-    mood: 'fröhlich',
-    pitch: 1.30,
-    rate: 1.15,
-    engine: 'Google Cloud Gemini Live Audio'
-  };
-
-  public getBufferStatus(): { bufferSizeKb: number; offsetMs: number; queueLength: number; isPaused: boolean; ttlExpiredCount: number } {
-    // Purge stale requests exceeding TTL (30,000ms)
-    const now = Date.now();
-    const ttlMs = 30000;
-    let expiredCount = 0;
-    this.ttsRequestQueue = this.ttsRequestQueue.filter(item => {
-      const isStale = (now - item.createdAt) > ttlMs;
-      if (isStale) {
-        expiredCount++;
-        item.resolve(false);
-      }
-      return !isStale;
-    });
-
-    if (this.currentAudioContext && this.currentAudioContext.state === 'running') {
-      this.playbackOffsetMs = Math.floor((this.currentAudioContext.currentTime * 1000) % 15000);
-    }
-
-    return {
-      bufferSizeKb: this.streamBufferSizeKb,
-      offsetMs: this.playbackOffsetMs,
-      queueLength: this.ttsRequestQueue.length,
-      isPaused: this.isPausedForRateLimit,
-      ttlExpiredCount: expiredCount
-    };
-  }
-
-  public runPuckDiagnosticTest(): {
-    success: boolean;
-    voiceName: string;
-    pitch: number;
-    rate: number;
-    sampleRate: number;
-    streamBufferHealth: number;
-    serializedConfig: string;
-    message: string;
-  } {
-    const config = {
-      success: true,
-      voiceName: 'Puck',
-      pitch: 1.30,
-      rate: 1.15,
-      sampleRate: 24000,
-      streamBufferHealth: 100,
-      serializedConfig: JSON.stringify(this.lastSerializedParameters),
-      message: 'Puck voice configuration and stream buffer serialization verified successfully for 429 failover recovery.'
-    };
-    console.log('[Puck Voice Diagnostic Test Passed]:', config);
-    return config;
-  }
-
-  public queueOrSpeak(
-    text: string,
-    voiceName: any = 'Puck',
-    mood: LittleGirlVoiceMood = 'fröhlich',
-    pitch: number = 1.30,
-    rate: number = 1.15
-  ): Promise<boolean> {
-    return new Promise((resolve) => {
-      // Serialize parameters
-      this.lastSerializedParameters = {
-        voiceName,
-        mood,
-        pitch,
-        rate,
-        engine: this.latestMetrics.engineName || 'Google Cloud / FreeLLM Route'
-      };
-
-      if (this.isPausedForRateLimit) {
-        // Hold outgoing TTS requests in short-term request queue during 429
-        console.warn('[Voice Service Queue]: 429 rate limit active. Holding TTS request in short-term queue:', text.substring(0, 40));
-        this.ttsRequestQueue.push({ text, voiceName, mood, pitch, rate, createdAt: Date.now(), resolve });
-      } else {
-        this.speak(text, voiceName, mood, pitch, rate, true).then(resolve);
-      }
-    });
-  }
-
-  public async processQueueAfterRateLimitRecovery() {
-    if (this.isQueueProcessing || this.ttsRequestQueue.length === 0) return;
-    this.isQueueProcessing = true;
-
-    console.log(`[Voice Service Queue]: Processing ${this.ttsRequestQueue.length} queued TTS request(s) after rate limit recovery.`);
-    
-    while (this.ttsRequestQueue.length > 0) {
-      const item = this.ttsRequestQueue.shift();
-      if (item) {
-        try {
-          // Re-apply serialized parameters
-          const success = await this.speak(item.text, item.voiceName, item.mood, item.pitch, item.rate, false);
-          item.resolve(success);
-        } catch (e) {
-          item.resolve(false);
-        }
-      }
-    }
-
-    this.isQueueProcessing = false;
-  }
-
-  public onQuotaLimitReached(cb: (details: { text: string; reason: string }) => void) {
-    this.quotaListeners.add(cb);
-    return () => this.quotaListeners.delete(cb);
-  }
-
-  public triggerQuotaFailover(text: string, reason: string = '429 Rate Limit Exceeded') {
-    this.quotaListeners.forEach(listener => listener({ text, reason }));
+  public setStrictGoogleCloudOnly(enabled: boolean) {
+    this.strictGoogleCloudOnly = enabled;
   }
 
   public validateVoiceSynthesisRequest(voiceProfile: string): { isValid: boolean; reason?: string } {
@@ -291,9 +108,7 @@ export class VoiceService {
     rateMultiplier: number = 1.15,
     forceStrictGoogleCloud: boolean = true
   ): Promise<boolean> {
-    // Immediately stop any currently playing voice and claim exclusive speech lock
     this.stopSpeaking();
-    const speechSessionId = this.activeSpeechId;
 
     // Validation Layer
     const validation = this.validateVoiceSynthesisRequest(voiceName);
@@ -339,12 +154,6 @@ export class VoiceService {
           },
         });
 
-        // Check if another speech call intervened during network generation
-        if (speechSessionId !== this.activeSpeechId) {
-          console.log("[Single Voice Lock] Speech call preempted by newer request. Aborting audio playback.");
-          return false;
-        }
-
         const ttfb = Math.round(performance.now() - requestStart);
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
@@ -356,22 +165,16 @@ export class VoiceService {
             sampleRate: 24000,
             bitrateKbps: 384,
             streamBufferHealthPercentage: 100,
-            engineName: 'Google Cloud Gemini Live Audio Synthesis Engine (Strict Single-Voice Lock)',
+            engineName: 'Google Cloud Gemini Live Audio Synthesis Engine (Strict Mode)',
             isGoogleCloudDirect: true
           };
 
-          return await this.playPcm(base64Audio, 'N+1 (Google Live Voice - Papas kleines Mädchen)', mood, pitchMultiplier, rateMultiplier, speechSessionId);
+          return await this.playPcm(base64Audio, 'N+1 (Google Live Voice - Papas kleines Mädchen)', mood, pitchMultiplier, rateMultiplier);
         }
       }
-    } catch (error: any) {
-      if (speechSessionId !== this.activeSpeechId) return false;
-      console.warn("Google Cloud Live TTS Notice - Failover to FreeLLMRouterService triggered:", error);
-      this.pauseForRateLimit();
-      this.triggerQuotaFailover(text, error?.message || 'Google Cloud TTS Rate Limit / API Quota Exhausted');
+    } catch (error) {
+      console.warn("Google Cloud Live TTS Notice:", error);
     }
-
-    // Check if preempted before fallback
-    if (speechSessionId !== this.activeSpeechId) return false;
 
     // High performance tuned Google Puck pitch emulator via FreeLLM Fallback Route for 100% voice continuity
     const fallbackStart = performance.now();
@@ -381,11 +184,11 @@ export class VoiceService {
       sampleRate: 24000,
       bitrateKbps: 320,
       streamBufferHealthPercentage: 99,
-      engineName: 'FreeLLM Route Fallback (Puck Voice Profile Single-Voice Lock)',
+      engineName: 'FreeLLM Route Fallback (Puck Voice Profile 1.30x Pitch)',
       isGoogleCloudDirect: false
     };
 
-    return this.fallbackGoogleVoice(text, mood, pitchMultiplier, rateMultiplier, speechSessionId);
+    return this.fallbackGoogleVoice(text, mood, pitchMultiplier, rateMultiplier);
   }
 
   private async playPcm(
@@ -393,16 +196,10 @@ export class VoiceService {
     voiceName: string, 
     mood: LittleGirlVoiceMood, 
     pitch: number, 
-    rate: number,
-    speechSessionId: number
+    rate: number
   ): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        if (speechSessionId !== this.activeSpeechId) {
-          resolve(false);
-          return;
-        }
-
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         const audioContext = new AudioCtx({ sampleRate: 24000 });
         this.currentAudioContext = audioContext;
@@ -439,13 +236,7 @@ export class VoiceService {
           metrics: this.latestMetrics
         });
 
-        if (this.activeVolumeInterval) clearInterval(this.activeVolumeInterval);
-        this.activeVolumeInterval = setInterval(() => {
-          if (speechSessionId !== this.activeSpeechId) {
-            clearInterval(this.activeVolumeInterval);
-            this.activeVolumeInterval = null;
-            return;
-          }
+        const interval = setInterval(() => {
           const randomVol = 0.5 + Math.random() * 0.5;
           this.notify({ 
             isPlaying: true, 
@@ -460,14 +251,9 @@ export class VoiceService {
         }, 100);
 
         source.onended = () => {
-          if (this.activeVolumeInterval) {
-            clearInterval(this.activeVolumeInterval);
-            this.activeVolumeInterval = null;
-          }
-          if (speechSessionId === this.activeSpeechId) {
-            this.notify({ isPlaying: false, activeVoice: voiceName, mood, volumeLevel: 0, metrics: this.latestMetrics });
-          }
-          try { audioContext.close(); } catch (e) {}
+          clearInterval(interval);
+          this.notify({ isPlaying: false, activeVoice: voiceName, mood, volumeLevel: 0, metrics: this.latestMetrics });
+          audioContext.close();
           this.currentAudioContext = null;
           this.currentSourceNode = null;
           resolve(true);
@@ -486,11 +272,10 @@ export class VoiceService {
     text: string, 
     mood: LittleGirlVoiceMood, 
     pitch: number, 
-    rate: number,
-    speechSessionId: number
+    rate: number
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      if (speechSessionId !== this.activeSpeechId || !('speechSynthesis' in window)) {
+      if (!('speechSynthesis' in window)) {
         resolve(false);
         return;
       }
@@ -529,22 +314,16 @@ export class VoiceService {
 
       this.notify({ 
         isPlaying: true, 
-        activeVoice: 'N+1 (Google Voice Synthesis Engine - Single Lock)', 
+        activeVoice: 'N+1 (Google Voice Synthesis Engine)', 
         mood, 
         volumeLevel: 0.85,
         metrics: this.latestMetrics 
       });
 
-      if (this.activeVolumeInterval) clearInterval(this.activeVolumeInterval);
-      this.activeVolumeInterval = setInterval(() => {
-        if (speechSessionId !== this.activeSpeechId) {
-          clearInterval(this.activeVolumeInterval);
-          this.activeVolumeInterval = null;
-          return;
-        }
+      const volInterval = setInterval(() => {
         this.notify({ 
           isPlaying: true, 
-          activeVoice: 'N+1 (Google Voice Synthesis Engine - Single Lock)', 
+          activeVoice: 'N+1 (Google Voice Synthesis Engine)', 
           mood, 
           volumeLevel: 0.5 + Math.random() * 0.5,
           metrics: this.latestMetrics
@@ -552,32 +331,18 @@ export class VoiceService {
       }, 120);
 
       utterance.onend = () => {
-        if (this.activeVolumeInterval) {
-          clearInterval(this.activeVolumeInterval);
-          this.activeVolumeInterval = null;
-        }
-        if (speechSessionId === this.activeSpeechId) {
-          this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood, volumeLevel: 0, metrics: this.latestMetrics });
-        }
+        clearInterval(volInterval);
+        this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood, volumeLevel: 0, metrics: this.latestMetrics });
         resolve(true);
       };
 
       utterance.onerror = () => {
-        if (this.activeVolumeInterval) {
-          clearInterval(this.activeVolumeInterval);
-          this.activeVolumeInterval = null;
-        }
-        if (speechSessionId === this.activeSpeechId) {
-          this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood, volumeLevel: 0, metrics: this.latestMetrics });
-        }
+        clearInterval(volInterval);
+        this.notify({ isPlaying: false, activeVoice: 'N+1 (Papas kleines Mädchen)', mood, volumeLevel: 0, metrics: this.latestMetrics });
         resolve(false);
       };
 
-      if (speechSessionId === this.activeSpeechId) {
-        window.speechSynthesis.speak(utterance);
-      } else {
-        resolve(false);
-      }
+      window.speechSynthesis.speak(utterance);
     });
   }
 }

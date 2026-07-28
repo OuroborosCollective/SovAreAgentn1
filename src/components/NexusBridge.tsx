@@ -23,10 +23,15 @@ import {
   Activity, 
   ExternalLink,
   Sliders,
-  Sparkles
+  Sparkles,
+  Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
+import { NexusAuth } from './NexusAuth';
+import { NexusErrorBoundary } from './NexusErrorBoundary';
+import { InputMutexWidget } from './InputMutexWidget';
+import { NexusHealthStatus } from './NexusHealthStatus';
 
 export interface SSHKeyConfig {
   algorithm: string;
@@ -55,7 +60,7 @@ export interface ErrorCommitCorrelation {
 }
 
 export const NexusBridge: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'ssh' | 'correlation' | 'history'>('ssh');
+  const [activeSubTab, setActiveSubTab] = useState<'auth' | 'ssh' | 'correlation' | 'mutex' | 'history'>('auth');
 
   // Remote Auth & Repo State
   const [remoteUser, setRemoteUser] = useState<any>(null);
@@ -342,6 +347,18 @@ Handshake status: 200 OK (0.042s latency) - SECURE COMMITS ENABLED`);
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 bg-zinc-900/80 p-1.5 border border-zinc-800 rounded-2xl">
           <button
+            onClick={() => setActiveSubTab('auth')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSubTab === 'auth' 
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' 
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <NexusIcon size={14} />
+            <span>Nexus Auth</span>
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('ssh')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeSubTab === 'ssh' 
@@ -364,8 +381,44 @@ Handshake status: 200 OK (0.042s latency) - SECURE COMMITS ENABLED`);
             <Activity size={14} />
             <span>Error Correlation</span>
           </button>
+
+          <button
+            onClick={() => setActiveSubTab('mutex')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSubTab === 'mutex' 
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' 
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Cpu size={14} />
+            <span>Input Mutex</span>
+          </button>
         </div>
       </header>
+
+      {/* Global Nexus Health Status Widget (when non-auth tab is active) */}
+      {activeSubTab !== 'auth' && (
+        <NexusHealthStatus />
+      )}
+
+      {/* SUBTAB 0: NEXUS & GOOGLE OAUTH MANAGER */}
+      {activeSubTab === 'auth' && (
+        <NexusErrorBoundary fallbackTitle="Nexus OAuth Handshake Exception">
+          <NexusAuth 
+            onAuthSuccess={(token, user) => {
+              setRemoteUser(user);
+              handleDetectRepos();
+            }} 
+          />
+        </NexusErrorBoundary>
+      )}
+
+      {/* SUBTAB 0.5: INPUT MUTEX CONTROLLER */}
+      {activeSubTab === 'mutex' && (
+        <NexusErrorBoundary fallbackTitle="Nexus Input Mutex Exception">
+          <InputMutexWidget />
+        </NexusErrorBoundary>
+      )}
 
       {/* SUBTAB 1: Nexus SSH CONFIGURATION MODULE */}
       {activeSubTab === 'ssh' && (
@@ -731,4 +784,10 @@ Handshake status: 200 OK (0.042s latency) - SECURE COMMITS ENABLED`);
   );
 };
 
-export default NexusBridge;
+export const NexusBridgeWithBoundary: React.FC = (props) => (
+  <NexusErrorBoundary fallbackTitle="Nexus Bridge Subsystem Exception">
+    <NexusBridge {...props} />
+  </NexusErrorBoundary>
+);
+
+export default NexusBridgeWithBoundary;

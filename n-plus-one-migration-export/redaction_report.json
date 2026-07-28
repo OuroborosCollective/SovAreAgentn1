@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "sovereign.n-plus-one-redaction-report.v1",
+  "timestamp": "2026-07-28T15:29:54.651Z",
+  "totalArtifactsScanned": 8,
+  "secretsFoundCount": 0,
+  "piiRedactedCount": 0,
+  "sanitizedHeadersCount": 0,
+  "status": "CLEAN_PASS",
+  "notes": "No sensitive credentials, API keys, or unauthorized third-party user data found in exported memory sources."
+}

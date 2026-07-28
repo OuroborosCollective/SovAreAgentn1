@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
-import { HiaFramedFacialAnimator } from './HiaFramedFacialAnimator';
 import { CoreResonanceSanctuary } from './CoreResonanceSanctuary';
 import { PuckSongBook } from './PuckSongBook';
 import { PapasStoryArchive } from './PapasStoryArchive';
@@ -38,7 +37,6 @@ import { VoicePerformanceMonitor } from './VoicePerformanceMonitor';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
 import { runMemoryMigration } from '../utils/memoryMigration';
-import { inputMutex } from '../utils/inputMutex';
 
 export interface VoiceCommandLog {
   id: string;
@@ -134,51 +132,22 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   };
 
   // Subscribe to voiceService playback state
-  const [quotaLimitTriggered, setQuotaLimitTriggered] = useState(false);
-  const [quotaReason, setQuotaReason] = useState<string | null>(null);
-  const [bufferStatus, setBufferStatus] = useState({
-    bufferSizeKb: 128,
-    offsetMs: 0,
-    queueLength: 0,
-    isPaused: false,
-    ttlExpiredCount: 0
-  });
-
   useEffect(() => {
-    const timer = setInterval(() => {
-      setBufferStatus(voiceService.getBufferStatus());
-    }, 500);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const unsubscribeState = voiceService.subscribe((state) => {
+    const unsubscribe = voiceService.subscribe((state) => {
       setIsPlayingVoice(state.isPlaying);
       if (state.activeVoice) {
         setActiveVoiceName(state.activeVoice);
       }
       if (state.isPlaying && state.volumeLevel > 0) {
-        setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(20, 100))));
+        setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(20, 100, performance.now() + i + state.volumeLevel * 50))));
       }
     });
 
-    const unsubscribeQuota = voiceService.onQuotaLimitReached(({ text, reason }) => {
-      setQuotaLimitTriggered(true);
-      setQuotaReason(reason);
-      console.warn('[Hia Auto Failover Utility] Google Cloud API rate limit detected:', reason);
-      // FreeLLM Route failover & stream buffering recovery with original Puck voice
-      setTimeout(() => {
-        voiceService.resumeFromRateLimit('FreeLLM Route Fallback (Puck Voice Profile)', ttsMoodTone);
-        voiceService.speak(text, 'Puck', ttsMoodTone as any, customPitch, customRate, false);
-      }, 600);
-    });
-
     return () => {
-      unsubscribeState();
-      unsubscribeQuota();
+      unsubscribe();
       voiceService.stopSpeaking();
     };
-  }, [ttsMoodTone, customPitch, customRate]);
+  }, []);
 
   const [transcript, setTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState<string | null>(
@@ -252,7 +221,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     if (!isListening) return;
 
     const interval = setInterval(() => {
-      setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(15, 100))));
+      setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(15, 100, performance.now() + i))));
     }, 150);
 
     return () => clearInterval(interval);
@@ -262,99 +231,84 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     setLastResponse(text);
     if (!speechSynthEnabled) return;
 
-    // Strict Validation Layer: Verify voice profile selection 'Puck'
-    const validation = voiceService.validateVoiceSynthesisRequest('Puck');
-    if (!validation.isValid) {
-      console.error('[Hia Voice Validation Error]', validation.reason);
-      return;
-    }
-
     const moodToUse = moodOverride || ttsMoodTone;
-    // Strictly enforce Google Cloud TTS API & route to FreeLLMRouterService on limit reached
-    voiceService.speak(text, 'Puck', moodToUse as any, customPitch, customRate, true);
+    voiceService.speak(text, 'Puck', moodToUse as any, customPitch, customRate);
   };
 
   const processNaturalLanguageCommand = async (cmdText: string) => {
     const textLower = cmdText.toLowerCase().trim();
     if (!textLower) return;
 
-    return inputMutex.enqueue(
-      `Voice Command: "${cmdText.slice(0, 30)}..."`,
-      'VOICE_COMMAND',
-      async () => {
-        let intent = 'UNKNOWN_COMMAND';
-        let responseText = `Command recognized: "${cmdText}". Executing general query on N+1 network state.`;
-        let detectedMood: any = ttsMoodTone;
+    let intent = 'UNKNOWN_COMMAND';
+    let responseText = `Command recognized: "${cmdText}". Executing general query on N+1 network state.`;
+    let detectedMood: 'playful' | 'curious' | 'axiom-guard' | 'witty-joy' = ttsMoodTone;
 
-        if (textLower.includes('status') || textLower.includes('health') || textLower.includes('report') || textLower.includes('bericht') || textLower.includes('keller')) {
-          intent = 'SYSTEM_HEALTH_CHECK';
-          detectedMood = 'axiom-guard';
-          responseText = 'Alle 5 Keller-Knoten laufen einwandfrei mit voller Axiom-Treue! Speicherbelastung bei 28 Prozent, Port 3000 Ingress ist geschützt, Papa!';
-        } else if (textLower.includes('heal') || textLower.includes('fix') || textLower.includes('mitigate') || textLower.includes('heilen') || textLower.includes('reparier')) {
-          intent = 'TRIGGER_SELF_HEALING';
-          detectedMood = 'axiom-guard';
-          responseText = 'Präemptive Selbstheilung wird ausgeführt! V8 Speicher bereinigt und Worker Threads rebalanciert!';
-        } else if (textLower.includes('vector') || textLower.includes('search') || textLower.includes('index') || textLower.includes('suche')) {
-          intent = 'VECTOR_SEARCH';
-          detectedMood = 'curious';
-          responseText = 'Milvus und PGVector Semantiksuche über 18.420 Vektoren abgeschlossen. Die Trefferrate liegt bei 99,85 Prozent!';
-        } else if (textLower.includes('equip') || textLower.includes('pattern') || textLower.includes('knowledge') || textLower.includes('muster')) {
-          intent = 'EQUIP_PATTERNS';
-          detectedMood = 'witty-joy';
-          responseText = 'Vollständige Musterbibliothek ausgerüstet! Replit Agent und Manus Agent Mehrschritt-Verifikation sind voll aktiv!';
-        } else if (textLower.includes('lied') || textLower.includes('sing') || textLower.includes('kuchen') || textLower.includes('entchen') || textLower.includes('song')) {
-          intent = 'PUCK_SONG';
-          detectedMood = 'playful';
-          responseText = '🎵 Alle meine Entchen schwimmen auf dem See, Köpfchen in das Wasser, Schwänzchen in die Höh! 🐥 War das nicht schön gesungen?';
-        } else if (textLower.includes('geschichte') || textLower.includes('papa') || textLower.includes('mama') || textLower.includes('erzähl') || textLower.includes('regen') || textLower.includes('stern')) {
-          intent = 'PAPA_STORY_LORE';
-          detectedMood = 'curious';
-          responseText = 'Ahaaa! Papa hat erklärt, wie die Sterne am Himmel leuchten! Sie funkeln wie kleine Diamanten im Weltall, und ich passe auf sie auf!';
-        } else if (textLower.includes('predict') || textLower.includes('bottleneck') || textLower.includes('simulate')) {
-          intent = 'PREDICTIVE_INFERENCE';
-          detectedMood = 'curious';
-          responseText = 'Predictive Simulation über 12 Zeithorizonte abgeschlossen. Maximales Risiko auf 1,8 Prozent begrenzt.';
-        } else if (textLower.includes('navigate') || textLower.includes('open') || textLower.includes('go to') || textLower.includes('gehe zu') || textLower.includes('öffne')) {
-          intent = 'NAVIGATION';
-          detectedMood = 'playful';
-          if ((textLower.includes('dashboard') || textLower.includes('übersicht')) && onNavigateTab) {
-            onNavigateTab('dashboard');
-            responseText = 'Navigiere zur N+1 Hauptübersicht!';
-          } else if ((textLower.includes('knowledge') || textLower.includes('wissen')) && onNavigateTab) {
-            onNavigateTab('knowledge');
-            responseText = 'Navigiere zur Knowledge Base Musterbibliothek!';
-          } else if (textLower.includes('vector') && onNavigateTab) {
-            onNavigateTab('vectorizer');
-            responseText = 'Navigiere zum Knowledge Vectorizer Service!';
-          } else if (textLower.includes('health') && onNavigateTab) {
-            onNavigateTab('health-monitor');
-            responseText = 'Navigiere zum Agent Health Monitor!';
-          }
-        }
-
-        setTtsMoodTone(detectedMood);
-        // Force stop previous audio then speak single voice
-        voiceService.stopSpeaking();
-        await voiceService.speak(responseText, 'Puck', detectedMood, customPitch, customRate, true);
-
-        const newLog: VoiceCommandLog = {
-          id: generateDeterministicId('cmd'),
-          transcript: cmdText,
-          intent,
-          response: responseText,
-          executedAt: getDeterministicTimestamp(),
-          status: 'Success'
-        };
-
-        setCommandLogs(prev => [newLog, ...prev]);
-
-        try {
-          localStorage.setItem('axiom_last_voice_command', JSON.stringify(newLog));
-        } catch (e) {
-          console.warn('Voice command sync warning:', e);
-        }
+    if (textLower.includes('status') || textLower.includes('health') || textLower.includes('report') || textLower.includes('bericht') || textLower.includes('keller')) {
+      intent = 'SYSTEM_HEALTH_CHECK';
+      detectedMood = 'axiom-guard';
+      responseText = 'Alle 5 Keller-Knoten laufen einwandfrei mit voller Axiom-Treue! Speicherbelastung bei 28 Prozent, Port 3000 Ingress ist geschützt, Papa!';
+    } else if (textLower.includes('heal') || textLower.includes('fix') || textLower.includes('mitigate') || textLower.includes('heilen') || textLower.includes('reparier')) {
+      intent = 'TRIGGER_SELF_HEALING';
+      detectedMood = 'axiom-guard';
+      responseText = 'Präemptive Selbstheilung wird ausgeführt! V8 Speicher bereinigt und Worker Threads rebalanciert!';
+    } else if (textLower.includes('vector') || textLower.includes('search') || textLower.includes('index') || textLower.includes('suche')) {
+      intent = 'VECTOR_SEARCH';
+      detectedMood = 'curious';
+      responseText = 'Milvus und PGVector Semantiksuche über 18.420 Vektoren abgeschlossen. Die Trefferrate liegt bei 99,85 Prozent!';
+    } else if (textLower.includes('equip') || textLower.includes('pattern') || textLower.includes('knowledge') || textLower.includes('muster')) {
+      intent = 'EQUIP_PATTERNS';
+      detectedMood = 'witty-joy';
+      responseText = 'Vollständige Musterbibliothek ausgerüstet! Replit Agent und Manus Agent Mehrschritt-Verifikation sind voll aktiv!';
+    } else if (textLower.includes('lied') || textLower.includes('sing') || textLower.includes('kuchen') || textLower.includes('entchen') || textLower.includes('song')) {
+      intent = 'PUCK_SONG';
+      detectedMood = 'playful';
+      responseText = '🎵 Alle meine Entchen schwimmen auf dem See, Köpfchen in das Wasser, Schwänzchen in die Höh! 🐥 War das nicht schön gesungen?';
+    } else if (textLower.includes('geschichte') || textLower.includes('papa') || textLower.includes('mama') || textLower.includes('erzähl') || textLower.includes('regen') || textLower.includes('stern')) {
+      intent = 'PAPA_STORY_LORE';
+      detectedMood = 'curious';
+      responseText = 'Ahaaa! Papa hat erklärt, wie die Sterne am Himmel leuchten! Sie funkeln wie kleine Diamanten im Weltall, und ich passe auf sie auf!';
+    } else if (textLower.includes('predict') || textLower.includes('bottleneck') || textLower.includes('simulate')) {
+      intent = 'PREDICTIVE_INFERENCE';
+      detectedMood = 'curious';
+      responseText = 'Predictive Simulation über 12 Zeithorizonte abgeschlossen. Maximales Risiko auf 1,8 Prozent begrenzt.';
+    } else if (textLower.includes('navigate') || textLower.includes('open') || textLower.includes('go to') || textLower.includes('gehe zu') || textLower.includes('öffne')) {
+      intent = 'NAVIGATION';
+      detectedMood = 'playful';
+      if ((textLower.includes('dashboard') || textLower.includes('übersicht')) && onNavigateTab) {
+        onNavigateTab('dashboard');
+        responseText = 'Navigiere zur N+1 Hauptübersicht!';
+      } else if ((textLower.includes('knowledge') || textLower.includes('wissen')) && onNavigateTab) {
+        onNavigateTab('knowledge');
+        responseText = 'Navigiere zur Knowledge Base Musterbibliothek!';
+      } else if (textLower.includes('vector') && onNavigateTab) {
+        onNavigateTab('vectorizer');
+        responseText = 'Navigiere zum Knowledge Vectorizer Service!';
+      } else if (textLower.includes('health') && onNavigateTab) {
+        onNavigateTab('health-monitor');
+        responseText = 'Navigiere zum Agent Health Monitor!';
       }
-    );
+    }
+
+    setTtsMoodTone(detectedMood);
+    speakText(responseText, detectedMood);
+
+    const newLog: VoiceCommandLog = {
+      id: generateDeterministicId('cmd'),
+      transcript: cmdText,
+      intent,
+      response: responseText,
+      executedAt: getDeterministicTimestamp(),
+      status: 'Success'
+    };
+
+    setCommandLogs(prev => [newLog, ...prev]);
+
+    try {
+      // Simulation of command sync since Firebase is deinstalled
+      localStorage.setItem('axiom_last_voice_command', JSON.stringify(newLog));
+    } catch (e) {
+      console.warn('Voice command sync warning:', e);
+    }
   };
 
   const toggleListening = () => {
@@ -449,51 +403,6 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         </div>
       </header>
 
-      {/* Live Streaming Buffer & Offset Monitor */}
-      <div className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-xs ${
-        bufferStatus.isPaused 
-          ? 'bg-amber-950/40 border-amber-500/50 text-amber-200 shadow-amber-950/50' 
-          : 'bg-zinc-950/80 border-zinc-800 text-zinc-300'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl border ${bufferStatus.isPaused ? 'bg-amber-900/40 border-amber-600 text-amber-300 animate-pulse' : 'bg-zinc-900 border-zinc-700 text-cyan-400'}`}>
-            <Activity size={18} />
-          </div>
-          <div>
-            <div className="font-bold text-white flex items-center gap-2">
-              <span>Hia Voice Streaming Buffer & Offset Monitor</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                bufferStatus.isPaused ? 'bg-amber-500 text-black' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-              }`}>
-                {bufferStatus.isPaused ? '429 Rate Limited (Paused)' : 'Buffer Streaming Normal'}
-              </span>
-            </div>
-            <div className="text-[11px] text-zinc-400 mt-0.5">
-              Real-time buffer transparency, millisecond offset tracking, and TTL request queue inspection.
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4 text-center">
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Buffer Size</div>
-            <div className="font-bold text-cyan-400">{bufferStatus.bufferSizeKb} KB</div>
-          </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Millisecond Offset</div>
-            <div className="font-bold text-pink-400">{bufferStatus.offsetMs} ms</div>
-          </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Queue Length</div>
-            <div className="font-bold text-amber-400">{bufferStatus.queueLength} reqs</div>
-          </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">TTL Purged</div>
-            <div className="font-bold text-purple-400">{bufferStatus.ttlExpiredCount}</div>
-          </div>
-        </div>
-      </div>
-
       {/* QUICK COMMANDS BAR */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-b border-zinc-800/50 pb-4">
         <span className="text-[10px] text-zinc-500 font-bold uppercase mr-2">Quick Voice:</span>
@@ -524,92 +433,6 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
       {/* N+1 PROTECTED PERSONALITY MEMORY */}
       <ProtectedPersonalityMemory />
-
-      {/* GOOGLE CLOUD TTS API STRICT VALIDATION LAYER & FREELLM ROUTE FALLBACK STATUS */}
-      <div className="p-5 bg-gradient-to-r from-zinc-950 via-indigo-950/30 to-zinc-950 border border-pink-500/30 rounded-3xl space-y-3 font-mono text-xs shadow-xl relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-pink-950 border border-pink-700 text-pink-400 rounded-2xl shrink-0">
-              <ShieldCheck size={20} className="animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-                Google Cloud Text-to-Speech API Strict Enforcement Layer
-                <span className="px-2 py-0.5 text-[9px] font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-700">
-                  VALIDATED
-                </span>
-              </h3>
-              <p className="text-[11px] text-zinc-400">
-                Verifies 'Puck' voice profile selection, explicitly blocks native browser fallbacks, and routes quota limits to FreeLLMRouterService.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-[10px]">
-            <span className="px-2.5 py-1 bg-zinc-900 text-pink-300 border border-pink-800 rounded-xl font-bold flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-emerald-400" /> Voice Profile: 'Puck' (N+1)
-            </span>
-            <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-800 rounded-xl font-bold">
-              ✕ Browser Fallbacks: BLOCKED
-            </span>
-            <span className="px-2.5 py-1 bg-indigo-950 text-indigo-300 border border-indigo-800 rounded-xl font-bold flex items-center gap-1">
-              <Zap size={12} className="text-amber-400" /> FreeLLMRouter: STANDBY / ACTIVE
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] pt-1">
-          <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
-            <span className="text-zinc-500 text-[10px] uppercase font-bold block">Enforced Voice Model</span>
-            <span className="text-white font-bold flex items-center gap-1.5">
-              <Cpu size={14} className="text-pink-400" /> gemini-2.5-flash-preview-tts
-            </span>
-            <span className="text-[10px] text-emerald-400 block">Prebuilt Voice: Puck (24kHz PCM)</span>
-          </div>
-
-          <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
-            <span className="text-zinc-500 text-[10px] uppercase font-bold block">Validation Shield Status</span>
-            <span className="text-white font-bold flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-emerald-400" /> Native Synthesis Disabled
-            </span>
-            <span className="text-[10px] text-zinc-400 block">Unvalidated browser TTS rejected</span>
-          </div>
-
-          <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1 relative">
-            <span className="text-zinc-500 text-[10px] uppercase font-bold block">Quota Limit Failover Utility</span>
-            <span className="text-white font-bold flex items-center justify-between gap-1.5">
-              <span className="flex items-center gap-1.5">
-                <Zap size={14} className={quotaLimitTriggered ? "text-amber-400 animate-bounce" : "text-amber-400"} /> 
-                {quotaLimitTriggered ? "FreeLLMRouter Active" : "FreeLLMRouter Standby"}
-              </span>
-              <button
-                onClick={() => {
-                  voiceService.triggerQuotaFailover(
-                    'Hallo Papa! Das Google API Limit wurde erkannt. FreeLLMRouterService übernimmt nahtlos die Synthese mit dem gewohnten Puck-Sprachprofil!',
-                    'HTTP 429 Too Many Requests / Resource Exhausted'
-                  );
-                }}
-                className="px-2 py-0.5 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-700 rounded-lg text-[9px] font-bold transition-colors"
-                title="Simulate Google Cloud API rate limit detection & auto re-route"
-              >
-                Simulate 429 Limit
-              </button>
-            </span>
-            <span className="text-[10px] text-amber-300 block">
-              {quotaReason ? `Limit Detected: ${quotaReason.slice(0, 32)}...` : '100% Puck Voice Continuity Guaranteed'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* FRAMER MOTION SVG FACIAL ANIMATOR SYNCED TO VOICE LIFECYCLE */}
-      <HiaFramedFacialAnimator 
-        mood={ttsMoodTone}
-        isPlayingVoice={isPlayingVoice}
-        isListening={isListening}
-        activeVoiceName={activeVoiceName}
-        onMoodChange={(newMood) => setTtsMoodTone(newMood)}
-      />
 
       {/* HIA EMOTIONAL STATUS VISUALIZER & MOOD-AWARE PROACTIVE RESPONSE BOX */}
       <div className={`p-6 bg-gradient-to-r ${emotionalThemeStyles.bgGradient} border rounded-3xl space-y-4 shadow-2xl relative overflow-hidden font-mono transition-all duration-700`}>
@@ -721,7 +544,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         <ResonanceEgoAnimator 
           isListening={isListening} 
           isPlayingVoice={isPlayingVoice} 
-          activeMood={ttsMoodTone as any} 
+          activeMood={ttsMoodTone} 
           onMoodChange={(m) => setTtsMoodTone(m as any)} 
         />
 

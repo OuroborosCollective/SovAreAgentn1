@@ -18,7 +18,7 @@ interface AgentNode {
 export const OuroborosCanvas: React.FC = () => {
   const [nodes, setNodes] = useState<AgentNode[]>([
     { id: 'n1', name: 'Agent-Alpha-01', x: 120, y: 100, role: 'Axiomatic Core', vectorEmbeddingId: 'vec_emb_9912a', status: 'optimal', dependencies: ['n2', 'n3'] },
-    { id: 'n2', name: 'Valkyrie Optimizer', x: 380, y: 160, role: 'AST Parser', vector_embedding_id: 'vec_emb_4410b', status: 'synced', dependencies: ['n4'] },
+    { id: 'n2', name: 'Valkyrie Optimizer', x: 380, y: 160, role: 'AST Parser', vectorEmbeddingId: 'vec_emb_4410b', status: 'synced', dependencies: ['n4'] },
     { id: 'n3', name: 'Resonance Weaver', x: 200, y: 320, role: 'Audio Stream', vectorEmbeddingId: 'vec_emb_7781c', status: 'optimal', dependencies: ['n4'] },
     { id: 'n4', name: 'Vector Sentinel', x: 520, y: 280, role: 'Milvus DB', vectorEmbeddingId: 'vec_emb_1102d', status: 'optimal', dependencies: [] },
   ]);

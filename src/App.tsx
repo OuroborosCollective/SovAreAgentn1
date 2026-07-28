@@ -33,13 +33,14 @@ import { GoogleDriveManager } from './components/GoogleDriveManager';
 import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ArchitectureIntegrityDashboard } from './components/ArchitectureIntegrityDashboard';
+import { SystemValidationTestbed } from './components/SystemValidationTestbed';
 import { WebhookManagement } from './components/WebhookManagement';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
 import { DeviceResolutionBanner } from './components/DeviceResolutionBanner';
 import { useDeviceResolution } from './hooks/useDeviceResolution';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
-import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from './utils/deterministic';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp, getDeterministicTimestampMs } from './utils/deterministic';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('voice');
@@ -51,7 +52,7 @@ const App: React.FC = () => {
   // WebSocket Connection State
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [wsRetryCount, setWsRetryCount] = useState(0);
-  const [lastWsActivity, setLastWsActivity] = useState<number>((1722000000000 + Math.floor(performance.now())));
+  const [lastWsActivity, setLastWsActivity] = useState<number>(getDeterministicTimestampMs());
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const maxRetries = 10;
@@ -72,7 +73,7 @@ const App: React.FC = () => {
   // Check for session expiry (30 mins idle)
   useEffect(() => {
     const idleCheck = setInterval(() => {
-      if (wsStatus === 'connected' && (1722000000000 + Math.floor(performance.now())) - lastWsActivity > 30 * 60 * 1000) {
+      if (wsStatus === 'connected' && getDeterministicTimestampMs() - lastWsActivity > 30 * 60 * 1000) {
         setIsSessionExpired(true);
         if (wsRef.current) {
           wsRef.current.close();
@@ -90,7 +91,7 @@ const App: React.FC = () => {
 
     setWsStatus('connecting');
     setIsSessionExpired(false);
-    setLastWsActivity((1722000000000 + Math.floor(performance.now())));
+    setLastWsActivity(getDeterministicTimestampMs());
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/`;
     
@@ -101,11 +102,11 @@ const App: React.FC = () => {
       ws.onopen = () => {
         setWsStatus('connected');
         setWsRetryCount(0);
-        setLastWsActivity((1722000000000 + Math.floor(performance.now())));
+        setLastWsActivity(getDeterministicTimestampMs());
       };
 
       ws.onmessage = () => {
-        setLastWsActivity((1722000000000 + Math.floor(performance.now())));
+        setLastWsActivity(getDeterministicTimestampMs());
       };
 
       ws.onclose = () => {
@@ -156,6 +157,7 @@ const App: React.FC = () => {
     { id: 'architecture-integrity', label: 'Architecture Integrity', icon: GitBranch },
     { id: 'freellm', label: 'FreeLLM Router 0.5.0', icon: Network },
     { id: 'toolchain', label: 'Toolchain 400', icon: Wrench },
+    { id: 'validation-testbed', label: 'Validation Testbed', icon: ShieldCheck },
     { id: 'bughunt', label: 'Bug Hunt & Self-Healing', icon: Bug },
     { id: 'apimagic', label: 'API Magic', icon: ShieldCheck },
     { id: 'googledrive', label: 'Google Drive', icon: FolderOpen },
@@ -439,7 +441,7 @@ const App: React.FC = () => {
                   {/* Background Matrix/Neuronal decoration */}
                   <div className="absolute inset-0 z-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none overflow-hidden flex flex-wrap gap-1 p-2">
                     {[...Array(60)].map((_, i) => (
-                      <div key={i} className={`size-1 rounded-full ${generateDeterministicNumber(0, 1, performance.now()) > 0.8 ? 'bg-indigo-500' : 'bg-zinc-500'}`} />
+                      <div key={i} className={`size-1 rounded-full ${generateDeterministicNumber(0, 1) > 0.8 ? 'bg-indigo-500' : 'bg-zinc-500'}`} />
                     ))}
                   </div>
                 </motion.div>
@@ -578,7 +580,7 @@ const App: React.FC = () => {
                    <div className="grid grid-cols-12 gap-1 mt-4 group">
                      {[...Array(96)].map((_, i) => {
                        // Generate dynamic heat map colors based on pseudo-random distribution
-                       const noise = generateDeterministicNumber(0, 1, performance.now());
+                       const noise = generateDeterministicNumber(0, 1);
                        let colorClass = 'bg-zinc-800'; // stable
                        if (noise > 0.95) colorClass = 'bg-red-500 animate-pulse'; // high entropy leak
                        else if (noise > 0.8) colorClass = 'bg-amber-500'; // warning
@@ -754,6 +756,11 @@ const App: React.FC = () => {
           )}
           {activeTab === 'freellm' && <FreeLLMRouterService />}
           {activeTab === 'toolchain' && <SelfAwareToolchain />}
+          {activeTab === 'validation-testbed' && (
+            <SystemValidationTestbed
+              onSendToBugHunt={() => setActiveTab('bughunt')}
+            />
+          )}
           {activeTab === 'bughunt' && <SystemBugHunt />}
           {activeTab === 'apimagic' && <APIMagic />}
           {activeTab === 'googledrive' && <GoogleDriveManager />}

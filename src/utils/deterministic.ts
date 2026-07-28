@@ -1,24 +1,41 @@
-let sequenceCounter = 0;
+let globalSequence = 0;
+const baseEpoch = 1722000000000;
+
+// Simple Linear Congruential Generator (LCG) for pure deterministic pseudo-randomness without performance.now tricks
+class DeterministicPRNG {
+  private seed: number;
+
+  constructor(seed: number = 42) {
+    this.seed = seed % 2147483647;
+    if (this.seed <= 0) this.seed += 2147483646;
+  }
+
+  public next(): number {
+    this.seed = (this.seed * 16807) % 2147483647;
+    return (this.seed - 1) / 2147483646;
+  }
+}
+
+const defaultPrng = new DeterministicPRNG(1337);
 
 export const generateDeterministicId = (prefix: string = 'id'): string => {
-  sequenceCounter++;
-  const timePart = Math.floor(performance.now()).toString(16);
-  return `${prefix}-${timePart}-${sequenceCounter}`;
+  globalSequence++;
+  return `${prefix}-det-${globalSequence}-${Math.floor(defaultPrng.next() * 100000)}`;
 };
 
 export const generateDeterministicNumber = (min: number, max: number, seed?: number): number => {
-  // Simple deterministic pseudo-random based on performance.now if seed not provided
-  const base = seed !== undefined ? seed : performance.now();
-  const pseudoRandom = (Math.sin(base * 1000) + 1) / 2; // Range 0 to 1
-  return min + pseudoRandom * (max - min);
+  const prng = seed !== undefined ? new DeterministicPRNG(Math.floor(seed * 9999)) : defaultPrng;
+  const val = prng.next();
+  return min + val * (max - min);
 };
 
 export const getDeterministicTimestamp = (): string => {
-  // Since we shouldn't use (1722000000000 + Math.floor(performance.now())) according to the prompt (replace it functionally with deterministic rules)
-  // we can just return a consistent formatted string based on performance or just standard ISO string if required
-  // Wait, standard Date objects are fine, but (1722000000000 + Math.floor(performance.now())) was specifically called out.
-  // Actually, replacing (1722000000000 + Math.floor(performance.now())) with performance.now() or a monotonic clock is usually what's meant by deterministic time in simulations.
-  // Let's use a monotonic clock offset from a fixed start if needed.
-  // For UI timestamps, a real date is usually expected, but we can use performance.now() for unique sequencing.
-  return `T+${Math.floor(performance.now())}ms`;
+  globalSequence++;
+  const simulatedTime = baseEpoch + (globalSequence * 1500);
+  return new Date(simulatedTime).toLocaleTimeString();
+};
+
+export const getDeterministicTimestampMs = (): number => {
+  globalSequence++;
+  return baseEpoch + (globalSequence * 1500);
 };

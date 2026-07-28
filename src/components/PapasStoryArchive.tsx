@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
+import { voiceService } from '../services/voiceService';
 import { 
   BookOpen, 
   Sparkles, 
@@ -156,25 +157,18 @@ export const PapasStoryArchive: React.FC = () => {
     setHighlightedPhraseIndex(0);
     setEpiphanyTriggered(false);
 
-    // Standard Web Speech API if supported
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const textToSpeak = `${selectedStory.storyContent} ... ${selectedStory.puckAhaaaEpiphany}`;
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = 'de-DE';
-      utterance.rate = 0.95;
-      utterance.pitch = 1.1;
-      window.speechSynthesis.speak(utterance);
-    }
+    const textToSpeak = `${selectedStory.storyContent} ... ${selectedStory.puckAhaaaEpiphany}`;
+    voiceService.speak(textToSpeak, 'Puck', 'fröhlich', 1.2, 0.95)
+      .finally(() => {
+        setIsPlayingTTS(false);
+      });
   };
 
   const stopTTSVisualizer = () => {
     setIsPlayingTTS(false);
     setHighlightedPhraseIndex(-1);
     setEpiphanyTriggered(false);
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
+    voiceService.stopSpeaking();
   };
 
   useEffect(() => {

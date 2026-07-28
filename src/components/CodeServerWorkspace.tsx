@@ -56,7 +56,7 @@ app.listen(PORT, "0.0.0.0", () => {
       setGitStatus('pushed');
       setSuccessMsg('Successfully pushed code and manifest updates to remote repository via Nexus Git bridge.');
     } catch (e: any) {
-      setGitStatus('idle');
+      setGitStatus('modified');
       setSuccessMsg(null);
       alert(`Error pushing to remote: ${e.message}`);
     } finally {

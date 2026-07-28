@@ -110,15 +110,14 @@ const INITIAL_PREDICTIVE_PATTERNS: PredictivePattern[] = [
 
 const GENERATE_FORECAST_DATA = () => {
   const points = [];
-  const now = new Date();
   for (let i = 0; i < 12; i++) {
     const timeLabel = `+${i * 5}m`;
     points.push({
       time: timeLabel,
-      predictedRisk: Number((3.5 + generateDeterministicNumber(0, 2.5, performance.now()) + (i > 7 ? (i - 7) * 1.2 : 0)).toFixed(1)),
-      memoryPressure: Number((32 + generateDeterministicNumber(0, 10, performance.now()) + i * 1.5).toFixed(1)),
-      queueLatencyMs: Number((2.1 + generateDeterministicNumber(0, 1.2, performance.now()) + i * 0.2).toFixed(2)),
-      mitigatedRisk: Number((2.0 + generateDeterministicNumber(0, 1.2, performance.now())).toFixed(1))
+      predictedRisk: Number((3.5 + generateDeterministicNumber(0, 2.5) + (i > 7 ? (i - 7) * 1.2 : 0)).toFixed(1)),
+      memoryPressure: Number((32 + generateDeterministicNumber(0, 10) + i * 1.5).toFixed(1)),
+      queueLatencyMs: Number((2.1 + generateDeterministicNumber(0, 1.2) + i * 0.2).toFixed(2)),
+      mitigatedRisk: Number((2.0 + generateDeterministicNumber(0, 1.2)).toFixed(1))
     });
   }
   return points;
@@ -153,8 +152,8 @@ export const PredictiveRuntimeInference: React.FC = () => {
           
           nextPoints[i] = {
             ...nextPoints[i],
-            predictedRisk: Number((Math.max(1.5, currentRisk + (generateDeterministicNumber(0, 0.8, performance.now()) - 0.4))).toFixed(1)),
-            memoryPressure: Number((Math.max(20, currentMem + (generateDeterministicNumber(0, 2.0, performance.now()) - 1.0))).toFixed(1))
+            predictedRisk: Number((Math.max(1.5, currentRisk + (generateDeterministicNumber(0, 0.8) - 0.4))).toFixed(1)),
+            memoryPressure: Number((Math.max(20, currentMem + (generateDeterministicNumber(0, 2.0) - 1.0))).toFixed(1))
           };
         }
         return nextPoints;
@@ -196,8 +195,8 @@ export const PredictiveRuntimeInference: React.FC = () => {
     setTimeout(() => {
       setForecastData(prev => prev.map(p => ({
         ...p,
-        predictedRisk: Number((1.5 + generateDeterministicNumber(0, 1.0, performance.now())).toFixed(1)),
-        memoryPressure: Number((28 + generateDeterministicNumber(0, 5, performance.now())).toFixed(1))
+        predictedRisk: Number((1.5 + generateDeterministicNumber(0, 1.0)).toFixed(1)),
+        memoryPressure: Number((28 + generateDeterministicNumber(0, 5)).toFixed(1))
       })));
 
       setPatterns(prev => prev.map(pat => ({
@@ -223,11 +222,11 @@ export const PredictiveRuntimeInference: React.FC = () => {
     if (!newPatternTitle.trim() || !newPatternComponent.trim()) return;
 
     const newPat: PredictivePattern = {
-      id: `pat-custom-${(1722000000000 + Math.floor(performance.now()))}`,
+      id: generateDeterministicId('pat-custom'),
       code: `PATTERN_CUSTOM_${newPatternTitle.toUpperCase().replace(/\s+/g, '_')}`,
       title: newPatternTitle,
       targetComponent: newPatternComponent,
-      riskFactor: Number((3.0 + generateDeterministicNumber(0, 4.0, performance.now())).toFixed(1)),
+      riskFactor: Number((3.0 + generateDeterministicNumber(0, 4.0)).toFixed(1)),
       mitigationStrategy: 'Automated self-learning pattern pre-allocation heuristic',
       learnedAt: 'Just now',
       effectiveness: 99.8,
