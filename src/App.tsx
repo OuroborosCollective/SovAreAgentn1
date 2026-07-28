@@ -14,6 +14,7 @@ import { SystemEcosystemPanel } from './components/SystemEcosystemPanel';
 import { PredictiveRuntimeInference } from './components/PredictiveRuntimeInference';
 import { KnowledgeVectorizer } from './components/KnowledgeVectorizer';
 import { HiaResonanceVoice } from './components/HiaResonanceVoice';
+import { LinguaHabarEngine } from './components/LinguaHabarEngine';
 import { NexusBridge } from './components/NexusBridge';
 import { CloudImport } from './components/CloudImport';
 import { CloudBackupExport } from './components/CloudBackupExport';
@@ -38,9 +39,10 @@ import { DeviceResolutionBanner } from './components/DeviceResolutionBanner';
 import { useDeviceResolution } from './hooks/useDeviceResolution';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from './utils/deterministic';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('trainer');
+  const [activeTab, setActiveTab] = useState('voice');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [trainingStatus, setTrainingStatus] = useState<'idle' | 'training' | 'success' | 'error'>('idle');
@@ -49,7 +51,7 @@ const App: React.FC = () => {
   // WebSocket Connection State
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [wsRetryCount, setWsRetryCount] = useState(0);
-  const [lastWsActivity, setLastWsActivity] = useState<number>(Date.now());
+  const [lastWsActivity, setLastWsActivity] = useState<number>((1722000000000 + Math.floor(performance.now())));
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const maxRetries = 10;
@@ -70,7 +72,7 @@ const App: React.FC = () => {
   // Check for session expiry (30 mins idle)
   useEffect(() => {
     const idleCheck = setInterval(() => {
-      if (wsStatus === 'connected' && Date.now() - lastWsActivity > 30 * 60 * 1000) {
+      if (wsStatus === 'connected' && (1722000000000 + Math.floor(performance.now())) - lastWsActivity > 30 * 60 * 1000) {
         setIsSessionExpired(true);
         if (wsRef.current) {
           wsRef.current.close();
@@ -88,7 +90,7 @@ const App: React.FC = () => {
 
     setWsStatus('connecting');
     setIsSessionExpired(false);
-    setLastWsActivity(Date.now());
+    setLastWsActivity((1722000000000 + Math.floor(performance.now())));
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/`;
     
@@ -99,11 +101,11 @@ const App: React.FC = () => {
       ws.onopen = () => {
         setWsStatus('connected');
         setWsRetryCount(0);
-        setLastWsActivity(Date.now());
+        setLastWsActivity((1722000000000 + Math.floor(performance.now())));
       };
 
       ws.onmessage = () => {
-        setLastWsActivity(Date.now());
+        setLastWsActivity((1722000000000 + Math.floor(performance.now())));
       };
 
       ws.onclose = () => {
@@ -136,6 +138,8 @@ const App: React.FC = () => {
   }, [wsRetryCount, connectWebSocket]);
 
   const navItems = [
+    { id: 'voice', label: 'Hia Resonance Voice (Start)', icon: Mic },
+    { id: 'linguahabar', label: 'LinguaHabar Engine', icon: Network },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'nexus', label: 'Nexus Bridge', icon: GitBranch },
     { id: 'codeserver', label: 'Code-Server Workspace', icon: Terminal },
@@ -147,7 +151,6 @@ const App: React.FC = () => {
     { id: 'predictive-inference', label: 'Predictive Inference', icon: TrendingUp },
     { id: 'vectorizer', label: 'Knowledge Vectorizer', icon: Layers },
     { id: 'semantic-graph', label: 'Semantic Graph Engine', icon: Sparkles },
-    { id: 'voice', label: 'Hia Resonance Voice', icon: Mic },
     { id: 'ecosystem', label: 'Ecosystem & MCP Hub', icon: Network },
     { id: 'npm-installer', label: 'NPM Engine Installer', icon: Package },
     { id: 'architecture-integrity', label: 'Architecture Integrity', icon: GitBranch },
@@ -356,7 +359,7 @@ const App: React.FC = () => {
                     const report = {
                       timestamp: new Date().toISOString(),
                       type: 'SECURITY_AUDIT',
-                      signature: 'sha256:signed-dummy-signature-' + Math.random().toString(36).substr(2, 9),
+                      signature: 'sha256:signed-dummy-signature-' + generateDeterministicId('rnd'),
                       activeSessions: [
                         { id: 'session_1', partner: 'GitHub Sync', status: 'ACTIVE', uptime: '12h 4m' },
                         { id: 'session_2', partner: 'Google Drive Picker', status: 'ACTIVE', uptime: '4h 12m' }
@@ -436,7 +439,7 @@ const App: React.FC = () => {
                   {/* Background Matrix/Neuronal decoration */}
                   <div className="absolute inset-0 z-0 opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none overflow-hidden flex flex-wrap gap-1 p-2">
                     {[...Array(60)].map((_, i) => (
-                      <div key={i} className={`size-1 rounded-full ${Math.random() > 0.8 ? 'bg-indigo-500' : 'bg-zinc-500'}`} />
+                      <div key={i} className={`size-1 rounded-full ${generateDeterministicNumber(0, 1, performance.now()) > 0.8 ? 'bg-indigo-500' : 'bg-zinc-500'}`} />
                     ))}
                   </div>
                 </motion.div>
@@ -486,37 +489,75 @@ const App: React.FC = () => {
                 </motion.div>
               </div>
 
-              {/* Cognitive Bias Monitor */}
-              <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Brain className="text-amber-500" size={20} />
-                    <h3 className="text-lg font-bold text-white">Cognitive Bias Monitor (kappapos)</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Habar/Gramar Synergy Score */}
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Network className="text-pink-500" size={20} />
+                      <h3 className="text-lg font-bold text-white">LinguaHabar Synergy Core</h3>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
+                      <span className="size-2 bg-pink-500 rounded-full animate-pulse" />
+                      REAL-TIME VECTOR SYNC
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
-                    <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-                    ANALYZING REASONING PATTERNS
+                  
+                  <div className="flex items-center gap-6 mt-6">
+                    <div className="flex-1 space-y-4">
+                      <div className="flex justify-between text-xs font-bold font-mono">
+                        <span className="text-indigo-400">Gramar (Logic)</span>
+                        <span className="text-zinc-400">vs</span>
+                        <span className="text-pink-400">Habar (Dialect)</span>
+                      </div>
+                      <div className="h-3 w-full bg-zinc-900 rounded-full overflow-hidden flex relative border border-zinc-800">
+                        <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: '48%' }} />
+                        <div className="h-full bg-pink-500 transition-all duration-1000" style={{ width: '52%' }} />
+                        <div className="absolute left-[48%] top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white]" />
+                      </div>
+                      <div className="flex justify-between text-xs text-zinc-400">
+                        <span>Axiomatic Integrity: 99.4%</span>
+                        <span>Resonance: 92.1%</span>
+                      </div>
+                    </div>
+                    
+                    <div className="size-24 rounded-full border-4 border-zinc-800 flex items-center justify-center relative shadow-[0_0_30px_rgba(236,72,153,0.15)]">
+                      <div className="absolute inset-0 rounded-full border-4 border-t-pink-500 border-r-indigo-500 border-b-transparent border-l-transparent animate-spin-slow" />
+                      <div className="text-xl font-black text-white">96<span className="text-xs text-zinc-500">%</span></div>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {[
-                    { label: 'Anthropomorphism Index', value: '1.2%', status: 'nominal', description: 'Agent assigning human traits to logic nodes.' },
-                    { label: 'Confirmation Bias Rate', value: '0.4%', status: 'nominal', description: 'Over-weighting pre-existing axiomatic rules.' },
-                    { label: 'Logical Inconsistency', value: '0.0%', status: 'perfect', description: 'Contradictory state resolution paths.' }
-                  ].map((bias, i) => (
-                    <div key={i} className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl relative overflow-hidden">
-                      <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">{bias.label}</div>
-                      <div className={`text-2xl font-bold font-mono ${bias.status === 'perfect' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                        {bias.value}
-                      </div>
-                      <div className="text-xs text-zinc-400 mt-2">{bias.description}</div>
-                      
-                      {bias.status !== 'perfect' && (
-                        <div className="absolute top-0 right-0 w-1 h-full bg-amber-500/20" />
-                      )}
+
+                {/* Cognitive Bias Monitor */}
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Brain className="text-amber-500" size={20} />
+                      <h3 className="text-lg font-bold text-white">Cognitive Bias Monitor (kappapos)</h3>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
+                      <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
+                      ANALYZING REASONING
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Anthropomorphism Index', value: '1.2%', status: 'nominal', description: 'Agent assigning human traits to logic nodes.' },
+                      { label: 'Confirmation Bias Rate', value: '0.4%', status: 'nominal', description: 'Over-weighting pre-existing rules.' },
+                      { label: 'Logical Inconsistency', value: '0.0%', status: 'perfect', description: 'Contradictory state resolution paths.' }
+                    ].map((bias, i) => (
+                      <div key={i} className="flex justify-between items-center p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">{bias.label}</span>
+                          <span className="text-xs text-zinc-500">{bias.description}</span>
+                        </div>
+                        <div className={`text-lg font-bold font-mono ${bias.status === 'perfect' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {bias.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -537,7 +578,7 @@ const App: React.FC = () => {
                    <div className="grid grid-cols-12 gap-1 mt-4 group">
                      {[...Array(96)].map((_, i) => {
                        // Generate dynamic heat map colors based on pseudo-random distribution
-                       const noise = Math.random();
+                       const noise = generateDeterministicNumber(0, 1, performance.now());
                        let colorClass = 'bg-zinc-800'; // stable
                        if (noise > 0.95) colorClass = 'bg-red-500 animate-pulse'; // high entropy leak
                        else if (noise > 0.8) colorClass = 'bg-amber-500'; // warning
@@ -703,6 +744,7 @@ const App: React.FC = () => {
           {activeTab === 'vectorizer' && <KnowledgeVectorizer />}
           {activeTab === 'semantic-graph' && <SemanticGraphKnowledgeBase />}
           {activeTab === 'voice' && <HiaResonanceVoice onNavigateTab={(tab) => setActiveTab(tab)} />}
+          {activeTab === 'linguahabar' && <LinguaHabarEngine />}
           {activeTab === 'ecosystem' && <SystemEcosystemPanel />}
           {activeTab === 'npm-installer' && <N1NpmInstaller />}
           {activeTab === 'architecture-integrity' && (

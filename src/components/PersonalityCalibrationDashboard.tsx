@@ -16,6 +16,7 @@ import {
   Bookmark
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface TimelineHighlight {
   id: string;
@@ -80,8 +81,8 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
               category: log.category || 'erfahrung_lernen',
               insightContent: log.insightContent || log.learnedConnection || 'Prägende Lerneinheit',
               isFormative: idx < 2, // default top items as formative
-              impactScore: Math.floor(Math.random() * 20) + 80,
-              knowledgeNodeRef: `Vector_Node_${Math.floor(Math.random() * 800) + 100}`
+              impactScore: Math.floor(generateDeterministicNumber(80, 100, performance.now())),
+              knowledgeNodeRef: `Vector_Node_${Math.floor(generateDeterministicNumber(100, 900, performance.now()))}`
             });
           });
         }
@@ -402,7 +403,7 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
       {/* Timeline Stream */}
       <div className="space-y-4 font-mono text-xs relative before:absolute before:left-6 before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-pink-500/50 before:via-purple-500/30 before:to-zinc-800">
         {filteredHighlights.map((item, idx) => (
-          <div key={item.id} className="relative pl-12 group">
+          <div key={`${item.id}-${idx}`} className="relative pl-12 group">
             {/* Timeline Dot */}
             <div className={`absolute left-4 top-4 size-4 rounded-full border-2 transform -translate-x-1/2 flex items-center justify-center transition-all ${
               item.isFormative

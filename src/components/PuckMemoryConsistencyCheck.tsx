@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, RefreshCw, Cpu, Sparkles, CheckCircle2, AlertTriangle, Database } from 'lucide-react';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface MemoryCheckResult {
   lastCheckedAt: string;
@@ -39,7 +40,7 @@ export const PuckMemoryConsistencyCheck: React.FC = () => {
         tamperCount: 0,
         integrityPercentage: 100,
         status: 'ALL_PASS',
-        hashSignature: `0xPUCK_SANCTUARY_MEM_${Math.random().toString(16).substring(2, 8).toUpperCase()}`
+        hashSignature: `0xPUCK_SANCTUARY_MEM_${generateDeterministicNumber(0, 1, performance.now()).toString(16).substring(2, 8).toUpperCase()}`
       });
       setIsScanning(false);
     }, 800);

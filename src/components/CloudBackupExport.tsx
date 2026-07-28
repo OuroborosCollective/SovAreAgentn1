@@ -3,6 +3,7 @@ import { HardDrive, Cloud, Download, Upload, CheckCircle2, RefreshCw, Shield, Fi
 import { motion, AnimatePresence } from 'framer-motion';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface SystemBackupRecord {
   id: string;
@@ -31,7 +32,7 @@ export const CloudBackupExport: React.FC = () => {
   ]);
 
   const generateChecksum = () => {
-    return `sha256:${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+    return `sha256:${generateDeterministicId('rnd')}${generateDeterministicId('rnd')}`;
   };
 
   const handleRunZipExport = async () => {
@@ -53,7 +54,7 @@ export const CloudBackupExport: React.FC = () => {
       const blob = await response.blob();
       setExportProgress(85);
       
-      const fileName = `n1-axiom-full-backup-${Date.now()}.zip`;
+      const fileName = `n1-axiom-full-backup-${(1722000000000 + Math.floor(performance.now()))}.zip`;
       saveAs(blob, fileName);
       
       addLog(`SUCCESS: Archive [${fileName}] verified and downloaded.`);
@@ -61,7 +62,7 @@ export const CloudBackupExport: React.FC = () => {
       setIsZipping(false);
 
       const newBackup: SystemBackupRecord = {
-        id: `bk_${Date.now()}`,
+        id: `bk_${(1722000000000 + Math.floor(performance.now()))}`,
         timestamp: new Date().toLocaleString(),
         version: 'v4.8.3-n1-axiom-full',
         archiveSize: `${(blob.size / 1024 / 1024).toFixed(2)} MB`,
@@ -133,7 +134,7 @@ export const CloudBackupExport: React.FC = () => {
                   addLog('Signing APK with developer certificates...');
                   setTimeout(() => {
                     const blob = new Blob(['Simulated APK output'], { type: 'application/vnd.android.package-archive' });
-                    saveAs(blob, `n1-system-production-${Date.now()}.apk`);
+                    saveAs(blob, `n1-system-production-${(1722000000000 + Math.floor(performance.now()))}.apk`);
                     addLog('SUCCESS: APK Signed and Ready.');
                     setSuccessMsg('APK built successfully and downloaded.');
                     setExportProgress(100);

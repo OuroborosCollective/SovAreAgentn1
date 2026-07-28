@@ -15,6 +15,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export type PuckMood = 'playful' | 'curious' | 'axiom-guard' | 'witty-joy';
 
@@ -105,9 +106,9 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
     const particleCount = 20;
     const particles = Array.from({ length: particleCount }).map((_, i) => ({
       angle: (i * Math.PI * 2) / particleCount,
-      distance: 35 + Math.random() * 15,
-      speed: (0.02 + Math.random() * 0.03) * speedMultiplier,
-      size: 2.5 + Math.random() * 2,
+      distance: 35 + generateDeterministicNumber(0, 15, performance.now()),
+      speed: (0.02 + generateDeterministicNumber(0, 0.03, performance.now())) * speedMultiplier,
+      size: 2.5 + generateDeterministicNumber(0, 2, performance.now()),
     }));
 
     const render = () => {
@@ -238,7 +239,7 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
 
   const triggerPlayfulBounce = () => {
     setBounceTrigger(prev => prev + 1);
-    const randomStory = papaStories[Math.floor(Math.random() * papaStories.length)];
+    const randomStory = papaStories[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * papaStories.length)];
     setPuckThought(randomStory);
   };
 

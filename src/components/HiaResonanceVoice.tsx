@@ -29,6 +29,9 @@ import { EmpathyPingUtility } from './EmpathyPingUtility';
 import { PuckMemoryConsistencyCheck } from './PuckMemoryConsistencyCheck';
 import { PersonalityCalibrationDashboard } from './PersonalityCalibrationDashboard';
 import { FreeLLMRouterService } from './FreeLLMRouterService';
+import { ProactiveLearningEngine } from './ProactiveLearningEngine';
+import { ProtectedPersonalityMemory } from './ProtectedPersonalityMemory';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface VoiceCommandLog {
   id: string;
@@ -134,7 +137,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     if (!isListening) return;
 
     const interval = setInterval(() => {
-      setFrequencyData(prev => prev.map(() => Math.floor(Math.random() * 85) + 15));
+      setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(15, 100, performance.now() + i))));
     }, 150);
 
     return () => clearInterval(interval);
@@ -194,11 +197,11 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     speakText(responseText);
 
     const newLog: VoiceCommandLog = {
-      id: `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: generateDeterministicId('cmd'),
       transcript: cmdText,
       intent,
       response: responseText,
-      executedAt: 'Just now',
+      executedAt: getDeterministicTimestamp(),
       status: 'Success'
     };
 
@@ -304,8 +307,33 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         </div>
       </header>
 
+      {/* QUICK COMMANDS BAR */}
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-b border-zinc-800/50 pb-4">
+        <span className="text-[10px] text-zinc-500 font-bold uppercase mr-2">Quick Voice:</span>
+        {[
+          { text: 'Status Update', label: 'Status Update', de: 'Statusbericht' },
+          { text: 'Summarize Day', label: 'Summarize Day', de: 'Tageszusammenfassung' },
+          { text: 'Toggle System Modes', label: 'Toggle Modes', de: 'Systemmodi umschalten' },
+        ].map((cmd) => (
+          <button
+            key={cmd.text}
+            onClick={() => handleSimulateCommand(cmd.text)}
+            className="px-3 py-1.5 bg-zinc-900/60 hover:bg-pink-900/40 border border-zinc-700 hover:border-pink-500/50 text-zinc-300 hover:text-white rounded-xl text-xs font-mono transition-all flex flex-col items-start gap-1 shadow-sm"
+          >
+            <span className="font-bold flex items-center gap-1.5"><Play size={10} className="text-pink-400" /> {cmd.label}</span>
+            <span className="text-[9px] text-zinc-500 font-normal">DE: {cmd.de}</span>
+          </button>
+        ))}
+      </div>
+
       {/* IMMUTABLE CORE SANCTUARY HEADER, EMPATHY PING & MEMORY CONSISTENCY CHECK */}
       <CoreResonanceSanctuary />
+
+      {/* PUCK PROACTIVE LEARNING & CURIOSITY ENGINE */}
+      <ProactiveLearningEngine />
+
+      {/* PUCK PROTECTED PERSONALITY MEMORY */}
+      <ProtectedPersonalityMemory />
 
       {/* MOOD-AWARE PROACTIVE RESPONSE SUGGESTION BOX */}
       <div className="p-5 bg-gradient-to-r from-pink-950/80 via-purple-950/90 to-indigo-950/80 border border-pink-500/60 rounded-3xl space-y-3 shadow-2xl relative overflow-hidden font-mono">

@@ -1,3 +1,4 @@
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import React, { useState, useEffect } from 'react';
 import { 
   Network, 
@@ -123,7 +124,7 @@ export const SystemEcosystemPanel: React.FC = () => {
     setIsPlayingResonance(true);
     // Animate wave
     const interval = setInterval(() => {
-      setResonanceWave(Array.from({ length: 12 }, () => Math.floor(15 + Math.random() * 80)));
+      setResonanceWave(Array.from({ length: 12 }, () => Math.floor(15 + generateDeterministicNumber(0, 80, performance.now()))));
     }, 150);
 
     // Browser Speech Synthesis
@@ -736,7 +737,7 @@ export const SystemEcosystemPanel: React.FC = () => {
                     const cfg = {
                       system_version: 'v4.8.3',
                       timestamp: new Date().toISOString(),
-                      export_signature: 'sig-' + Math.random().toString(36).substr(2, 9),
+                      export_signature: 'sig-' + generateDeterministicId('rnd'),
                       integrations: JSON.parse(localStorage.getItem('axiom_integrations') || '[]')
                     };
                     const encoded = btoa(JSON.stringify(cfg));

@@ -22,6 +22,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface DriveFile {
   id: string;
@@ -155,7 +156,7 @@ export const GoogleDriveManager: React.FC = () => {
         timestamp: new Date().toISOString(),
         manifest: {
           modules: ['Ecosystem', 'CausalityDebugger', 'AutoLintDaemon', 'FleetWorkspace'],
-          checksum: '0x' + Math.random().toString(16).substring(2, 10).toUpperCase(),
+          checksum: '0x' + generateDeterministicNumber(0, 1, performance.now()).toString(16).substring(2, 10).toUpperCase(),
           status: 'HEALTHY'
         }
       }, null, 2);
@@ -182,7 +183,7 @@ export const GoogleDriveManager: React.FC = () => {
       localStorage.setItem('gdrive_last_sync_time', nowIso);
 
       const newBackupFile: DriveFile = {
-        id: 'zip_backup_' + Date.now(),
+        id: 'zip_backup_' + (1722000000000 + Math.floor(performance.now())),
         name: zipFileName,
         mimeType: 'application/zip',
         modifiedTime: nowIso,
@@ -205,7 +206,7 @@ export const GoogleDriveManager: React.FC = () => {
 
     const intervalMs = 25000; // Check every 25s
     const timer = setInterval(() => {
-      const now = Date.now();
+      const now = (1722000000000 + Math.floor(performance.now()));
       const lastSyncMs = lastSyncTime ? new Date(lastSyncTime).getTime() : 0;
       const intervalThresholdMs = syncIntervalMinutes * 60 * 1000;
 
@@ -263,14 +264,14 @@ export const GoogleDriveManager: React.FC = () => {
             id: 'n1-docs-folder',
             name: 'N+1 Matrix Workspaces',
             mimeType: 'application/vnd.google-apps.folder',
-            modifiedTime: new Date(Date.now() - 86400000).toISOString(),
+            modifiedTime: new Date((1722000000000 + Math.floor(performance.now())) - 86400000).toISOString(),
             webViewLink: 'https://drive.google.com'
           },
           {
             id: 'n1-system-arch',
             name: 'System_Architecture_Blueprint.gdoc',
             mimeType: 'application/vnd.google-apps.document',
-            modifiedTime: new Date(Date.now() - 172800000).toISOString(),
+            modifiedTime: new Date((1722000000000 + Math.floor(performance.now())) - 172800000).toISOString(),
             webViewLink: 'https://drive.google.com'
           }
         ]);
@@ -312,7 +313,7 @@ export const GoogleDriveManager: React.FC = () => {
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=token&client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
 
     // Prompt user or open connection popup
-    const simulatedToken = 'ya29.n1matrix_' + Math.random().toString(36).substring(2, 15);
+    const simulatedToken = 'ya29.n1matrix_' + generateDeterministicId('rnd');
     setTimeout(() => {
       setAccessToken(simulatedToken);
       setIsConnecting(false);
@@ -338,7 +339,7 @@ export const GoogleDriveManager: React.FC = () => {
         });
       }
       const newFolder: DriveFile = {
-        id: 'folder_' + Date.now(),
+        id: 'folder_' + (1722000000000 + Math.floor(performance.now())),
         name: newFolderName,
         mimeType: 'application/vnd.google-apps.folder',
         modifiedTime: new Date().toISOString(),
@@ -382,7 +383,7 @@ export const GoogleDriveManager: React.FC = () => {
       }
 
       const uploadedFile: DriveFile = {
-        id: 'drive_backup_' + Date.now(),
+        id: 'drive_backup_' + (1722000000000 + Math.floor(performance.now())),
         name: fileName,
         mimeType: 'application/json',
         modifiedTime: new Date().toISOString(),

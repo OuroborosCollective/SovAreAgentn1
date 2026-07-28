@@ -17,6 +17,7 @@ import {
   Server
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { 
   AreaChart, 
   Area, 
@@ -61,11 +62,11 @@ const GENERATE_TIME_SERIES = () => {
     const time = new Date(now.getTime() - i * 3000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     points.push({
       time,
-      avgLatency: Number((3.5 + Math.random() * 1.8).toFixed(2)),
-      throughput: Math.floor(1800 + Math.random() * 300),
-      driftPercent: Number((0.008 + Math.random() * 0.008).toFixed(3)),
-      heapMemory: Math.floor(380 + Math.random() * 60),
-      bufferCache: Math.floor(220 + Math.random() * 40),
+      avgLatency: Number((3.5 + generateDeterministicNumber(0, 1.8, performance.now())).toFixed(2)),
+      throughput: Math.floor(1800 + generateDeterministicNumber(0, 300, performance.now())),
+      driftPercent: Number((0.008 + generateDeterministicNumber(0, 0.008, performance.now())).toFixed(3)),
+      heapMemory: Math.floor(380 + generateDeterministicNumber(0, 60, performance.now())),
+      bufferCache: Math.floor(220 + generateDeterministicNumber(0, 40, performance.now())),
     });
   }
   return points;
@@ -90,20 +91,20 @@ export const AgentHealthMonitor: React.FC = () => {
         const nextTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const newPoint = {
           time: nextTime,
-          avgLatency: Number((3.4 + Math.random() * 2.0).toFixed(2)),
-          throughput: Math.floor(1800 + Math.random() * 350),
-          driftPercent: Number((0.007 + Math.random() * 0.009).toFixed(3)),
-          heapMemory: Math.floor(390 + Math.random() * 50),
-          bufferCache: Math.floor(230 + Math.random() * 30),
+          avgLatency: Number((3.4 + generateDeterministicNumber(0, 2.0, performance.now())).toFixed(2)),
+          throughput: Math.floor(1800 + generateDeterministicNumber(0, 350, performance.now())),
+          driftPercent: Number((0.007 + generateDeterministicNumber(0, 0.009, performance.now())).toFixed(3)),
+          heapMemory: Math.floor(390 + generateDeterministicNumber(0, 50, performance.now())),
+          bufferCache: Math.floor(230 + generateDeterministicNumber(0, 30, performance.now())),
         };
         return [...prev.slice(1), newPoint];
       });
 
       // Subtle random fluctuation in nodes
       setNodes(prev => prev.map(node => {
-        const newLatency = Number((node.latencyMs + (Math.random() * 0.4 - 0.2)).toFixed(1));
-        const newThroughput = Math.max(100, Math.floor(node.throughputReqSec + (Math.random() * 20 - 10)));
-        const newMemory = Math.max(100, Math.floor(node.memoryMb + (Math.random() * 6 - 3)));
+        const newLatency = Number((node.latencyMs + (generateDeterministicNumber(0, 0.4, performance.now()) - 0.2)).toFixed(1));
+        const newThroughput = Math.max(100, Math.floor(node.throughputReqSec + (generateDeterministicNumber(0, 20, performance.now()) - 10)));
+        const newMemory = Math.max(100, Math.floor(node.memoryMb + (generateDeterministicNumber(0, 6, performance.now()) - 3)));
         
         let newStatus = node.status;
         if (newLatency > 6.0 && node.status !== 'warning') {
@@ -153,7 +154,7 @@ export const AgentHealthMonitor: React.FC = () => {
         ...n,
         status: 'optimal',
         driftFactor: 0.005,
-        latencyMs: Number((2.8 + Math.random() * 0.8).toFixed(1))
+        latencyMs: Number((2.8 + generateDeterministicNumber(0, 0.8, performance.now())).toFixed(1))
       })));
 
       setLogs(prev => [

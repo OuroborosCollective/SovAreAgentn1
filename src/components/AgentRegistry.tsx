@@ -24,6 +24,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface ResourceGovernorConfig {
   priority: 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW';
@@ -51,7 +52,7 @@ const DEFAULT_MOCK_AGENTS: AgentRecord[] = [
     learn_effect_score: 0.94,
     heuristics: ['[HEURISTIC_SQL_01]', '[HEURISTIC_DOCKER_DOCK]', '[HEURISTIC_SQL_01]', '[HEURISTIC_RECURSION_GUARD]'],
     skills: ['sql-repair', 'sql-repair', 'docker-docking', 'heuristics-loop', 'docker-docking', 'ast-parser'],
-    last_trained: new Date(Date.now() - 3600000).toISOString(),
+    last_trained: new Date((1722000000000 + Math.floor(performance.now())) - 3600000).toISOString(),
     status: 'success',
     resourceGovernor: {
       priority: 'CRITICAL',
@@ -67,7 +68,7 @@ const DEFAULT_MOCK_AGENTS: AgentRecord[] = [
     learn_effect_score: 0.88,
     heuristics: ['[HEURISTIC_PRUNE_02]', '[HEURISTIC_PRUNE_02]', '[HEURISTIC_BUFFER_FLUSH]'],
     skills: ['neural-prune', 'context-buffer-flush', 'neural-prune', 'token-throttle', 'neural-prune'],
-    last_trained: new Date(Date.now() - 7200000).toISOString(),
+    last_trained: new Date((1722000000000 + Math.floor(performance.now())) - 7200000).toISOString(),
     status: 'success',
     resourceGovernor: {
       priority: 'HIGH',
@@ -83,7 +84,7 @@ const DEFAULT_MOCK_AGENTS: AgentRecord[] = [
     learn_effect_score: 0.81,
     heuristics: ['[HEURISTIC_PROMPT_SYNTH]', '[HEURISTIC_PROMPT_SYNTH]'],
     skills: ['prompt-craft', 'ast-parse', 'prompt-craft', 'few-shot-synth'],
-    last_trained: new Date(Date.now() - 14400000).toISOString(),
+    last_trained: new Date((1722000000000 + Math.floor(performance.now())) - 14400000).toISOString(),
     status: 'success',
     resourceGovernor: {
       priority: 'NORMAL',
@@ -99,7 +100,7 @@ const DEFAULT_MOCK_AGENTS: AgentRecord[] = [
     learn_effect_score: 0.96,
     heuristics: ['[HEURISTIC_FIREWALL_04]', '[HEURISTIC_VECTOR_MATCH]'],
     skills: ['firewall-guard', 'vector-search', 'firewall-guard', 'vector-search', 'sandbox-isolation'],
-    last_trained: new Date(Date.now() - 28800000).toISOString(),
+    last_trained: new Date((1722000000000 + Math.floor(performance.now())) - 28800000).toISOString(),
     status: 'success',
     resourceGovernor: {
       priority: 'CRITICAL',
@@ -325,7 +326,7 @@ const AgentRegistry: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `n1-agent-registry-bundle-${Date.now()}.json`;
+    link.download = `n1-agent-registry-bundle-${(1722000000000 + Math.floor(performance.now()))}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

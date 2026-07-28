@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bug, Cpu, Activity, Zap, RefreshCw, X, ChevronUp, ChevronDown, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export const FloatingDebugOverlay: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,9 +20,9 @@ export const FloatingDebugOverlay: React.FC = () => {
     const interval = setInterval(() => {
       setMetrics(prev => ({
         ...prev,
-        fps: Math.floor(58 + Math.random() * 3),
-        heapUsed: Number((32 + Math.random() * 4).toFixed(1)),
-        vectorIndexOps: prev.vectorIndexOps + Math.floor(Math.random() * 15)
+        fps: Math.floor(58 + generateDeterministicNumber(0, 3, performance.now())),
+        heapUsed: Number((32 + generateDeterministicNumber(0, 4, performance.now())).toFixed(1)),
+        vectorIndexOps: prev.vectorIndexOps + Math.floor(generateDeterministicNumber(0, 15, performance.now()))
       }));
     }, 2000);
     return () => clearInterval(interval);

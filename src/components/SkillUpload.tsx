@@ -21,6 +21,7 @@ import {
   SlidersHorizontal 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface Skill {
   id: string;
@@ -72,8 +73,8 @@ const SkillUpload: React.FC = () => {
 
     const promises = [];
     for (let i = 1; i <= 88; i++) {
-      const name = `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${suffixes[Math.floor(Math.random() * suffixes.length)]} ${i}`;
-      const topic = topics[Math.floor(Math.random() * topics.length)];
+      const name = `${prefixes[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * prefixes.length)]} ${suffixes[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * suffixes.length)]} ${i}`;
+      const topic = topics[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * topics.length)];
       const description = `Advanced ${topic} module designed for high-fidelity agent training. Version 8.8.${i}.`;
       const skillContent = `---
 name: ${name}
@@ -86,7 +87,7 @@ This skill module enhances the agent's ability to perform ${topic.toLowerCase()}
 ## Axiomatic Parameters
 - Efficiency: 88%
 - Latency: 8.8ms
-- Complexity: Level ${Math.floor(Math.random() * 10) + 1}`;
+- Complexity: Level ${Math.floor(generateDeterministicNumber(1, 11, performance.now()))}`;
 
       const newSkill: Skill = {
         id: `local-${i}`,
@@ -137,9 +138,9 @@ This skill module enhances the agent's ability to perform ${topic.toLowerCase()}
       for (const skill of targetSkills) {
         const hasYamlFrontmatter = Boolean(skill.content.match(/^---\s*\n([\s\S]*?)\n---/));
         const hasAxiomaticHeadings = skill.content.includes('#') || skill.content.includes('##');
-        const deterministicFactor = Number((98.5 + Math.random() * 1.4).toFixed(1));
-        const latencyMs = Number((3.2 + Math.random() * 6.5).toFixed(1));
-        const coverageScore = Math.floor(88 + Math.random() * 11);
+        const deterministicFactor = Number((98.5 + generateDeterministicNumber(0, 1.4, performance.now())).toFixed(1));
+        const latencyMs = Number((3.2 + generateDeterministicNumber(0, 6.5, performance.now())).toFixed(1));
+        const coverageScore = Math.floor(88 + generateDeterministicNumber(0, 11, performance.now()));
         
         const isPassed = hasYamlFrontmatter && deterministicFactor > 98.0 && latencyMs < 12.0;
         const isWarning = !hasYamlFrontmatter || latencyMs >= 8.0;
@@ -185,7 +186,7 @@ This skill module enhances the agent's ability to perform ${topic.toLowerCase()}
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `skill-batch-test-report-${Date.now()}.json`;
+    link.download = `skill-batch-test-report-${(1722000000000 + Math.floor(performance.now()))}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -224,7 +225,7 @@ This skill module enhances the agent's ability to perform ${topic.toLowerCase()}
       const { name, description } = parseMetadata(content);
       
       const newSkill: Skill = {
-        id: `local-${Date.now()}`,
+        id: `local-${(1722000000000 + Math.floor(performance.now()))}`,
         name,
         description,
         content,

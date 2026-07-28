@@ -15,6 +15,7 @@ import {
   Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface PuckPersonalInsight {
   id: string;
@@ -173,7 +174,7 @@ export const PucksPersonalLog: React.FC = () => {
     if (!newTitle.trim() || !newContent.trim()) return;
 
     const newLog: PuckPersonalInsight = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `log-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
       timestamp: new Date().toLocaleString('de-DE'),
       category: 'erfahrung_lernen',
       title: newTitle.trim(),
@@ -321,9 +322,9 @@ export const PucksPersonalLog: React.FC = () => {
             </div>
 
             <div className="space-y-3 font-mono text-xs">
-              {logs.map(log => (
+              {logs.map((log, index) => (
                 <div
-                  key={log.id}
+                  key={`${log.id}-${index}`}
                   className="p-5 bg-zinc-900/60 border border-zinc-800/90 rounded-2xl space-y-3 transition-all hover:border-purple-800/80"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">

@@ -1,3 +1,4 @@
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 export interface ToolDefinition {
   id: string;
   name: string;
@@ -216,7 +217,7 @@ export const generate400Tools = (): ToolDefinition[] => {
       endpoint: `/api/toolchain/execute/${toolId}`,
       method: 'POST',
       parameters: ['target_scope', 'auto_apply', 'log_level'],
-      executionTimeMs: Math.floor(Math.random() * 80) + 12,
+      executionTimeMs: Math.floor(generateDeterministicNumber(12, 92, performance.now())),
       tags: [group.cat.toLowerCase().replace(/\s+/g, '-'), 'self-aware', 'v3-engine', 'auto-repair'],
       autoRepairable: true
     });

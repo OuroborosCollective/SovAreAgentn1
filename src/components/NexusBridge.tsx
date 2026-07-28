@@ -26,6 +26,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface SSHKeyConfig {
   algorithm: string;
@@ -189,10 +190,10 @@ export const NexusBridge: React.FC = () => {
     setRegisterStatus(null);
     setTimeout(() => {
       const randomKeyFragment = Array.from({ length: 120 }, () => 
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'[Math.floor(Math.random() * 64)]
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'[Math.floor(generateDeterministicNumber(0, 64, performance.now()))]
       ).join('');
       const newPubKey = `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ${randomKeyFragment}== n1-auto-committer@n1-system-cluster`;
-      const newFingerprint = `SHA256:${Math.random().toString(36).substring(2, 12)}${Math.random().toString(36).substring(2, 12)}=`;
+      const newFingerprint = `SHA256:${generateDeterministicId('rnd')}${generateDeterministicId('rnd')}=`;
 
       setSshConfig({
         algorithm: 'RSA',

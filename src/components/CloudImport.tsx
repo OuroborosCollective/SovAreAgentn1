@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Cloud, FolderOpen, Database, Sparkles, CheckCircle2, RefreshCw, FileText, ArrowRight, Shield, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GooglePickerModal } from './GooglePickerModal';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface CloudImportLog {
   id: string;
@@ -49,7 +50,7 @@ export const CloudImport: React.FC = () => {
           clearInterval(interval);
           setIsStreaming(false);
           const newLog: CloudImportLog = {
-            id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            id: `log_${(1722000000000 + Math.floor(performance.now()))}_${generateDeterministicId('rnd')}`,
             timestamp: new Date().toLocaleTimeString(),
             fileName: selectedFile.name,
             fileSize: '4.8 MB',

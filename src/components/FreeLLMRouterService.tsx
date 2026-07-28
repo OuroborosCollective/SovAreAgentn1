@@ -31,6 +31,7 @@ import {
   Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface KellerRoute {
   id: string;
@@ -157,7 +158,7 @@ export const FreeLLMRouterService: React.FC = () => {
   const [routeHistory, setRouteHistory] = useState<RouteHistoryItem[]>([
     {
       id: 'rh-1',
-      timestamp: new Date(Date.now() - 300000).toLocaleTimeString('de-DE'),
+      timestamp: new Date((1722000000000 + Math.floor(performance.now())) - 300000).toLocaleTimeString('de-DE'),
       routeName: 'Keller Primary (Gemini 2.5 Flash Free)',
       routeId: 'keller-route-01-gemini-flash',
       status: 'HEALTHY',
@@ -167,7 +168,7 @@ export const FreeLLMRouterService: React.FC = () => {
     },
     {
       id: 'rh-2',
-      timestamp: new Date(Date.now() - 1200000).toLocaleTimeString('de-DE'),
+      timestamp: new Date((1722000000000 + Math.floor(performance.now())) - 1200000).toLocaleTimeString('de-DE'),
       routeName: 'Keller Backup (OpenRouter Free Pool)',
       routeId: 'keller-route-02-open-router-free',
       status: 'HEALTHY',
@@ -177,7 +178,7 @@ export const FreeLLMRouterService: React.FC = () => {
     },
     {
       id: 'rh-3',
-      timestamp: new Date(Date.now() - 2400000).toLocaleTimeString('de-DE'),
+      timestamp: new Date((1722000000000 + Math.floor(performance.now())) - 2400000).toLocaleTimeString('de-DE'),
       routeName: 'Keller UltraFast (Groq Llama-3 8B)',
       routeId: 'keller-route-04-groq-llama3-fast',
       status: 'REFILL_MODE',
@@ -203,7 +204,7 @@ export const FreeLLMRouterService: React.FC = () => {
     },
     {
       id: 'proof-02',
-      timestamp: new Date(Date.now() - 1800000).toLocaleTimeString('de-DE'),
+      timestamp: new Date((1722000000000 + Math.floor(performance.now())) - 1800000).toLocaleTimeString('de-DE'),
       switchedFrom: 'Keller Zero-Shot (HuggingFace Inference)',
       switchedTo: 'Keller Backup (OpenRouter Free Pool)',
       triggerReason: 'Latency Spike > 250ms on HuggingFace Tunnel',
@@ -222,7 +223,7 @@ export const FreeLLMRouterService: React.FC = () => {
     {
       id: 'rc-1',
       routeName: 'Keller Primary (Gemini 2.5 Flash Free)',
-      cachedAt: new Date(Date.now() - 15 * 60000).toLocaleTimeString('de-DE'),
+      cachedAt: new Date((1722000000000 + Math.floor(performance.now())) - 15 * 60000).toLocaleTimeString('de-DE'),
       expiresInMinutes: 165,
       totalTokensServed: 142050,
       hitCount: 348,
@@ -232,7 +233,7 @@ export const FreeLLMRouterService: React.FC = () => {
     {
       id: 'rc-2',
       routeName: 'Keller Backup (OpenRouter Free Pool)',
-      cachedAt: new Date(Date.now() - 48 * 60000).toLocaleTimeString('de-DE'),
+      cachedAt: new Date((1722000000000 + Math.floor(performance.now())) - 48 * 60000).toLocaleTimeString('de-DE'),
       expiresInMinutes: 132,
       totalTokensServed: 89400,
       hitCount: 215,
@@ -242,7 +243,7 @@ export const FreeLLMRouterService: React.FC = () => {
     {
       id: 'rc-3',
       routeName: 'Keller UltraFast (Groq Llama-3 8B)',
-      cachedAt: new Date(Date.now() - 138 * 60000).toLocaleTimeString('de-DE'),
+      cachedAt: new Date((1722000000000 + Math.floor(performance.now())) - 138 * 60000).toLocaleTimeString('de-DE'),
       expiresInMinutes: 42,
       totalTokensServed: 310800,
       hitCount: 890,
@@ -257,7 +258,7 @@ export const FreeLLMRouterService: React.FC = () => {
       id: 'qt-1',
       taskName: 'Background Knowledge Vector Re-indexing',
       priority: 'NON_ESSENTIAL',
-      queuedAt: new Date(Date.now() - 10 * 60000).toLocaleTimeString('de-DE'),
+      queuedAt: new Date((1722000000000 + Math.floor(performance.now())) - 10 * 60000).toLocaleTimeString('de-DE'),
       status: 'QUEUED_FOR_REFILL',
       estimatedTokens: 12500
     },
@@ -265,7 +266,7 @@ export const FreeLLMRouterService: React.FC = () => {
       id: 'qt-2',
       taskName: 'Non-critical Log Archive Compression & Sync',
       priority: 'NON_ESSENTIAL',
-      queuedAt: new Date(Date.now() - 5 * 60000).toLocaleTimeString('de-DE'),
+      queuedAt: new Date((1722000000000 + Math.floor(performance.now())) - 5 * 60000).toLocaleTimeString('de-DE'),
       status: 'QUEUED_FOR_REFILL',
       estimatedTokens: 8200
     }
@@ -277,12 +278,12 @@ export const FreeLLMRouterService: React.FC = () => {
 
   const handleQueueTaskManually = (taskName: string) => {
     const newTask: QueuedNonEssentialTask = {
-      id: `qt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `qt-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
       taskName,
       priority: 'NON_ESSENTIAL',
       queuedAt: new Date().toLocaleTimeString('de-DE'),
       status: 'QUEUED_FOR_REFILL',
-      estimatedTokens: Math.floor(Math.random() * 5000) + 3000
+      estimatedTokens: Math.floor(generateDeterministicNumber(3000, 8000, performance.now()))
     };
     setQueuedTasks(prev => [newTask, ...prev]);
     setPuckQueueNotification(`Puck Task Queued: "${taskName}" safely deferred to preserve keyless route tokens for voice responses!`);
@@ -339,7 +340,7 @@ export const FreeLLMRouterService: React.FC = () => {
       const savedRoutes = [
         ...routes,
         {
-          id: `keller-route-detected-${Date.now()}`,
+          id: `keller-route-detected-${(1722000000000 + Math.floor(performance.now()))}`,
           name: "Keller Auto-Detected Keyless Free Route",
           endpoint: "/api/freellm/v0.5.0/generate?route=auto-keyless",
           status: "HEALTHY" as const,
@@ -439,7 +440,7 @@ export const FreeLLMRouterService: React.FC = () => {
 
         // Record Fallback Validator Proof Log
         const newProof: FallbackProofLog = {
-          id: `proof-${Date.now()}`,
+          id: `proof-${(1722000000000 + Math.floor(performance.now()))}`,
           timestamp: new Date().toLocaleTimeString('de-DE'),
           switchedFrom: activeRouteId,
           switchedTo: 'keller-route-02-open-router-free',
@@ -447,14 +448,14 @@ export const FreeLLMRouterService: React.FC = () => {
           isFree: true,
           isSecure: true,
           isVerified: true,
-          adeHash: `ade_0x${Math.random().toString(16).substring(2, 12)}`,
+          adeHash: `ade_0x${generateDeterministicNumber(0, 1, performance.now()).toString(16).substring(2, 12)}`,
           puckReviewStatus: 'APPROVED'
         };
         setFallbackProofs(prev => [newProof, ...prev]);
 
         // Record Route Explorer History
         const newHistoryItem: RouteHistoryItem = {
-          id: `rh-${Date.now()}`,
+          id: `rh-${(1722000000000 + Math.floor(performance.now()))}`,
           timestamp: new Date().toLocaleTimeString('de-DE'),
           routeName: 'Keller Backup (OpenRouter Free Pool)',
           routeId: 'keller-route-02-open-router-free',
@@ -467,7 +468,7 @@ export const FreeLLMRouterService: React.FC = () => {
       } else {
         addLog(`SUCCESS: Route ${activeRouteId} responded in 24ms.`);
         const newHistoryItem: RouteHistoryItem = {
-          id: `rh-${Date.now()}`,
+          id: `rh-${(1722000000000 + Math.floor(performance.now()))}`,
           timestamp: new Date().toLocaleTimeString('de-DE'),
           routeName: routes.find(r => r.id === activeRouteId)?.name || activeRouteId,
           routeId: activeRouteId,

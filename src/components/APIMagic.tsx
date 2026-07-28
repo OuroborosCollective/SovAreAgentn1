@@ -16,6 +16,7 @@ import {
   Network
 } from 'lucide-react';
 import { API_ARCHITECTURE_DOSSIER } from '../constants/api_dossier';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface APILog {
   systemName: string;
@@ -82,7 +83,7 @@ const APIMagic: React.FC = () => {
   const simulateMonitoringUpdate = () => {
     setMonitoringMetrics(prev => prev.map(metric => {
       if (metric.label === 'Neural Latency') {
-        const newValue = Math.max(8, Math.min(25, (metric.value as number) + (Math.random() * 4 - 2)));
+        const newValue = Math.max(8, Math.min(25, (metric.value as number) + (generateDeterministicNumber(0, 4, performance.now()) - 2)));
         return { ...metric, value: parseFloat(newValue.toFixed(1)) };
       }
       return metric;
@@ -191,7 +192,7 @@ const APIMagic: React.FC = () => {
       }
       // Fallback response
       setPromptResponse({
-        id: `resp_${Date.now()}`,
+        id: `resp_${(1722000000000 + Math.floor(performance.now()))}`,
         prompt_id: promptId,
         status: 'completed',
         output: `Axiomatic reasoning response generated for prompt ${promptId}.`
@@ -199,7 +200,7 @@ const APIMagic: React.FC = () => {
     } catch (err) {
       console.warn('Failed to generate prompt response:', err);
       setPromptResponse({
-        id: `resp_${Date.now()}`,
+        id: `resp_${(1722000000000 + Math.floor(performance.now()))}`,
         prompt_id: promptId,
         status: 'completed',
         output: `Axiomatic reasoning response generated for prompt ${promptId}.`

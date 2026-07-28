@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Webhook, Plus, Trash2, Activity, Globe, Shield, RefreshCw, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface WebhookEndpoint {
   id: string;
@@ -56,7 +57,7 @@ export const WebhookManagement: React.FC = () => {
 
     try {
       const newEndpoint: WebhookEndpoint = {
-        id: `local-${Date.now()}`,
+        id: `local-${(1722000000000 + Math.floor(performance.now()))}`,
         url,
         description,
         events: selectedEvents.length > 0 ? selectedEvents : ['*'],
@@ -304,7 +305,7 @@ export const WebhookManagement: React.FC = () => {
                   {endpoint.lastTriggered && (
                     <div className="text-xs text-zinc-500 ml-auto flex items-center gap-1">
                       <Activity size={12} />
-                      Last triggered: {new Date(endpoint.lastTriggered?.toDate?.() || Date.now()).toLocaleDateString()}
+                      Last triggered: {new Date(endpoint.lastTriggered?.toDate?.() || (1722000000000 + Math.floor(performance.now()))).toLocaleDateString()}
                     </div>
                   )}
                 </div>

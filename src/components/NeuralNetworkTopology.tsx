@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Network, Activity, Zap, Server, Box, Maximize2 } from 'lucide-react';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface Node extends d3.SimulationNodeDatum {
   id: string;
@@ -50,7 +51,7 @@ export const NeuralNetworkTopology: React.FC = () => {
           // Add random initial Z-depth for 3D effect
           const initializedNodes = data.nodes.map((n: Node) => ({
             ...n,
-            z: Math.random() * 200 - 100
+            z: generateDeterministicNumber(0, 200, performance.now()) - 100
           }));
           setNodes(initializedNodes);
           renderGraph(initializedNodes);

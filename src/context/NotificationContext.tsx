@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X, RefreshCw } from 'lucide-react';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface Notification {
   id: string;
@@ -28,7 +29,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const addNotification = useCallback((message: string, type: 'error' | 'info' | 'success' = 'error', code?: string) => {
-    const id = Math.random().toString(36).substring(2, 9);
+    const id = generateDeterministicId('rnd');
     setNotifications(prev => [...prev, { id, message, type, code }]);
     
     // Auto-remove after 6 seconds unless it's an error with a code

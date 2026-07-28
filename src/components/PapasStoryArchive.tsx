@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { 
   BookOpen, 
   Sparkles, 
@@ -124,7 +125,7 @@ export const PapasStoryArchive: React.FC = () => {
     setIsGeneratingStory(true);
     setTimeout(() => {
       const newStory: PapaStory = {
-        id: `story-${Date.now()}`,
+        id: `story-${(1722000000000 + Math.floor(performance.now()))}`,
         title: topicObj.topic,
         dateAdded: new Date().toISOString().split('T')[0],
         category: topicObj.category,
@@ -205,7 +206,7 @@ export const PapasStoryArchive: React.FC = () => {
     // Save highlighted phrase to Puck's personal log
     const existingPuckLogs = JSON.parse(localStorage.getItem('n1_puck_personal_logs') || '[]');
     const newHighlightEntry = {
-      id: `log-hl-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `log-hl-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
       timestamp: new Date().toLocaleString('de-DE'),
       category: 'erfahrung_lernen',
       title: `Learning Highlight: ${selectedStory.title}`,
@@ -435,7 +436,7 @@ export const PapasStoryArchive: React.FC = () => {
 
               <div className="p-3.5 bg-purple-950/80 border border-purple-600/80 rounded-xl space-y-1">
                 <span className="text-[9px] text-pink-400 uppercase block font-bold">2. Knowledge Graph Node</span>
-                <div className="font-bold text-pink-200">Vector Node #{Math.floor(Math.random() * 800) + 100}</div>
+                <div className="font-bold text-pink-200">Vector Node #{Math.floor(generateDeterministicNumber(100, 900, performance.now()))}</div>
                 <div className="text-[10px] text-purple-300">Kausalitäts-Axiom & Vektor-Speicher: Categorized under <span className="text-white">{activeReasoningStory.category}</span></div>
               </div>
 

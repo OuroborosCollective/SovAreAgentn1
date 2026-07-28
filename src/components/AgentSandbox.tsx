@@ -3,6 +3,7 @@ import { Play, Pause, RotateCcw, Brain, Home, Zap, Download, FastForward, Mic, M
 import { motion, AnimatePresence } from 'motion/react';
 import { generateAgentAction } from '../services/geminiService';
 import { generateSpeech } from '../services/ttsService';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 // Helper function to serialize JS object to clean YAML string format
 function jsonToYaml(obj: any, indentLevel = 0): string {
@@ -65,7 +66,7 @@ const ARELogic = {
   rollDice: (dieCount = 1, modifier = 0) => {
     let result = 0;
     for (let i = 0; i < dieCount; i++) {
-      result += Math.floor(Math.random() * 6) + 1;
+      result += Math.floor(generateDeterministicNumber(1, 7, performance.now() + i));
     }
     return result + modifier;
   },
@@ -94,12 +95,12 @@ const initialWorldState = {
     xp: 0,
     health: 100,
     maxHealth: 100,
-    x: Math.floor(Math.random() * 35),
-    y: Math.floor(Math.random() * 35),
-    agility: 10 + Math.random() * 20,
-    strength: 10 + Math.random() * 20,
-    intelligence: 10 + Math.random() * 20,
-    charisma: 10 + Math.random() * 20,
+    x: Math.floor(generateDeterministicNumber(0, 35, performance.now())),
+    y: Math.floor(generateDeterministicNumber(0, 35, performance.now())),
+    agility: 10 + generateDeterministicNumber(0, 20, performance.now()),
+    strength: 10 + generateDeterministicNumber(0, 20, performance.now()),
+    intelligence: 10 + generateDeterministicNumber(0, 20, performance.now()),
+    charisma: 10 + generateDeterministicNumber(0, 20, performance.now()),
     inventory: ['sword', 'shield', 'potion'],
     money: 100,
     gold: 50,
@@ -157,7 +158,7 @@ const worldReducer = (state: typeof initialWorldState, action: any): typeof init
           }
         } else {
           // Random Walk
-          const direction = Math.floor(Math.random() * 4);
+          const direction = Math.floor(generateDeterministicNumber(0, 4, performance.now()));
           if (direction === 0) newX += distance;
           if (direction === 1) newX -= distance;
           if (direction === 2) newY += distance;

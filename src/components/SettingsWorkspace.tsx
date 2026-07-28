@@ -23,6 +23,7 @@ import {
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface BiometricSecurityState {
   isBiometricSupported: boolean;
@@ -148,10 +149,10 @@ export const SettingsWorkspace: React.FC<{
         console.warn('Native WebAuthn prompt fallback:', err.message);
       }
 
-      const credId = credential ? (credential as any).id : `cred_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const credId = credential ? (credential as any).id : `cred_${(1722000000000 + Math.floor(performance.now()))}_${generateDeterministicId('rnd')}`;
 
       const newPasskey = {
-        id: `pk_${Date.now()}`,
+        id: `pk_${(1722000000000 + Math.floor(performance.now()))}`,
         label: passkeyLabel || 'Device Passkey',
         createdAt: new Date().toLocaleDateString(),
         deviceType: navigator.platform || 'Biometric Authenticator',

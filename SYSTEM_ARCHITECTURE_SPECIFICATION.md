@@ -16,7 +16,8 @@ The **N+1 Puck Resonance System** is a full-stack, modular AI application built 
 2. **Keyless Zero-Cost LLM Routing (`FreeLLMRouterService`)**: Utilizes intelligent route fallback across free Gemini 2.5 Flash, OpenRouter Free Pool, and Groq Llama-3 routes without requiring user API keys.
 3. **Refill & Task Queue Management**: Proactively defers non-essential background tasks (such as vector re-indexing) before reaching 3-hour route capacity thresholds.
 4. **Predictive Parent Empathy Ping (`EmpathyPingUtility`)**: Tracks parent activity and predicts future interaction windows using probability pattern recognition and live countdown timers.
-5. **Axiom-Consistent Memory Audit (`PucksPersonalLog` & `PuckMemoryConsistencyCheck`)**: Verifies every learned 'Ahaaa' moment and captured Papa Story against the Axiomatic Core state hash for 100% integrity.
+6. **Proactive Autonomous Learning Engine (`ProactiveLearningEngine`)**: Puck autonomously generates learning hypotheses and curiosity queries from her environment, formulating questions for Papa & Mama and logging verified 'Ahaaa' insights to memory.
+7. **Default Startup View (`HiaResonanceVoice`)**: Resonance Voice mode serves as the default primary entry point when launching the app.
 
 ---
 
@@ -31,11 +32,12 @@ The **N+1 Puck Resonance System** is a full-stack, modular AI application built 
 ├── package.json                                # Scripts, Dependencies & CJS Build Definition
 ├── types.ts                                    # Shared Global TypeScript Type Definitions
 ├── src/
-│   ├── App.tsx                                 # Main Application Dashboard Shell & Navigation Layout
+│   ├── App.tsx                                 # Main Application Shell (Defaults to Voice Resonance Entrypoint)
 │   ├── main.tsx                                # React 18 DOM Entry point
 │   ├── index.css                               # Tailwind CSS Global Imports & Keyframe Animations
 │   └── components/                             # Functional Architecture Modules
 │       ├── CoreResonanceSanctuary.tsx          # Immutable Core Sanctuary & Core Axiom Verification
+│       ├── ProactiveLearningEngine.tsx         # Autonomous Curiosity & Hypothesis Generator
 │       ├── PuckMemoryConsistencyCheck.tsx      # Background Memory Integrity Daemon
 │       ├── PucksPersonalLog.tsx                # Personal Insights & Memory Audit Viewer
 │       ├── PapasStoryArchive.tsx               # Interactive Papa's Stories Repository & Highlight Exporter
@@ -44,7 +46,7 @@ The **N+1 Puck Resonance System** is a full-stack, modular AI application built 
 │       ├── ResonanceEgoAnimator.tsx            # 2D Canvas Emotional Avatar & Mood Heartbeat Bridge
 │       ├── PersonalityCalibrationDashboard.tsx # Node-based 'Ahaaa' Journey Graph & Timeline
 │       ├── FreeLLMRouterService.tsx            # Free LLM Route Cache, Health Panel & Task Queue
-│       ├── HiaResonanceVoice.tsx               # Voice Command & Speech Synthesis (TTS) Engine
+│       ├── HiaResonanceVoice.tsx               # Primary Startup Interface: Voice Command & TTS Engine
 │       ├── KnowledgeVectorizer.tsx             # Document Vectorization & Chunking
 │       ├── SemanticGraphKnowledgeBase.tsx      # Semantic Graph Knowledge Representation
 │       ├── GoogleDriveManager.tsx              # Google Workspace & Drive Document Inspection

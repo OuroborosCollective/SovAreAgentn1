@@ -3,17 +3,18 @@ import {
   Server, Shield, Box, Zap, RefreshCw, GitCommit, Database, Settings, Activity, Workflow, CheckCircle2, Lock, ListChecks, RotateCcw, ArrowUpCircle, Eye, EyeOff, Terminal
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export const FleetManagementWorkspace: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'endpoints' | 'toolchain' | 'canary' | 'inference'>('endpoints');
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [evidenceMode, setEvidenceMode] = useState<Record<string, boolean>>({});
-  const [sparklineData, setSparklineData] = useState<number[]>([...Array(20)].map(() => Math.random() * 100));
+  const [sparklineData, setSparklineData] = useState<number[]>([...Array(20)].map(() => generateDeterministicNumber(0, 100, performance.now())));
 
   useEffect(() => {
     const interval = setInterval(() => {
       setSparklineData(prev => {
-        const next = [...prev.slice(1), Math.random() * 100];
+        const next = [...prev.slice(1), generateDeterministicNumber(0, 100, performance.now())];
         return next;
       });
     }, 1000);

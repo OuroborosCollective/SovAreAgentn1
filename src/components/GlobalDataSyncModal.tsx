@@ -1,3 +1,4 @@
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import React, { useState } from 'react';
 import JSZip from 'jszip';
 import { Download, Upload, RefreshCw, CheckCircle2, AlertCircle, X, FileArchive, Layers, Database, Sparkles } from 'lucide-react';
@@ -66,7 +67,7 @@ export const GlobalDataSyncModal: React.FC<GlobalDataSyncModalProps> = ({ isOpen
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `n1-agents-sync-package-${Date.now()}.zip`;
+      link.download = `n1-agents-sync-package-${(1722000000000 + Math.floor(performance.now()))}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

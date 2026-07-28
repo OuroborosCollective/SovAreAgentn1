@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Activity, Cpu, Database, Zap, RefreshCw, Layers, Radio, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface ActivityDataPoint {
   time: string;
@@ -35,10 +36,10 @@ export const AxiomaticCoreActivityGraph: React.FC = () => {
         const last = prev[prev.length - 1] || { inferenceLoad: 1000, vectorMilvusOps: 2000, sqlTransactions: 800, thinkingActingScore: 95 };
         const newPoint: ActivityDataPoint = {
           time: timeStr,
-          inferenceLoad: Math.round(Math.max(500, Math.min(2500, last.inferenceLoad + (Math.random() * 200 - 90)))),
-          vectorMilvusOps: Math.round(Math.max(1000, Math.min(5000, last.vectorMilvusOps + (Math.random() * 400 - 180)))),
-          sqlTransactions: Math.round(Math.max(300, Math.min(2000, last.sqlTransactions + (Math.random() * 150 - 70)))),
-          thinkingActingScore: parseFloat(Math.min(99.9, Math.max(85, last.thinkingActingScore + (Math.random() * 2 - 1))).toFixed(1))
+          inferenceLoad: Math.round(Math.max(500, Math.min(2500, last.inferenceLoad + (generateDeterministicNumber(0, 200, performance.now()) - 90)))),
+          vectorMilvusOps: Math.round(Math.max(1000, Math.min(5000, last.vectorMilvusOps + (generateDeterministicNumber(0, 400, performance.now()) - 180)))),
+          sqlTransactions: Math.round(Math.max(300, Math.min(2000, last.sqlTransactions + (generateDeterministicNumber(0, 150, performance.now()) - 70)))),
+          thinkingActingScore: parseFloat(Math.min(99.9, Math.max(85, last.thinkingActingScore + (generateDeterministicNumber(0, 2, performance.now()) - 1))).toFixed(1))
         };
         const updated = [...prev.slice(1), newPoint];
         return updated;

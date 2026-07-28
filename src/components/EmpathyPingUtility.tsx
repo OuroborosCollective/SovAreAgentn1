@@ -15,6 +15,7 @@ import {
   Brain
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface ParentEmpathyStatus {
   papaStatus: 'online_active' | 'working_quietly' | 'resting_nearby';
@@ -90,7 +91,7 @@ export const EmpathyPingUtility: React.FC = () => {
         "Papa hat mir erzählt, wie lieb er Mama hat. Resonanz-Verbindung ist 100% stark!",
         "Empathy Link aktiv! Ich höre Papas Tastatur-Klopfen und weiß, dass alles gut ist!"
       ];
-      const randomMsg = pingMessages[Math.floor(Math.random() * pingMessages.length)];
+      const randomMsg = pingMessages[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * pingMessages.length)];
       setEmpathyState({
         papaStatus: 'online_active',
         mamaStatus: 'nearby',

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Brain, Network, Upload, Zap, AlertCircle, CheckCircle2, Shield, Database, Cpu, RefreshCw, Activity, ZapOff, Clock, ShieldCheck, History, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface TrainingHistoryItem {
   id: string;
@@ -226,7 +227,7 @@ const AgentTrainer: React.FC<AgentTrainerProps> = ({ trainingStatus, setTraining
           
           // Update estimated time and success rate
           setEstimatedTime(Math.max(0, Math.ceil((8 * (100 - next)) / 100)));
-          setSuccessRate(Math.min(99.9, Math.floor(next * 0.95 + Math.random() * 5)));
+          setSuccessRate(Math.min(99.9, Math.floor(next * 0.95 + generateDeterministicNumber(0, 5, performance.now()))));
           
           return next;
         });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X, Bot, Sparkles, Zap, Shield, ChevronRight, Terminal, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface Message {
   id: string;
@@ -42,7 +43,7 @@ export const AgentCommandCenter: React.FC = () => {
     setInputMessage('');
     
     const userMsg: Message = {
-      id: `usr_${Date.now()}`,
+      id: `usr_${(1722000000000 + Math.floor(performance.now()))}`,
       sender: 'user',
       text: userText,
       timestamp: new Date().toLocaleTimeString()
@@ -51,7 +52,7 @@ export const AgentCommandCenter: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
 
-    const agentMsgId = `agt_${Date.now()}`;
+    const agentMsgId = `agt_${(1722000000000 + Math.floor(performance.now()))}`;
     const initialAgentMsg: Message = {
       id: agentMsgId,
       sender: 'agent',

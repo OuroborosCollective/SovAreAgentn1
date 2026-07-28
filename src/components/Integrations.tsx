@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Plus, Trash2, Shield, ExternalLink, Key, Globe, CheckCircle2, AlertCircle, Eye, EyeOff, FolderOpen, Github, Bug, Search, ArrowRight, CornerDownRight, CheckSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GooglePickerModal } from './GooglePickerModal';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 interface Integration {
   id: string;
@@ -67,7 +68,7 @@ const Integrations: React.FC = () => {
 
     try {
       const newIntegration: Integration = {
-        id: `local-${Date.now()}`,
+        id: `local-${(1722000000000 + Math.floor(performance.now()))}`,
         ...formData,
         status: 'active',
         createdAt: new Date().toISOString(),
@@ -322,7 +323,7 @@ const Integrations: React.FC = () => {
                           {/* Simulated QR Icon / Grid */}
                           <div className="grid grid-cols-3 gap-0.5 opacity-80">
                             {[...Array(9)].map((_, i) => (
-                              <div key={i} className={`size-1.5 ${Math.random() > 0.3 ? 'bg-indigo-400' : 'bg-transparent'}`} />
+                              <div key={i} className={`size-1.5 ${generateDeterministicNumber(0, 1, performance.now()) > 0.3 ? 'bg-indigo-400' : 'bg-transparent'}`} />
                             ))}
                           </div>
                           <span className="text-[8px] uppercase tracking-widest font-bold text-indigo-300">View QR Pair</span>

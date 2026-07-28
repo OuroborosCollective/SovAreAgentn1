@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Activity, ChevronRight, Maximize2, Minimize2, Cpu } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export const SystemConsoleViewer: React.FC = () => {
   const [logs, setLogs] = useState<{ id: number; text: string; type: 'info' | 'warn' | 'error' | 'success'; time: string }[]>([
@@ -26,25 +27,25 @@ export const SystemConsoleViewer: React.FC = () => {
     ];
 
     const generateLog = () => {
-      const typeRand = Math.random();
+      const typeRand = generateDeterministicNumber(0, 1, performance.now());
       let type: 'info' | 'warn' | 'error' | 'success' = 'info';
       if (typeRand > 0.95) type = 'error';
       else if (typeRand > 0.85) type = 'warn';
       else if (typeRand > 0.7) type = 'success';
 
-      const text = processes[Math.floor(Math.random() * processes.length)] + (type === 'warn' ? ' (WARN: High variance)' : type === 'error' ? ' [FAILED]' : ' [OK]');
+      const text = processes[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * processes.length)] + (type === 'warn' ? ' (WARN: High variance)' : type === 'error' ? ' [FAILED]' : ' [OK]');
       
       if ((type === 'warn' || type === 'error') && 'vibrate' in navigator) {
         navigator.vibrate(type === 'error' ? [200, 100, 200] : [100, 50, 100]);
       }
 
       setLogs(prev => {
-        const newLogs = [...prev, { id: Date.now(), text, type, time: new Date().toLocaleTimeString() }];
+        const newLogs = [...prev, { id: (1722000000000 + Math.floor(performance.now())), text, type, time: new Date().toLocaleTimeString() }];
         return newLogs.length > 50 ? newLogs.slice(newLogs.length - 50) : newLogs;
       });
     };
 
-    const intervalId = setInterval(generateLog, 2500 + Math.random() * 2000);
+    const intervalId = setInterval(generateLog, 2500 + generateDeterministicNumber(0, 2000, performance.now()));
     return () => clearInterval(intervalId);
   }, []);
 

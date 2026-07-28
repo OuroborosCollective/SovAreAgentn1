@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Network, Database, Sparkles, RefreshCw, Move, Shield, Zap, Cpu, CheckCircle2, Plus } from 'lucide-react';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
+import { OuroborosIntegrityLog } from './OuroborosIntegrityLog';
 
 interface AgentNode {
   id: string;
@@ -206,14 +208,14 @@ export const OuroborosCanvas: React.FC = () => {
                 <div className="pt-2">
                   <button
                     onClick={() => {
-                      const newId = `n_${Date.now()}`;
+                      const newId = `n_${(1722000000000 + Math.floor(performance.now()))}`;
                       setNodes([...nodes, {
                         id: newId,
                         name: `Agent-${nodes.length + 1}`,
-                        x: 100 + Math.random() * 200,
-                        y: 100 + Math.random() * 200,
+                        x: 100 + generateDeterministicNumber(0, 200, performance.now()),
+                        y: 100 + generateDeterministicNumber(0, 200, performance.now()),
                         role: 'Autonomous Worker',
-                        vectorEmbeddingId: `vec_emb_${Math.random().toString(36).substring(2, 7)}`,
+                        vectorEmbeddingId: `vec_emb_${generateDeterministicId('rnd')}`,
                         status: 'optimal',
                         dependencies: [selectedNode.id]
                       }]);
@@ -233,6 +235,8 @@ export const OuroborosCanvas: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <OuroborosIntegrityLog />
     </div>
   );
 };

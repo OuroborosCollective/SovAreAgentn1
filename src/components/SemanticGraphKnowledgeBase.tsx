@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Network, Database, Sparkles, Cpu, ShieldCheck, Zap, RefreshCw, Layers, CheckCircle2, ChevronRight, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AhaMomentTimeline } from './AhaMomentTimeline';
 
 export const SemanticGraphKnowledgeBase: React.FC = () => {
   const [engineMode, setEngineMode] = useState<'erdos-kappa' | 'hawking-prosom' | 'axiomatic-field'>('erdos-kappa');
@@ -254,6 +255,11 @@ export const SemanticGraphKnowledgeBase: React.FC = () => {
             <span className="text-emerald-400">Synced</span>
           </div>
         </div>
+      </div>
+      
+      {/* Aha-Moment Timeline Section */}
+      <div className="mt-8">
+        <AhaMomentTimeline />
       </div>
     </div>
   );

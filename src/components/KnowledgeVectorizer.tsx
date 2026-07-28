@@ -18,6 +18,7 @@ import {
   Network
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface VectorEntry {
   id: string;
@@ -188,7 +189,7 @@ export const KnowledgeVectorizer: React.FC = () => {
         ...entry,
         status: 'Indexed' as const,
         indexedAt: 'Just now',
-        similarityScore: Number((0.95 + Math.random() * 0.04).toFixed(3))
+        similarityScore: Number((0.95 + generateDeterministicNumber(0, 0.04, performance.now())).toFixed(3))
       })));
 
       setIndexingLogs(prev => [

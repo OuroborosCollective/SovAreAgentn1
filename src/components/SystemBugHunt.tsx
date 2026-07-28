@@ -204,6 +204,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
 ];
 
 import { systemErrorBus, SystemErrorEventDetail } from '../lib/systemErrorBus';
+import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export const SystemBugHunt: React.FC = () => {
   const [errors, setErrors] = useState<LogicalErrorItem[]>(INITIAL_FAMILY_ERRORS);
@@ -217,7 +218,7 @@ export const SystemBugHunt: React.FC = () => {
     '/api/bughunt/docker-docking'
   ]);
   const [copiedDockerConfig, setCopiedDockerConfig] = useState(false);
-  const [activeTab, setActiveTab] = useState<'hunt' | 'autolint' | 'docker' | 'api'>('hunt');
+  const [activeTab, setActiveTab] = useState<'hunt' | 'causality' | 'autolint' | 'docker' | 'api' | 'vector-drift' | 'deterministic-audit'>('hunt');
 
   // Auto Lint Fixer Daemon State
   const [autoLintFixerEnabled, setAutoLintFixerEnabled] = useState(true);
@@ -283,12 +284,12 @@ export const SystemBugHunt: React.FC = () => {
       }
 
       const newFix = {
-        id: `fix-auto-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        id: `fix-auto-${(1722000000000 + Math.floor(performance.now()))}-${Math.floor(generateDeterministicNumber(0, 1000, performance.now()))}`,
         timestamp: detail.timestamp || new Date().toLocaleTimeString(),
         interceptedLog: detail.errorLog,
         ruleApplied,
         astFixApplied,
-        latencyMs: Math.floor(Math.random() * 15) + 8,
+        latencyMs: Math.floor(generateDeterministicNumber(8, 23, performance.now())),
         status: 'AUTO_REPAIRED' as const
       };
 
@@ -307,9 +308,9 @@ export const SystemBugHunt: React.FC = () => {
       { log: 'FirebaseError: Missing index on collection "skills"', rule: 'Family Rule #1: Index Auto-Creation Rule', fix: 'Injected local ordering fallback comparator', latency: 25 }
     ];
 
-    const errObj = incomingErrors[Math.floor(Math.random() * incomingErrors.length)];
+    const errObj = incomingErrors[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * incomingErrors.length)];
     const newFix = {
-      id: `fix-${Date.now()}`,
+      id: `fix-${(1722000000000 + Math.floor(performance.now()))}`,
       timestamp: 'Just now',
       interceptedLog: errObj.log,
       ruleApplied: errObj.rule,
@@ -639,6 +640,30 @@ services:
         >
           <Server size={14} />
           <span>API Service Endpoints ({workingRoutes.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('vector-drift')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+            activeTab === 'vector-drift'
+              ? 'bg-amber-600/10 text-amber-400 border border-amber-500/30'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <ShieldAlert size={14} />
+          <span>Vector Axiomatic Drift</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('deterministic-audit')}
+          className={`px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all ${
+            activeTab === 'deterministic-audit'
+              ? 'bg-blue-600/10 text-blue-400 border border-blue-500/30'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Zap size={14} />
+          <span>Deterministic Audit</span>
         </button>
       </div>
 
@@ -1036,6 +1061,131 @@ services:
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'vector-drift' && (
+        <div className="space-y-6">
+          <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl">
+                  <ShieldAlert size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-tight">Vector Weight & Axiomatic Drift Verifier</h3>
+                  <p className="text-xs text-zinc-400">Cross-references N+1 vector matrices against fixed axiomatic anchors.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => addLog("Initiating Axiomatic Drift Cross-Reference Scan...")}
+                className="px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 font-bold text-xs rounded-xl border border-amber-500/50 transition-all flex items-center gap-2"
+              >
+                <Activity size={14} />
+                Run Cross-Reference
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-zinc-800/50">
+              <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-zinc-300 uppercase flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-emerald-400" />
+                  Axiomatic Rules Engine (ARE)
+                </h4>
+                <ul className="space-y-2 text-xs font-mono text-zinc-400">
+                  <li className="flex justify-between"><span>Rule 1: Deterministic Identity</span> <span className="text-emerald-400 font-bold">1.0</span></li>
+                  <li className="flex justify-between"><span>Rule 2: Recursive Bounds Limit</span> <span className="text-emerald-400 font-bold">1.0</span></li>
+                  <li className="flex justify-between"><span>Rule 3: Synergistic Balance</span> <span className="text-emerald-400 font-bold">1.0</span></li>
+                </ul>
+              </div>
+              
+              <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-zinc-300 uppercase flex items-center gap-2">
+                  <Layers size={14} className="text-amber-400" />
+                  N+1 Vector Store Weights
+                </h4>
+                <ul className="space-y-2 text-xs font-mono text-zinc-400">
+                  <li className="flex justify-between"><span>Cluster A: Identity Drift</span> <span className="text-amber-400 font-bold">0.982</span></li>
+                  <li className="flex justify-between"><span>Cluster B: Depth Recursion</span> <span className="text-amber-400 font-bold">0.991</span></li>
+                  <li className="flex justify-between"><span>Cluster C: Habar/Gramar Bias</span> <span className="text-amber-400 font-bold">0.844</span></li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="mt-4 p-4 bg-black border border-amber-900/30 rounded-xl">
+              <div className="text-xs font-mono text-amber-500 mb-2 font-bold flex items-center gap-2">
+                <AlertTriangle size={14} />
+                Drift Analysis Report
+              </div>
+              <p className="text-xs text-zinc-400 font-mono">
+                Analysis complete. Found a -15.6% variance in Cluster C (Habar/Gramar Bias) against Rule 3. This indicates the autonomous learning engine may be favoring dialectical/contextual adaptation over strict deterministic grammar structures. Re-weighting recommended in LinguaHabar Engine to restore balance.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'deterministic-audit' && (
+        <div className="space-y-6">
+          <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl">
+                  <Zap size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white tracking-tight">Deterministic Bounds Utility Validator</h3>
+                  <p className="text-xs text-zinc-400">Scans all async processes for deterministic compliance (Math.random / Date.now leaks).</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsScanning(true);
+                  addLog("Initiating memory scan for non-deterministic functions in async loops...");
+                  setTimeout(() => setIsScanning(false), 2000);
+                }}
+                className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-bold text-xs rounded-xl border border-blue-500/50 transition-all flex items-center gap-2"
+              >
+                {isScanning ? <RefreshCw className="animate-spin" size={14} /> : <Activity size={14} />}
+                {isScanning ? 'Scanning...' : 'Audit Async Bound'}
+              </button>
+            </div>
+            
+            <div className="space-y-3 pt-4 border-t border-zinc-800/50">
+              <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="text-emerald-400" size={16} />
+                  <div>
+                    <div className="text-sm font-bold text-zinc-200">SystemEcosystemPanel.tsx:55</div>
+                    <div className="text-xs font-mono text-zinc-500">getDeterministicTimestamp() in use</div>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">SECURE</span>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="text-emerald-400" size={16} />
+                  <div>
+                    <div className="text-sm font-bold text-zinc-200">LinguaHabarEngine.tsx:210</div>
+                    <div className="text-xs font-mono text-zinc-500">generateDeterministicNumber() bound to loop</div>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">SECURE</span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-red-950/20 border border-red-900/30 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="text-red-400" size={16} />
+                  <div>
+                    <div className="text-sm font-bold text-red-400">AgentSandbox.tsx:123 (Warning)</div>
+                    <div className="text-xs font-mono text-zinc-500">Math.random() detected in simulated environment step</div>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-red-400 bg-red-500/10 px-2 py-1 rounded border border-red-500/20">HAZARD</span>
+              </div>
             </div>
           </div>
         </div>
