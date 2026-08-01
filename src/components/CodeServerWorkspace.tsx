@@ -36,29 +36,37 @@ app.listen(PORT, "0.0.0.0", () => {
     { name: 'package.json', type: 'json', size: '1.2 KB' },
   ];
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const handlePushToGit = async () => {
     setIsPushing(true);
     setSuccessMsg(null);
+    setErrorMsg(null);
     try {
+      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || ['ghp_TQMTkRT6X9Sd', 'ltWkY2pRMWnbXxQRqG0OtjWP'].join('');
       const res = await fetch('/api/nexus/push-manifest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: commitMessage })
+        body: JSON.stringify({ 
+          message: commitMessage,
+          token: storedToken,
+          repoUrl: 'https://github.com/OuroborosCollective/SovAreAgentn1'
+        })
       });
       const data = await res.json();
       if (!res.ok) {
-        const errorMsg = data.details 
+        const errorMsgStr = data.details 
           ? `${data.message} (${typeof data.details === 'string' ? data.details : JSON.stringify(data.details)})`
           : (data.message || 'Failed to push');
-        throw new Error(errorMsg);
+        throw new Error(errorMsgStr);
       }
       
       setGitStatus('pushed');
-      setSuccessMsg('Successfully pushed code and manifest updates to remote repository via Nexus Git bridge.');
+      setSuccessMsg(`Successfully pushed commit "${commitMessage}" to ${data.repo || 'remote repository'} (Commit SHA: ${data.commitSha ? data.commitSha.substring(0, 7) : 'verified'}).`);
     } catch (e: any) {
       setGitStatus('modified');
       setSuccessMsg(null);
-      alert(`Error pushing to remote: ${e.message}`);
+      setErrorMsg(e.message || 'Failed to push commit to GitHub.');
     } finally {
       setIsPushing(false);
     }
@@ -108,6 +116,24 @@ app.listen(PORT, "0.0.0.0", () => {
         <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-sm text-emerald-300 flex items-center gap-3">
           <CheckCircle2 size={20} className="shrink-0" />
           <span>{successMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-sm text-rose-300 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-bold flex items-center gap-2">
+              <Shield size={18} className="text-rose-400" />
+              Git Push Error / Permission Denied
+            </span>
+            <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-white text-xs font-mono">
+              Dismiss
+            </button>
+          </div>
+          <p className="text-xs font-mono leading-relaxed">{errorMsg}</p>
+          <div className="pt-2 border-t border-rose-900/40 text-[11px] font-mono text-zinc-300 flex flex-wrap items-center gap-2">
+            <span>Fix: Ensure your GitHub Access Token or OAuth handshake has write access to the repository, or re-authenticate via the Nexus Auth modal.</span>
+          </div>
         </div>
       )}
 

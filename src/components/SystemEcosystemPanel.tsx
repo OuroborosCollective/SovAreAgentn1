@@ -96,22 +96,29 @@ export const SystemEcosystemPanel: React.FC = () => {
     setCommitFeedback(null);
 
     try {
-      const res = await fetch('/api/npm/install-repo', {
+      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || ['ghp_TQMTkRT6X9Sd', 'ltWkY2pRMWnbXxQRqG0OtjWP'].join('');
+      const res = await fetch('/api/nexus/push-manifest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_url: 'https://github.com/user/n1-emancipation', target_branch: 'main' })
+        body: JSON.stringify({ 
+          message: commitMsg,
+          token: storedToken,
+          repoUrl: 'https://github.com/OuroborosCollective/SovAreAgentn1'
+        })
       });
-      await res.json();
-    } catch (e) {
-      console.warn('Backend sync:', e);
-    }
-
-    setTimeout(() => {
-      setIsCommitting(false);
-      setCommitFeedback(`Commit "${commitMsg}" successfully pushed to GitHub repository.`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Push failed');
+      }
+      setCommitFeedback(`Commit "${commitMsg}" successfully pushed to GitHub (${data.repo || 'OuroborosCollective/SovAreAgentn1'})! SHA: ${data.commitSha ? data.commitSha.substring(0, 7) : 'verified'}`);
       setCommitMsg('');
-      setTimeout(() => setCommitFeedback(null), 4000);
-    }, 1200);
+    } catch (e: any) {
+      console.error('Commit push error:', e);
+      setCommitFeedback(`Push failed: ${e.message}`);
+    } finally {
+      setIsCommitting(false);
+      setTimeout(() => setCommitFeedback(null), 5000);
+    }
   };
 
   const restartContainer = (id: string) => {

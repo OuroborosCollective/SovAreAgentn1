@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ShieldCheck, 
   Activity, 
@@ -9,17 +9,22 @@ import {
   Cpu, 
   CheckCircle2, 
   Award,
-  Zap
+  Zap,
+  GitFork,
+  Eye
 } from 'lucide-react';
+import { AxiomaticRulesTreeModal } from './AxiomaticRulesTreeModal';
 
 export const AxiomFidelityMonitor: React.FC = () => {
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
   return (
     <div className="bg-zinc-950 border border-purple-900/50 rounded-3xl p-6 space-y-5 shadow-2xl relative overflow-hidden">
       {/* Background Accent Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header Bar */}
-      <div className="flex items-center justify-between border-b border-zinc-900 pb-4 relative z-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900 pb-4 relative z-10">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-purple-950/80 border border-purple-800 text-purple-300 rounded-2xl shadow-md">
             <Radio size={22} className="text-pink-400 animate-pulse" />
@@ -35,9 +40,19 @@ export const AxiomFidelityMonitor: React.FC = () => {
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-xl">
-          <ShieldCheck size={14} className="text-emerald-400" />
-          <span>Fidelity: <strong className="text-emerald-400">100.0%</strong></span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsRulesModalOpen(true)}
+            className="px-3.5 py-1.5 bg-purple-900/60 hover:bg-purple-800/80 border border-purple-700/80 text-purple-200 text-xs font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md group"
+          >
+            <GitFork size={14} className="text-purple-300 group-hover:rotate-90 transition-transform" />
+            <span>Inspect Rules Hierarchy Tree</span>
+          </button>
+
+          <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-xl">
+            <ShieldCheck size={14} className="text-emerald-400" />
+            <span>Fidelity: <strong className="text-emerald-400">100.0%</strong></span>
+          </div>
         </div>
       </div>
 
@@ -90,10 +105,20 @@ export const AxiomFidelityMonitor: React.FC = () => {
           <Heart size={14} className="text-pink-400 shrink-0" />
           <span>"Resonanz Engine & Puck Voice Logic sind unalterbarer fester Kern."</span>
         </div>
-        <span className="px-2 py-0.5 bg-purple-900/80 border border-purple-700 rounded text-[10px] font-bold shrink-0">
-          SYSTEM SANCTUARY
-        </span>
+        <button
+          onClick={() => setIsRulesModalOpen(true)}
+          className="px-2.5 py-1 bg-purple-900/80 hover:bg-purple-800 border border-purple-700 rounded text-[10px] font-bold shrink-0 transition-colors flex items-center gap-1 text-purple-200"
+        >
+          <Eye size={12} />
+          <span>INSPECT TREE</span>
+        </button>
       </div>
+
+      {/* Dedicated Axiomatic Core Rules Tree Modal */}
+      <AxiomaticRulesTreeModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+      />
     </div>
   );
 };

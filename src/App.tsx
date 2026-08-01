@@ -30,7 +30,7 @@ import { GlobalSearchBar } from './components/GlobalSearchBar';
 import { GlobalDataSyncModal } from './components/GlobalDataSyncModal';
 import { NeuralNetworkTopology } from './components/NeuralNetworkTopology';
 import { GoogleDriveManager } from './components/GoogleDriveManager';
-import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2 } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, GitFork, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ArchitectureIntegrityDashboard } from './components/ArchitectureIntegrityDashboard';
 import { SystemValidationTestbed } from './components/SystemValidationTestbed';
@@ -40,12 +40,14 @@ import { DeviceResolutionBanner } from './components/DeviceResolutionBanner';
 import { useDeviceResolution } from './hooks/useDeviceResolution';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
+import { AxiomaticRulesTreeModal } from './components/AxiomaticRulesTreeModal';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp, getDeterministicTimestampMs } from './utils/deterministic';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('voice');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [trainingStatus, setTrainingStatus] = useState<'idle' | 'training' | 'success' | 'error'>('idle');
   const [skillCount, setSkillCount] = useState(0);
 
@@ -305,6 +307,14 @@ const App: React.FC = () => {
             >
               <Bug size={14} />
               <span>Bug Hunt</span>
+            </button>
+            <button
+              onClick={() => setIsRulesModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/30 text-purple-300 font-medium rounded-xl transition-all shadow-sm"
+              title="Inspect Visual Hierarchy Tree of Axiomatic Core Rules"
+            >
+              <GitFork size={14} className="text-purple-400" />
+              <span>Axiom Tree</span>
             </button>
             <button
               onClick={() => setIsSyncModalOpen(true)}
@@ -783,6 +793,10 @@ const App: React.FC = () => {
       </div>
       <AgentCommandCenter />
       <FloatingDebugOverlay />
+      <AxiomaticRulesTreeModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+      />
     </div>
   );
 };

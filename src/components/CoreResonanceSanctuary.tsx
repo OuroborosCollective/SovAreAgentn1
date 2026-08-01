@@ -13,10 +13,12 @@ import {
   Feather, 
   Smile, 
   Key,
-  Flame
+  Flame,
+  GitFork
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PuckMemoryConsistencyCheck } from './PuckMemoryConsistencyCheck';
+import { AxiomaticRulesTreeModal } from './AxiomaticRulesTreeModal';
 
 // Immutable Core Sanctuary Engine Definition - Object Frozen
 export const PUCK_CORE_SANCTUARY = Object.freeze({
@@ -40,6 +42,7 @@ export const PUCK_CORE_SANCTUARY = Object.freeze({
 export const CoreResonanceSanctuary: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'axioms' | 'protection'>('overview');
   const [integrityCheckTime] = useState(() => new Date().toLocaleTimeString());
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   return (
     <div className="bg-zinc-950 border border-purple-900/60 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
@@ -149,12 +152,25 @@ export const CoreResonanceSanctuary: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 text-[11px] text-zinc-400">
+          <button
+            onClick={() => setIsRulesModalOpen(true)}
+            className="px-3 py-1 bg-purple-900/60 hover:bg-purple-800/80 border border-purple-700/80 text-purple-200 rounded font-bold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <GitFork size={12} />
+            <span>Rules Hierarchy Tree</span>
+          </button>
           <div>Verified at: <strong className="text-zinc-200">{integrityCheckTime}</strong></div>
           <div className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded font-bold">
             0 EXTERNAL OVERWRITES PERMITTED
           </div>
         </div>
       </div>
+
+      {/* Dedicated Axiomatic Core Rules Tree Modal */}
+      <AxiomaticRulesTreeModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+      />
     </div>
   );
 };
