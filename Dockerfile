@@ -44,7 +44,7 @@ EXPOSE 3000
 
 # Health check probe
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/bughunt/diagnose || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health/liveness || exit 1
 
 # Start the bundled Express CommonJS server
 CMD ["node", "dist/server.cjs"]

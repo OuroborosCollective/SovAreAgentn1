@@ -446,7 +446,7 @@ services:
       - DOCKER_DOCKING_ENABLED=true
       - BUG_HUNT_AUTOFIX_PASS=2
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/bughunt/diagnose"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health/liveness"]
       interval: 15s
       timeout: 5s
       retries: 3
