@@ -1,10 +1,10 @@
 {
   "scan_metadata": {
-    "scan_timestamp": "2026-07-30T15:49:00Z",
-    "git_commit_anchor": "7b7f717a8bcf0edc5f13c5f9b5ec1e87f00ecaf7",
-    "repository_name": "n-plus-1-authentic-reality-emancipation",
-    "total_tracked_files": 126,
-    "scanned_files": 126,
+    "scan_timestamp": "2026-08-01T13:55:30Z",
+    "git_commit_anchor": "main@dcbc91734dbcc26a0b4775dcf2d9c33055934d56",
+    "repository_name": "OuroborosCollective/SovAreAgentn1",
+    "total_tracked_files": 129,
+    "scanned_files": 129,
     "truncation_reported": false,
     "coverage_percentage": 100.0,
     "runtime_environment": "Cloud Run Sandbox Container (Port 3000, Express + Vite SPA)"
@@ -13,8 +13,8 @@
     {
       "path": "server.ts",
       "category": "Produktion",
-      "byte_size": 52822,
-      "purpose": "Express API Server, Vite middleware, PostgreSQL/Memcached connections, OAuth endpoints, FreeLLM routing"
+      "byte_size": 59815,
+      "purpose": "Express API Server, Vite middleware, PostgreSQL/Memcached connections, OAuth endpoints, GitHub Octokit Sync, FreeLLM routing"
     },
     {
       "path": "src/App.tsx",
@@ -71,6 +71,12 @@
       "purpose": "Colab/Jupyter notebook analyzer & insight generator"
     },
     {
+      "path": "src/components/HeaderGitHubPushSync.tsx",
+      "category": "Produktion",
+      "byte_size": 10520,
+      "purpose": "Header GitHub Octokit sync button with background change detection hook and live status indicator badge"
+    },
+    {
       "path": "src/components/LinguaHabarEngine.tsx",
       "category": "Produktion",
       "byte_size": 25946,
@@ -93,6 +99,12 @@
       "category": "Produktion",
       "byte_size": 21737,
       "purpose": "System configuration, animation speeds, biometric security settings"
+    },
+    {
+      "path": "src/components/GlobalDataSyncModal.tsx",
+      "category": "Produktion",
+      "byte_size": 14948,
+      "purpose": "Cross-device data synchronization modal"
     },
     {
       "path": "src/services/ttsService.ts",
@@ -147,12 +159,6 @@
       "category": "Persistenz",
       "byte_size": 11062,
       "purpose": "Cloud repository import interface"
-    },
-    {
-      "path": "src/components/GlobalDataSyncModal.tsx",
-      "category": "Persistenz",
-      "byte_size": 14948,
-      "purpose": "Cross-device data synchronization modal"
     },
     {
       "path": "src/components/GoogleDriveManager.tsx",
@@ -329,6 +335,12 @@
       "purpose": "Theme management context with localStorage sync"
     },
     {
+      "path": "src/data/axiomaticRules.ts",
+      "category": "Core",
+      "byte_size": 2100,
+      "purpose": "Core axiomatic system rules and constraints"
+    },
+    {
       "path": "src/data/technologyLexikon.ts",
       "category": "Core",
       "byte_size": 7492,
@@ -459,6 +471,12 @@
       "category": "Runtime-Projektion",
       "byte_size": 11497,
       "purpose": "Graph representation of axiomatic activity"
+    },
+    {
+      "path": "src/components/AxiomaticRulesTreeModal.tsx",
+      "category": "Runtime-Projektion",
+      "byte_size": 8920,
+      "purpose": "Interactive modal displaying system axiomatic rules tree"
     },
     {
       "path": "src/components/DeviceResolutionBanner.tsx",
@@ -884,6 +902,12 @@
     }
   ],
   "feature_verification_matrix": [
+    {
+      "feature": "HeaderGitHubPushSync & Auto-Sync Monitor",
+      "status": "runtime-verifiziert",
+      "truth_boundary": "Server endpoint /api/nexus/status checks workspace file modification times vs last sync timestamp; Header button renders live warning badge on uncommitted changes and triggers Octokit push.",
+      "evidence": "Tested live file modification, /api/nexus/status status response, and automated reset on push execution."
+    },
     {
       "feature": "FreeLLMRouterService & Keyless Route Failover",
       "status": "runtime-verifiziert",
