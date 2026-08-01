@@ -1,8 +1,64 @@
-import React, { useState } from 'react';
-import { GitPullRequest, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, ArrowUpRight, Github, Send } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { GitPullRequest, RefreshCw, CheckCircle2, AlertCircle, ExternalLink, ArrowUpRight, Github, Send, AlertTriangle } from 'lucide-react';
 
 interface HeaderGitHubPushSyncProps {
   repoUrl?: string;
+}
+
+export function useGitHubSyncMonitor(intervalMs = 10000) {
+  const [syncState, setSyncState] = useState<{
+    hasUncommittedChanges: boolean;
+    uncommittedCount: number;
+    fileCount: number;
+    lastSyncTimestamp: number;
+    isChecking: boolean;
+    repoUrl: string;
+    error: string | null;
+  }>({
+    hasUncommittedChanges: false,
+    uncommittedCount: 0,
+    fileCount: 0,
+    lastSyncTimestamp: 0,
+    isChecking: false,
+    repoUrl: 'https://github.com/OuroborosCollective/SovAreAgentn1',
+    error: null,
+  });
+
+  const checkSyncStatus = useCallback(async () => {
+    setSyncState((prev) => ({ ...prev, isChecking: true }));
+    try {
+      const res = await fetch('/api/nexus/status');
+      if (res.ok) {
+        const data = await res.json();
+        setSyncState({
+          hasUncommittedChanges: !!data.hasUncommittedChanges,
+          uncommittedCount: data.uncommittedCount || 0,
+          fileCount: data.fileCount || 0,
+          lastSyncTimestamp: data.lastSyncTimestamp || 0,
+          isChecking: false,
+          repoUrl: data.repoUrl || 'https://github.com/OuroborosCollective/SovAreAgentn1',
+          error: null,
+        });
+      } else {
+        setSyncState((prev) => ({ ...prev, isChecking: false }));
+      }
+    } catch (err: any) {
+      setSyncState((prev) => ({ ...prev, isChecking: false, error: err.message }));
+    }
+  }, []);
+
+  useEffect(() => {
+    checkSyncStatus();
+    const timer = setInterval(checkSyncStatus, intervalMs);
+    const handleFocus = () => checkSyncStatus();
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [checkSyncStatus, intervalMs]);
+
+  return { ...syncState, checkSyncStatus };
 }
 
 export const HeaderGitHubPushSync: React.FC<HeaderGitHubPushSyncProps> = ({
@@ -18,6 +74,8 @@ export const HeaderGitHubPushSync: React.FC<HeaderGitHubPushSyncProps> = ({
     filesPushed?: number;
     branch?: string;
   }>({ type: 'idle' });
+
+  const syncMonitor = useGitHubSyncMonitor();
 
   const handlePush = async () => {
     setIsPushing(true);
@@ -48,6 +106,8 @@ export const HeaderGitHubPushSync: React.FC<HeaderGitHubPushSyncProps> = ({
           branch: data.branch || 'main'
         });
         setCommitMessage('');
+        // Immediately refresh monitor status
+        setTimeout(() => syncMonitor.checkSyncStatus(), 500);
       } else {
         setStatus({
           type: 'error',
@@ -66,22 +126,53 @@ export const HeaderGitHubPushSync: React.FC<HeaderGitHubPushSyncProps> = ({
 
   return (
     <>
-      {/* Header Button - Visible in top navigation bar */}
+      {/* Header Button - Visible in top navigation bar with subtle change indicator badge */}
       <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 hover:border-zinc-500 text-zinc-100 font-medium rounded-xl transition-all shadow-sm group shrink-0"
-        title="Sync & Push codebase to GitHub repository SovAreAgentn1"
+        onClick={() => {
+          setIsOpen(true);
+          syncMonitor.checkSyncStatus();
+        }}
+        className={`flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border ${
+          syncMonitor.hasUncommittedChanges
+            ? 'border-amber-500/60 shadow-amber-500/10'
+            : 'border-zinc-700/80 hover:border-zinc-500'
+        } text-zinc-100 font-medium rounded-xl transition-all shadow-sm group shrink-0 relative`}
+        title={
+          syncMonitor.hasUncommittedChanges
+            ? `${syncMonitor.uncommittedCount} uncommitted file changes detected — Click to push`
+            : "Sync & Push codebase to GitHub repository SovAreAgentn1"
+        }
       >
         <div className="relative flex items-center justify-center">
           <Github size={15} className="text-white group-hover:scale-110 transition-transform" />
-          {status.type === 'success' && (
-            <span className="absolute -top-1 -right-1 size-2 bg-emerald-500 rounded-full animate-ping" />
+          {/* Subtle badge on uncommitted changes */}
+          {syncMonitor.hasUncommittedChanges && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+            </span>
           )}
         </div>
+
         <span className="hidden sm:inline font-mono text-xs text-zinc-200">GitHub Sync</span>
+
         <span className="px-1.5 py-0.5 text-[10px] bg-indigo-500/20 text-indigo-300 rounded font-mono border border-indigo-500/30">
           SovAreAgentn1
         </span>
+
+        {/* Uncommitted changes badge count pill */}
+        {syncMonitor.hasUncommittedChanges ? (
+          <span className="px-1.5 py-0.5 text-[10px] bg-amber-500/20 text-amber-300 font-mono font-bold rounded-full border border-amber-500/30 flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>{syncMonitor.uncommittedCount > 0 ? `${syncMonitor.uncommittedCount} modified` : 'Pending'}</span>
+          </span>
+        ) : status.type === 'success' ? (
+          <span className="px-1.5 py-0.5 text-[10px] bg-emerald-500/20 text-emerald-300 font-mono rounded-full border border-emerald-500/30 flex items-center gap-1">
+            <CheckCircle2 size={10} />
+            <span>Synced</span>
+          </span>
+        ) : null}
+
         {isPushing ? (
           <RefreshCw size={12} className="animate-spin text-amber-400 ml-0.5" />
         ) : (
@@ -132,6 +223,25 @@ export const HeaderGitHubPushSync: React.FC<HeaderGitHubPushSyncProps> = ({
                 <ExternalLink size={12} />
               </a>
             </div>
+
+            {/* Live Sync Status Banner */}
+            {syncMonitor.hasUncommittedChanges ? (
+              <div className="p-3.5 bg-amber-950/40 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-300 font-mono">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+                  <span>{syncMonitor.uncommittedCount} uncommitted file change(s) detected</span>
+                </div>
+                <span className="text-[10px] text-amber-400/80">Push recommended</span>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-emerald-950/30 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs text-emerald-300 font-mono">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                  <span>Workspace is clean ({syncMonitor.fileCount} files tracked)</span>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300">Up to date</span>
+              </div>
+            )}
 
             {/* Status Display */}
             {status.type === 'success' && (

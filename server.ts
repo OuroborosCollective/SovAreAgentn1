@@ -719,13 +719,47 @@ function getAllWorkspaceFiles(dir: string, baseDir: string = dir): { path: strin
   return results;
 }
 
+let lastSyncTimestamp = 0;
+
   app.get("/api/nexus/status", async (req, res) => {
-    const token = req.signedCookies.n1_sync_auth || process.env.N1_SYNC_TOKEN || DEFAULT_NEXUS_TOKEN;
+    const token = req.signedCookies?.n1_sync_auth || process.env.N1_SYNC_TOKEN || DEFAULT_NEXUS_TOKEN;
     const repoUrl = process.env.N1_SYNC_URL || "https://github.com/OuroborosCollective/SovAreAgentn1";
+    
+    let allFiles: { path: string; absolutePath: string }[] = [];
+    let uncommittedCount = 0;
+    
+    try {
+      allFiles = getAllWorkspaceFiles(process.cwd());
+      if (lastSyncTimestamp === 0) {
+        // Find newest file modification time as baseline if not set yet
+        let maxMtime = 0;
+        for (const file of allFiles) {
+          try {
+            const stat = fs.statSync(file.absolutePath);
+            if (stat.mtimeMs > maxMtime) maxMtime = stat.mtimeMs;
+          } catch (e) {}
+        }
+        lastSyncTimestamp = maxMtime;
+      }
+
+      for (const file of allFiles) {
+        try {
+          const stat = fs.statSync(file.absolutePath);
+          if (stat.mtimeMs > lastSyncTimestamp + 1000) {
+            uncommittedCount++;
+          }
+        } catch (e) {}
+      }
+    } catch (err) {}
+
     res.json({ 
       configured: true,
       repoUrl,
-      hasToken: !!token
+      hasToken: !!token,
+      fileCount: allFiles.length,
+      uncommittedCount,
+      hasUncommittedChanges: uncommittedCount > 0,
+      lastSyncTimestamp
     });
   });
 
@@ -898,6 +932,8 @@ function getAllWorkspaceFiles(dir: string, baseDir: string = dir): { path: strin
           throw firstErr;
         }
       }
+
+      lastSyncTimestamp = Date.now();
 
       res.json({ 
         status: "success", 
