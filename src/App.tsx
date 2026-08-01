@@ -41,6 +41,7 @@ import { useDeviceResolution } from './hooks/useDeviceResolution';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
 import { AxiomaticRulesTreeModal } from './components/AxiomaticRulesTreeModal';
+import { HeaderGitHubPushSync } from './components/HeaderGitHubPushSync';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp, getDeterministicTimestampMs } from './utils/deterministic';
 
 const App: React.FC = () => {
@@ -195,8 +196,8 @@ const App: React.FC = () => {
           telemetry.deviceType === 'mobile' || telemetry.deviceType === 'phablet'
             ? 'fixed inset-y-0 left-0 z-50 shadow-2xl'
             : 'relative'
-        } transition-all duration-300 border-r border-zinc-800 bg-zinc-950 flex flex-col shrink-0`}>
-          <div className="p-4 sm:p-6 flex items-center justify-between">
+        } transition-all duration-300 border-r border-zinc-800 bg-zinc-950 flex flex-col shrink-0 h-screen max-h-screen overflow-hidden`}>
+          <div className="p-4 sm:p-6 flex items-center justify-between border-b border-zinc-900/80">
             {isSidebarOpen && <span className="text-lg sm:text-xl font-bold text-white tracking-tighter">N+1 SYSTEM</span>}
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -207,7 +208,7 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          <nav className="flex-1 px-3 sm:px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+          <nav className="flex-1 px-3 sm:px-4 space-y-1.5 overflow-y-auto custom-scrollbar touch-pan-y overscroll-contain min-h-0 py-3">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -232,7 +233,7 @@ const App: React.FC = () => {
             ))}
           </nav>
 
-          <div className="p-3 sm:p-4 border-t border-zinc-900 flex flex-col gap-2">
+          <div className="p-3 sm:p-4 border-t border-zinc-900 flex flex-col gap-2 shrink-0">
             {/* WebSocket Connection Status */}
             <div className="flex items-center gap-3 p-3 bg-zinc-900 rounded-xl border border-zinc-800">
               <div className={`p-1.5 rounded-lg ${
@@ -262,9 +263,9 @@ const App: React.FC = () => {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-zinc-950 flex flex-col min-w-0">
-          {/* Sticky Top Header with Global Search */}
-          <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-1 max-w-3xl">
+          {/* Sticky Top Header with Global Search and Header GitHub Push Sync */}
+          <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2.5 overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-2.5 flex-1 min-w-[200px] max-w-2xl">
               <button 
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="p-2 hover:bg-zinc-900 rounded-xl transition-colors md:hidden shrink-0"
@@ -275,58 +276,49 @@ const App: React.FC = () => {
                 <GlobalSearchBar onSelectResult={(tab) => setActiveTab(tab)} />
               </div>
             </div>
-          <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] text-zinc-500">
-            <button
-              onClick={() => setActiveTab('npm-installer')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 font-medium rounded-xl transition-all shadow-sm"
-              title="Open Official NPM Engine Installer"
-            >
-              <Package size={14} />
-              <span>NPM Engine 0.0.0</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('freellm')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-500/20 text-cyan-400 font-medium rounded-xl transition-all shadow-sm"
-              title="Open FreeLLMAPI v0.5.0 & FreeLLMRouter"
-            >
-              <Network size={14} />
-              <span>FreeLLM 0.5.0</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('toolchain')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 font-medium rounded-xl transition-all shadow-sm"
-              title="Open Self-Aware Toolchain Engine (400 Active Tools)"
-            >
-              <Wrench size={14} />
-              <span>Toolchain 400</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('bughunt')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 text-red-400 font-medium rounded-xl transition-all shadow-sm"
-              title="Open System-Wide Bug Hunt & Self-Healing Service"
-            >
-              <Bug size={14} />
-              <span>Bug Hunt</span>
-            </button>
-            <button
-              onClick={() => setIsRulesModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/30 text-purple-300 font-medium rounded-xl transition-all shadow-sm"
-              title="Inspect Visual Hierarchy Tree of Axiomatic Core Rules"
-            >
-              <GitFork size={14} className="text-purple-400" />
-              <span>Axiom Tree</span>
-            </button>
-            <button
-              onClick={() => setIsSyncModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 font-medium rounded-xl transition-all shadow-sm"
-              title="Open Global Data Sync (Bulk Import / Export ZIP)"
-            >
-              <FileArchive size={14} />
-              <span>Global Data Sync</span>
-            </button>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
+
+          <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-500 shrink-0">
+            {/* Real GitHub Sync Button - Always Accessible */}
+            <HeaderGitHubPushSync repoUrl="https://github.com/OuroborosCollective/SovAreAgentn1" />
+
+            <div className="hidden lg:flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab('npm-installer')}
+                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 text-emerald-400 font-medium rounded-xl transition-all shadow-sm"
+                title="Open Official NPM Engine Installer"
+              >
+                <Package size={14} />
+                <span>NPM Engine</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('freellm')}
+                className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-500/20 text-cyan-400 font-medium rounded-xl transition-all shadow-sm"
+                title="Open FreeLLMAPI v0.5.0 & FreeLLMRouter"
+              >
+                <Network size={14} />
+                <span>FreeLLM 0.5.0</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('toolchain')}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 font-medium rounded-xl transition-all shadow-sm"
+                title="Open Self-Aware Toolchain Engine (400 Active Tools)"
+              >
+                <Wrench size={14} />
+                <span>Toolchain</span>
+              </button>
+              <button
+                onClick={() => setIsRulesModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/30 text-purple-300 font-medium rounded-xl transition-all shadow-sm"
+                title="Inspect Visual Hierarchy Tree of Axiomatic Core Rules"
+              >
+                <GitFork size={14} className="text-purple-400" />
+                <span>Axiom Tree</span>
+              </button>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
               <span className="size-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-zinc-300 font-bold uppercase">Matrix Online</span>
+              <span className="text-zinc-300 font-bold uppercase text-[10px]">Matrix Online</span>
             </div>
           </div>
         </header>
