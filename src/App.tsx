@@ -30,7 +30,7 @@ import { GlobalSearchBar } from './components/GlobalSearchBar';
 import { GlobalDataSyncModal } from './components/GlobalDataSyncModal';
 import { NeuralNetworkTopology } from './components/NeuralNetworkTopology';
 import { GoogleDriveManager } from './components/GoogleDriveManager';
-import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, GitFork, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2 } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Database, Settings as SettingsIcon, Menu, X, Brain, Users, Book, Upload, Share2, Sparkles, FileArchive, Bug, Wrench, Package, Palette, Activity, TrendingUp, Layers, Mic, GitBranch, GitFork, Cloud, HardDrive, Terminal, Wifi, WifiOff, RefreshCw, Webhook, FolderOpen, Zap, Server, Network, CheckCircle2, Calculator, Github } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ArchitectureIntegrityDashboard } from './components/ArchitectureIntegrityDashboard';
 import { SystemValidationTestbed } from './components/SystemValidationTestbed';
@@ -42,6 +42,9 @@ import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { AxiomFidelityMonitor } from './components/AxiomFidelityMonitor';
 import { AxiomaticRulesTreeModal } from './components/AxiomaticRulesTreeModal';
 import { HeaderGitHubPushSync } from './components/HeaderGitHubPushSync';
+import { WolframMathematicalEngine } from './components/WolframMathematicalEngine';
+import { ContinuousAIGitHubHub } from './components/ContinuousAIGitHubHub';
+import { AREKappaRuntimeWorkspace } from './components/AREKappaRuntimeWorkspace';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp, getDeterministicTimestampMs } from './utils/deterministic';
 
 const App: React.FC = () => {
@@ -170,6 +173,9 @@ const App: React.FC = () => {
     { id: 'knowledge', label: 'Knowledge Base', icon: Book },
     { id: 'skills', label: 'Skill Upload', icon: Upload },
     { id: 'integrations', label: 'Integrations', icon: Share2 },
+    { id: 'arekappa', label: 'AREKappa & κIR v1 Core', icon: Layers },
+    { id: 'wolfram-math', label: 'Wolfram Engine 14.3 Math', icon: Calculator },
+    { id: 'continuous-ai', label: 'Continuous AI & Octokit', icon: Github },
     { id: 'database', label: 'Database', icon: Database },
     { id: 'webhooks', label: 'Webhooks', icon: Webhook },
     { id: 'settings', label: 'Settings & Biometrics', icon: SettingsIcon },
@@ -771,6 +777,9 @@ const App: React.FC = () => {
           {activeTab === 'knowledge' && <KnowledgeBase />}
           {activeTab === 'skills' && <SkillUpload />}
           {activeTab === 'integrations' && <Integrations />}
+          {activeTab === 'arekappa' && <AREKappaRuntimeWorkspace />}
+          {activeTab === 'wolfram-math' && <WolframMathematicalEngine />}
+          {activeTab === 'continuous-ai' && <ContinuousAIGitHubHub />}
           {activeTab === 'webhooks' && <WebhookManagement />}
           {activeTab === 'settings' && <SettingsWorkspace />}
           
