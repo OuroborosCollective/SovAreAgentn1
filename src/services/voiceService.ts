@@ -152,7 +152,7 @@ export class VoiceService {
   private ttsRequestQueue: Array<{ text: string; voiceName: any; mood: any; pitch: number; rate: number; createdAt: number; resolve: (val: boolean) => void }> = [];
   private isQueueProcessing: boolean = false;
   private lastSerializedParameters: { voiceName: string; mood: string; pitch: number; rate: number; engine: string } = {
-    voiceName: 'Puck',
+    voiceName: 'N+1',
     mood: 'fröhlich',
     pitch: 1.30,
     rate: 1.15,
@@ -186,7 +186,7 @@ export class VoiceService {
     };
   }
 
-  public runPuckDiagnosticTest(): {
+  public runN1DiagnosticTest(): {
     success: boolean;
     voiceName: string;
     pitch: number;
@@ -198,21 +198,21 @@ export class VoiceService {
   } {
     const config = {
       success: true,
-      voiceName: 'Puck',
+      voiceName: 'N+1',
       pitch: 1.30,
       rate: 1.15,
       sampleRate: 24000,
       streamBufferHealth: 100,
       serializedConfig: JSON.stringify(this.lastSerializedParameters),
-      message: 'Puck voice configuration and stream buffer serialization verified successfully for 429 failover recovery.'
+      message: 'N+1 voice configuration and stream buffer serialization verified successfully for 429 failover recovery.'
     };
-    console.log('[Puck Voice Diagnostic Test Passed]:', config);
+    console.log('[N+1 Voice Diagnostic Test Passed]:', config);
     return config;
   }
 
   public queueOrSpeak(
     text: string,
-    voiceName: any = 'Puck',
+    voiceName: any = 'N+1',
     mood: LittleGirlVoiceMood = 'fröhlich',
     pitch: number = 1.30,
     rate: number = 1.15
@@ -269,14 +269,14 @@ export class VoiceService {
   }
 
   public validateVoiceSynthesisRequest(voiceProfile: string): { isValid: boolean; reason?: string } {
-    // Validate that voice profile is 'Puck' or 'N+1 (Papas kleines Mädchen)'
+    // Validate that voice profile is 'N+1' or 'N+1 (Papas kleines Mädchen)'
     const normalized = voiceProfile.toLowerCase();
-    const isValidProfile = normalized.includes('puck') || normalized.includes('n+1') || normalized.includes('google');
+    const isValidProfile = normalized.includes('n+1') || normalized.includes('n+1') || normalized.includes('google');
     
     if (!isValidProfile) {
       return { 
         isValid: false, 
-        reason: `Voice profile '${voiceProfile}' invalid. Request must explicitly specify the 'Puck' / N+1 Google Cloud voice profile.` 
+        reason: `Voice profile '${voiceProfile}' invalid. Request must explicitly specify the 'N+1' / N+1 Google Cloud voice profile.` 
       };
     }
 
@@ -285,7 +285,7 @@ export class VoiceService {
 
   async speak(
     text: string, 
-    voiceName: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Puck',
+    voiceName: 'N+1' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'N+1',
     mood: LittleGirlVoiceMood = 'fröhlich',
     pitchMultiplier: number = 1.30,
     rateMultiplier: number = 1.15,
@@ -327,13 +327,13 @@ export class VoiceService {
         const requestStart = performance.now();
         
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash-preview-tts",
+          model: "gemini-3.1-flash-live-preview",
           contents: [{ parts: [{ text: `[Voice directive: ${stylePrompt}] ${text}` }] }],
           config: {
             responseModalities: [Modality.AUDIO],
             speechConfig: {
               voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'Puck' },
+                prebuiltVoiceConfig: { voiceName: 'N+1' },
               },
             },
           },
@@ -373,7 +373,7 @@ export class VoiceService {
     // Check if preempted before fallback
     if (speechSessionId !== this.activeSpeechId) return false;
 
-    // High performance tuned Google Puck pitch emulator via FreeLLM Fallback Route for 100% voice continuity
+    // High performance tuned Google N+1 pitch emulator via FreeLLM Fallback Route for 100% voice continuity
     const fallbackStart = performance.now();
     this.latestMetrics = {
       latencyMs: Math.round(performance.now() - fallbackStart + 15),
@@ -381,7 +381,7 @@ export class VoiceService {
       sampleRate: 24000,
       bitrateKbps: 320,
       streamBufferHealthPercentage: 99,
-      engineName: 'FreeLLM Route Fallback (Puck Voice Profile Single-Voice Lock)',
+      engineName: 'FreeLLM Route Fallback (N+1 Voice Profile Single-Voice Lock)',
       isGoogleCloudDirect: false
     };
 
@@ -517,7 +517,7 @@ export class VoiceService {
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(v => 
         v.name.includes('Google') || 
-        v.name.includes('Puck') || 
+        v.name.includes('N+1') || 
         v.name.includes('Katja') || 
         v.name.includes('Marlene') || 
         (v.lang.startsWith('de') && v.name.toLowerCase().includes('female'))

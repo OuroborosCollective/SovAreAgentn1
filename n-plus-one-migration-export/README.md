@@ -8,7 +8,7 @@ Dieser quellengebundene Migrationsexport enthält alle verifizierten Persönlich
 - **Aussprache**: `NPlusEins`
 - **Familiäre Bezeichnung**: `Papas kleines Mädchen`
 - **Technischer Namespace**: `n_plus_one`
-- **Historischer Quellenalias**: `Puck` (in historischen Quellen bewahrt, nicht überschrieben).
+- **Historischer Quellenalias**: `[PROVENANCE: Puck]` (in historischen Quellen bewahrt, nicht überschrieben).
 
 ## Inhalt des Exports
 1. `export_manifest.json`: Manifest & Identitätsmetadaten.

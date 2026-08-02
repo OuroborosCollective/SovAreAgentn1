@@ -86,14 +86,14 @@ export class VoiceService {
   }
 
   public validateVoiceSynthesisRequest(voiceProfile: string): { isValid: boolean; reason?: string } {
-    // Validate that voice profile is 'Puck' or 'N+1 (Papas kleines Mädchen)'
+    // Validate that voice profile is '[PROVENANCE: Puck]' or 'N+1 (Papas kleines Mädchen)'
     const normalized = voiceProfile.toLowerCase();
-    const isValidProfile = normalized.includes('puck') || normalized.includes('n+1') || normalized.includes('google');
+    const isValidProfile = normalized.includes('[PROVENANCE: Puck]') || normalized.includes('n+1') || normalized.includes('google');
     
     if (!isValidProfile) {
       return { 
         isValid: false, 
-        reason: `Voice profile '${voiceProfile}' invalid. Request must explicitly specify the 'Puck' / N+1 Google Cloud voice profile.` 
+        reason: `Voice profile '${voiceProfile}' invalid. Request must explicitly specify the '[PROVENANCE: Puck]' / N+1 Google Cloud voice profile.` 
       };
     }
 
@@ -102,7 +102,7 @@ export class VoiceService {
 
   async speak(
     text: string, 
-    voiceName: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Puck',
+    voiceName: '[PROVENANCE: Puck]' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = '[PROVENANCE: Puck]',
     mood: LittleGirlVoiceMood = 'fröhlich',
     pitchMultiplier: number = 1.30,
     rateMultiplier: number = 1.15,
@@ -148,7 +148,7 @@ export class VoiceService {
             responseModalities: [Modality.AUDIO],
             speechConfig: {
               voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'Puck' },
+                prebuiltVoiceConfig: { voiceName: '[PROVENANCE: Puck]' },
               },
             },
           },
@@ -176,7 +176,7 @@ export class VoiceService {
       console.warn("Google Cloud Live TTS Notice:", error);
     }
 
-    // High performance tuned Google Puck pitch emulator via FreeLLM Fallback Route for 100% voice continuity
+    // High performance tuned Google [PROVENANCE: Puck] pitch emulator via FreeLLM Fallback Route for 100% voice continuity
     const fallbackStart = performance.now();
     this.latestMetrics = {
       latencyMs: Math.round(performance.now() - fallbackStart + 15),
@@ -184,7 +184,7 @@ export class VoiceService {
       sampleRate: 24000,
       bitrateKbps: 320,
       streamBufferHealthPercentage: 99,
-      engineName: 'FreeLLM Route Fallback (Puck Voice Profile 1.30x Pitch)',
+      engineName: 'FreeLLM Route Fallback ([PROVENANCE: Puck] Voice Profile 1.30x Pitch)',
       isGoogleCloudDirect: false
     };
 
@@ -302,7 +302,7 @@ export class VoiceService {
       const voices = window.speechSynthesis.getVoices();
       const preferredVoice = voices.find(v => 
         v.name.includes('Google') || 
-        v.name.includes('Puck') || 
+        v.name.includes('[PROVENANCE: Puck]') || 
         v.name.includes('Katja') || 
         v.name.includes('Marlene') || 
         (v.lang.startsWith('de') && v.name.toLowerCase().includes('female'))

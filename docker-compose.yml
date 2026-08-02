@@ -1,10 +1,18 @@
 name: n1-system
 
+networks:
+  n1_net:
+    driver: bridge
+
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_REVISION: ${GIT_REVISION:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+        VERSION: ${VERSION:-latest}
     container_name: n1_system_app
     ports:
       - "3000:3000"
@@ -21,25 +29,53 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - n1_net
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - app_data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
 
   db:
     image: pgvector/pgvector:pg16
     container_name: n1_system_db
     environment:
-      POSTGRES_DB: n1_db
-      POSTGRES_USER: n1_user
-      POSTGRES_PASSWORD: n1_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-n1_db}
+      POSTGRES_USER: ${POSTGRES_USER:-n1_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-n1_secure_generated_pass}
+    command: ["postgres", "-c", "statement_timeout=10000", "-c", "max_connections=50", "-c", "idle_in_transaction_session_timeout=10000"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - n1_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U n1_user -d n1_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-n1_user} -d $${POSTGRES_DB:-n1_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
 
 volumes:
   pgdata:
+  app_data:

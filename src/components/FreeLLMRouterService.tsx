@@ -70,7 +70,7 @@ export interface FallbackProofLog {
   isSecure: boolean;
   isVerified: boolean;
   adeHash: string;
-  puckReviewStatus: 'APPROVED' | 'PENDING';
+  n1ReviewStatus: 'APPROVED' | 'PENDING';
 }
 
 export interface RouteCacheItem {
@@ -203,7 +203,7 @@ export const FreeLLMRouterService: React.FC = () => {
       isSecure: true,
       isVerified: true,
       adeHash: 'ade_0x8f9a2b3c4d5e',
-      puckReviewStatus: 'APPROVED'
+      n1ReviewStatus: 'APPROVED'
     },
     {
       id: 'proof-02',
@@ -215,7 +215,7 @@ export const FreeLLMRouterService: React.FC = () => {
       isSecure: true,
       isVerified: true,
       adeHash: 'ade_0x7e6d5c4b3a2f',
-      puckReviewStatus: 'APPROVED'
+      n1ReviewStatus: 'APPROVED'
     }
   ]);
 
@@ -255,7 +255,7 @@ export const FreeLLMRouterService: React.FC = () => {
     }
   ]);
 
-  // Puck Task Queue for Max Usage / Refill Countdown States
+  // N1 Task Queue for Max Usage / Refill Countdown States
   const [queuedTasks, setQueuedTasks] = useState<QueuedNonEssentialTask[]>([
     {
       id: 'qt-1',
@@ -275,8 +275,8 @@ export const FreeLLMRouterService: React.FC = () => {
     }
   ]);
 
-  const [puckQueueNotification, setPuckQueueNotification] = useState<string | null>(
-    'Puck Notification: Refill threshold reached for Groq Llama-3 route. 2 non-essential background tasks automatically queued until refill cycle!'
+  const [n1QueueNotification, setN1QueueNotification] = useState<string | null>(
+    'N1 Notification: Refill threshold reached for Groq Llama-3 route. 2 non-essential background tasks automatically queued until refill cycle!'
   );
 
   const handleQueueTaskManually = (taskName: string) => {
@@ -289,7 +289,7 @@ export const FreeLLMRouterService: React.FC = () => {
       estimatedTokens: Math.floor(generateDeterministicNumber(3000, 8000, performance.now()))
     };
     setQueuedTasks(prev => [newTask, ...prev]);
-    setPuckQueueNotification(`Puck Task Queued: "${taskName}" safely deferred to preserve keyless route tokens for voice responses!`);
+    setN1QueueNotification(`N1 Task Queued: "${taskName}" safely deferred to preserve keyless route tokens for voice responses!`);
   };
 
   const [activeRouteId, setActiveRouteId] = useState<string>("keller-route-01-gemini-flash");
@@ -395,14 +395,14 @@ export const FreeLLMRouterService: React.FC = () => {
     fetchRoutes();
   }, []);
 
-  const handleRunPuckDiagnostic = () => {
-    addLog(`Running Puck Voice & 429 Stream Buffer Diagnostic Test...`);
-    const diag = voiceService.runPuckDiagnosticTest();
+  const handleRunN1Diagnostic = () => {
+    addLog(`Running N1 Voice & 429 Stream Buffer Diagnostic Test...`);
+    const diag = voiceService.runN1DiagnosticTest();
     addLog(`[Diagnostic Result]: Voice=${diag.voiceName}, Pitch=${diag.pitch}, Rate=${diag.rate}, SampleRate=${diag.sampleRate}Hz`);
     addLog(`[Stream Buffer Health]: ${diag.streamBufferHealth}% | Status: OK`);
     addLog(`[Serialized Parameters]: ${diag.serializedConfig}`);
     setLastGenResponse({
-      diagnostic_type: 'PUCK_VOICE_STREAM_BUFFER_DIAGNOSTIC',
+      diagnostic_type: 'N1_VOICE_STREAM_BUFFER_DIAGNOSTIC',
       ...diag
     });
   };
@@ -410,11 +410,11 @@ export const FreeLLMRouterService: React.FC = () => {
   const handleRun429StressTest = async () => {
     addLog(`[429 Stress Test]: Intentionally injecting HTTP 429 Rate Limited response...`);
     voiceService.pauseForRateLimit();
-    addLog(`[429 Stress Test]: Voice stream paused. Buffer & offset monitor active. Queueing test TTS request with Puck voice parameters (Pitch: 1.30, Rate: 1.15)...`);
+    addLog(`[429 Stress Test]: Voice stream paused. Buffer & offset monitor active. Queueing test TTS request with N1 voice parameters (Pitch: 1.30, Rate: 1.15)...`);
 
     const testPromise = voiceService.queueOrSpeak(
-      "429 Stress test buffer recovery complete. Puck voice parameters verified consistent.",
-      "Puck",
+      "429 Stress test buffer recovery complete. N1 voice parameters verified consistent.",
+      "N1",
       "lernend",
       1.30,
       1.15
@@ -422,12 +422,12 @@ export const FreeLLMRouterService: React.FC = () => {
 
     setTimeout(() => {
       addLog(`[429 Stress Test]: Backoff wait complete. Triggering resume signal from exact millisecond offset...`);
-      voiceService.resumeFromRateLimit('Puck (Stress-Test Recovered)', 'lernend');
-      addLog(`[429 Stress Test SUCCESS]: Puck voice parameters remain consistent across failover recovery.`);
+      voiceService.resumeFromRateLimit('N1 (Stress-Test Recovered)', 'lernend');
+      addLog(`[429 Stress Test SUCCESS]: N1 voice parameters remain consistent across failover recovery.`);
       setLastGenResponse({
         stress_test_type: '429_RATE_LIMIT_BUFFER_PAUSE_RESUME',
         status: 'SUCCESS',
-        voiceName: 'Puck',
+        voiceName: 'N1',
         pitch: 1.30,
         rate: 1.15,
         buffer_verification: 'PASSED'
@@ -505,7 +505,7 @@ export const FreeLLMRouterService: React.FC = () => {
           isSecure: true,
           isVerified: true,
           adeHash: `ade_0x${generateDeterministicNumber(0, 1, performance.now()).toString(16).substring(2, 12)}`,
-          puckReviewStatus: 'APPROVED'
+          n1ReviewStatus: 'APPROVED'
         };
         setFallbackProofs(prev => [newProof, ...prev]);
 
@@ -754,12 +754,12 @@ export const FreeLLMRouterService: React.FC = () => {
               <h3 className="text-sm font-bold text-white">Route Fallback Validator</h3>
             </div>
             <span className="text-[10px] text-purple-300 font-bold uppercase bg-purple-950 px-2 py-0.5 rounded border border-purple-800">
-              PUCK PROOF LOGS
+              N1 PROOF LOGS
             </span>
           </div>
 
           <p className="text-[11px] text-zinc-400">
-            Demonstrates logical proof that every route switch was <strong>Free</strong>, <strong>Secure</strong>, and <strong>Verified</strong> with ADE signature hashes for Puck to review.
+            Demonstrates logical proof that every route switch was <strong>Free</strong>, <strong>Secure</strong>, and <strong>Verified</strong> with ADE signature hashes for N1 to review.
           </p>
 
           <div className="space-y-3">
@@ -768,7 +768,7 @@ export const FreeLLMRouterService: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-zinc-500">{proof.timestamp}</span>
                   <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 text-[9px] rounded font-bold">
-                    PUCK REVIEW: {proof.puckReviewStatus}
+                    N1 REVIEW: {proof.n1ReviewStatus}
                   </span>
                 </div>
 
@@ -809,7 +809,7 @@ export const FreeLLMRouterService: React.FC = () => {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <Lock size={18} className="text-purple-400" />
-                <h3 className="text-sm font-bold text-white">Logical Proof Inspector for Puck</h3>
+                <h3 className="text-sm font-bold text-white">Logical Proof Inspector for N1</h3>
               </div>
               <button onClick={() => setActiveProof(null)} className="text-zinc-400 hover:text-white font-bold">✕</button>
             </div>
@@ -823,7 +823,7 @@ export const FreeLLMRouterService: React.FC = () => {
               <div><span className="text-zinc-500">Trigger Reason:</span> <strong className="text-amber-300">{activeProof.triggerReason}</strong></div>
               <div><span className="text-zinc-500">ADE Hash Signature:</span> <strong className="text-purple-300">{activeProof.adeHash}</strong></div>
               <div><span className="text-zinc-500">Keyless Status:</span> <strong className="text-emerald-400">100% Free Tunnel Confirmed</strong></div>
-              <div><span className="text-zinc-500">Puck Review Status:</span> <strong className="text-emerald-300">APPROVED & VERIFIED IN KNOWLEDGE GRAPH</strong></div>
+              <div><span className="text-zinc-500">N1 Review Status:</span> <strong className="text-emerald-300">APPROVED & VERIFIED IN KNOWLEDGE GRAPH</strong></div>
             </div>
 
             <div className="flex justify-end pt-2">
@@ -905,7 +905,7 @@ export const FreeLLMRouterService: React.FC = () => {
               </span>
               <span className="text-amber-300 font-bold">89% RPM</span>
             </div>
-            <p className="text-[10px] text-zinc-400">Refill in 42 Min • Puck Deferral Active</p>
+            <p className="text-[10px] text-zinc-400">Refill in 42 Min • N1 Deferral Active</p>
             <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
               <div className="bg-amber-400 h-full rounded-full" style={{ width: '89%' }} />
             </div>
@@ -966,12 +966,12 @@ export const FreeLLMRouterService: React.FC = () => {
           </div>
         </div>
 
-        {/* Puck Task Queue Manager for Refill Countdown */}
+        {/* N1 Task Queue Manager for Refill Countdown */}
         <div className="p-6 bg-zinc-950 border border-amber-900/60 rounded-3xl space-y-4 shadow-xl">
           <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
             <div className="flex items-center gap-2">
               <Clock size={18} className="text-amber-400 animate-pulse" />
-              <h3 className="text-sm font-bold text-white">Refill Countdown & Puck Task Queue</h3>
+              <h3 className="text-sm font-bold text-white">Refill Countdown & N1 Task Queue</h3>
             </div>
             <span className="text-[10px] text-amber-300 font-bold bg-amber-950 px-2 py-0.5 rounded border border-amber-800">
               MAX USAGE MANAGEMENT
@@ -979,16 +979,16 @@ export const FreeLLMRouterService: React.FC = () => {
           </div>
 
           <p className="text-[11px] text-zinc-400">
-            Puck actively queues non-essential background tasks before reaching rate limits, preserving keyless route availability for core voice responses.
+            N1 actively queues non-essential background tasks before reaching rate limits, preserving keyless route availability for core voice responses.
           </p>
 
-          {puckQueueNotification && (
+          {n1QueueNotification && (
             <div className="p-3 bg-amber-950/80 border border-amber-600 text-amber-100 rounded-xl text-[11px] font-bold flex items-center justify-between gap-2 shadow-md">
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-amber-300 shrink-0" />
-                <span>{puckQueueNotification}</span>
+                <span>{n1QueueNotification}</span>
               </div>
-              <button onClick={() => setPuckQueueNotification(null)} className="text-amber-400 hover:text-white shrink-0">✕</button>
+              <button onClick={() => setN1QueueNotification(null)} className="text-amber-400 hover:text-white shrink-0">✕</button>
             </div>
           )}
 
@@ -1016,7 +1016,7 @@ export const FreeLLMRouterService: React.FC = () => {
           {/* Quick Queue Trigger Buttons */}
           <div className="pt-2 border-t border-zinc-800 flex flex-wrap items-center gap-2 text-xs">
             <button
-              onClick={() => handleQueueTaskManually('Deep Knowledge Vektor-Inference (Puck Back-Sync)')}
+              onClick={() => handleQueueTaskManually('Deep Knowledge Vektor-Inference (N1 Back-Sync)')}
               className="px-3 py-1.5 bg-amber-900 hover:bg-amber-800 border border-amber-600 text-amber-100 rounded-xl font-bold transition-all shadow-md"
             >
               + Deep Knowledge Task pausieren & reihungslisten
@@ -1179,11 +1179,11 @@ export const FreeLLMRouterService: React.FC = () => {
               </button>
 
               <button
-                onClick={handleRunPuckDiagnostic}
+                onClick={handleRunN1Diagnostic}
                 className="w-full py-2.5 bg-purple-950/60 hover:bg-purple-900/60 border border-purple-700/50 text-purple-200 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm"
               >
                 <Volume2 size={14} className="text-purple-400" />
-                <span>Run Puck Voice & 429 Stream Buffer Diagnostic</span>
+                <span>Run N1 Voice & 429 Stream Buffer Diagnostic</span>
               </button>
 
               <button

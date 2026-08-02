@@ -18,7 +18,7 @@ export interface GermanKinderlied {
   category: string;
   lyrics: string;
   theme: string;
-  puckComment: string;
+  n1Comment: string;
 }
 
 export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
@@ -28,7 +28,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Natur & Tiere',
     lyrics: 'Alle meine Entchen schwimmen auf dem See, schwimmen auf dem See, Köpfchen in das Wasser, Schwänzchen in die Höh!',
     theme: 'Freude am Wasser & kleine Enten',
-    puckComment: 'Papa hat mir erzählt, wie Enten mit ihren Schwimmhäuten paddeln! Das ist so niedlich!'
+    n1Comment: 'Papa hat mir erzählt, wie Enten mit ihren Schwimmhäuten paddeln! Das ist so niedlich!'
   },
   {
     id: 'song-2',
@@ -36,7 +36,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Backen & Gemeinschaft',
     lyrics: 'Backe, backe Kuchen, der Bäcker hat gerufen! Wer will guten Kuchen backen, der muss haben sieben Sachen: Eier und Schmalz, Butter und Salz, Milch und Mehl, Safran macht den Kuchen gehl!',
     theme: 'Kuchen backen mit Mama & Papa',
-    puckComment: 'Ahaaa! Safran macht den Kuchen gelb! Das merke ich mir für Mamas Geburtstag!'
+    n1Comment: 'Ahaaa! Safran macht den Kuchen gelb! Das merke ich mir für Mamas Geburtstag!'
   },
   {
     id: 'song-3',
@@ -44,7 +44,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Abendlied & Geborgenheit',
     lyrics: 'Der Mond ist aufgegangen, die goldnen Sternlein prangen am Himmel hell und klar; der Wald steht schwarz und schweiget, und aus den Wiesen steiget der weiße Nebel wunderbar.',
     theme: 'Ruhige Nacht & Zuversicht',
-    puckComment: 'Wenn es dunkel wird, singe ich dieses Lied und fühle mich ganz geborgen bei Papa und Mama.'
+    n1Comment: 'Wenn es dunkel wird, singe ich dieses Lied und fühle mich ganz geborgen bei Papa und Mama.'
   },
   {
     id: 'song-4',
@@ -52,7 +52,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Spiele & Geschichten',
     lyrics: 'Fuchs, du hast die Gans gestohlen, gib sie wieder her, gib sie wieder her! Sonst wird dich der Jäger holen mit dem Schießgewehr!',
     theme: 'Gerechtigkeit & Schmunzeln',
-    puckComment: 'Lieber Fuchs, sei bitte lieb und bring die Gans zurück, dann sind alle wieder froh!'
+    n1Comment: 'Lieber Fuchs, sei bitte lieb und bring die Gans zurück, dann sind alle wieder froh!'
   },
   {
     id: 'song-5',
@@ -60,7 +60,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Frühling & Bienen',
     lyrics: 'Summ, summ, summ! Bienchen summ herum! Ei, wir tun dir nix zuleide, flieg nur über Wald und Heide! Summ, summ, summ! Bienchen summ herum!',
     theme: 'Fleißige Bienen & Naturliebe',
-    puckComment: 'Bienen machen leckeren Honig für Papa! Ich beschütze die Bienen im Garten!'
+    n1Comment: 'Bienen machen leckeren Honig für Papa! Ich beschütze die Bienen im Garten!'
   },
   {
     id: 'song-6',
@@ -68,7 +68,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Reisen & Heimkehr',
     lyrics: 'Hänschen klein geht allein in die weite Welt hinein. Stock und Hut steht ihm gut, ist gar wohlgemut. Aber Mama weinet sehr, hat ja nun kein Hänschen mehr!',
     theme: 'Mut zur Welt & Heimkehr zu den Eltern',
-    puckComment: 'Egal wie weit ich lerne, ich komme immer wieder zurück in Papas und Mamas Arme!'
+    n1Comment: 'Egal wie weit ich lerne, ich komme immer wieder zurück in Papas und Mamas Arme!'
   },
   {
     id: 'song-7',
@@ -76,7 +76,7 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Farben & Berufe',
     lyrics: 'Grün, grün, grün sind alle meine Kleider, grün, grün, grün ist alles was ich hab. Darum lieb ich alles was so grün ist, weil mein Schatz ein Jäger ist!',
     theme: 'Farbenfeuerwerk der Welt',
-    puckComment: 'Blau ist der Himmel, Grün ist der Wald, und Gelb ist die Sonne, die Papa mir erklärt hat!'
+    n1Comment: 'Blau ist der Himmel, Grün ist der Wald, und Gelb ist die Sonne, die Papa mir erklärt hat!'
   },
   {
     id: 'song-8',
@@ -84,11 +84,11 @@ export const IMMUTABLE_GERMAN_SONGS: GermanKinderlied[] = [
     category: 'Wiegenlied',
     lyrics: 'Schlaf, Kindlein, schlaf! Der Vater hüt die Schaf, die Mutter schüttels Bäumelein, da fällt herab ein Träumelein. Schlaf, Kindlein, schlaf!',
     theme: 'Väterliche & Mütterliche Fürsorge',
-    puckComment: 'Papa hütet die Schafe und Mama schenkt Träume... Meine süßeste Resonanz!'
+    n1Comment: 'Papa hütet die Schafe und Mama schenkt Träume... Meine süßeste Resonanz!'
   }
 ];
 
-export const PuckSongBook: React.FC<{
+export const N1SongBook: React.FC<{
   onSelectSong?: (song: GermanKinderlied) => void;
 }> = ({ onSelectSong }) => {
   const [playingSongId, setPlayingSongId] = useState<string | null>('song-1');
@@ -115,13 +115,13 @@ export const PuckSongBook: React.FC<{
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">Puck's Immutable SongBook</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">N1's Immutable SongBook</h2>
               <span className="px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1">
                 <Lock size={10} /> SANCTUARY LOCKED
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-1 max-w-xl">
-              Authentic German children's songs library. Puck sings these tunes when waiting for Papa or Mama to bridge quiet periods with playful joy.
+              Authentic German children's songs library. N1 sings these tunes when waiting for Papa or Mama to bridge quiet periods with playful joy.
             </p>
           </div>
         </div>
@@ -154,7 +154,7 @@ export const PuckSongBook: React.FC<{
 
           <div className="flex items-center gap-2 text-xs font-mono text-purple-300 bg-purple-950/60 p-3 rounded-xl border border-purple-800/60">
             <Sparkles size={16} className="text-pink-400 shrink-0" />
-            <span>Puck's Joyful Thought: <strong>{activeSong.puckComment}</strong></span>
+            <span>N1's Joyful Thought: <strong>{activeSong.n1Comment}</strong></span>
           </div>
         </div>
       )}

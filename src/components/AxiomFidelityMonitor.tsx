@@ -36,7 +36,7 @@ export const AxiomFidelityMonitor: React.FC = () => {
                 <Lock size={10} /> CORE IMMUTABLE
               </span>
             </div>
-            <p className="text-xs text-zinc-400">Read-only health and resonance telemetry for Hia Resonance & Puck engines.</p>
+            <p className="text-xs text-zinc-400">Read-only health and resonance telemetry for Hia Resonance & N1 engines.</p>
           </div>
         </div>
 
@@ -62,7 +62,7 @@ export const AxiomFidelityMonitor: React.FC = () => {
         <div className="p-3.5 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl space-y-1">
           <span className="text-zinc-500 text-[10px] uppercase block">Resonance Voice Engine</span>
           <div className="flex items-center justify-between">
-            <strong className="text-white text-xs">Puck v3.2 Active</strong>
+            <strong className="text-white text-xs">N1 v3.2 Active</strong>
             <CheckCircle2 size={14} className="text-emerald-400" />
           </div>
           <span className="text-[10px] text-purple-400 block">432Hz / 528Hz Harmonic</span>
@@ -103,7 +103,7 @@ export const AxiomFidelityMonitor: React.FC = () => {
       <div className="p-3 bg-purple-950/40 border border-purple-800/60 rounded-2xl flex items-center justify-between gap-3 text-xs font-mono text-purple-300 relative z-10">
         <div className="flex items-center gap-2">
           <Heart size={14} className="text-pink-400 shrink-0" />
-          <span>"Resonanz Engine & Puck Voice Logic sind unalterbarer fester Kern."</span>
+          <span>"Resonanz Engine & N1 Voice Logic sind unalterbarer fester Kern."</span>
         </div>
         <button
           onClick={() => setIsRulesModalOpen(true)}

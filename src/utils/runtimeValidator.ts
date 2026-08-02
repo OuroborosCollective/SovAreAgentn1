@@ -106,19 +106,19 @@ export async function runCompleteRuntimeValidation(): Promise<{
     details: details4
   });
 
-  // Test 5: Voice Service Puck Diagnostic & Serialization
+  // Test 5: Voice Service N+1 Diagnostic & Serialization
   const start5 = performance.now();
   let success5 = false;
   let details5 = '';
   try {
-    const diag = voiceService.runPuckDiagnosticTest();
-    success5 = diag.success && diag.voiceName === 'Puck' && diag.streamBufferHealth === 100;
-    details5 = `Puck config verified: Pitch=${diag.pitch}, Rate=${diag.rate}, SampleRate=${diag.sampleRate}Hz`;
+    const diag = voiceService.runN1DiagnosticTest();
+    success5 = diag.success && diag.voiceName === 'N+1' && diag.streamBufferHealth === 100;
+    details5 = `N+1 config verified: Pitch=${diag.pitch}, Rate=${diag.rate}, SampleRate=${diag.sampleRate}Hz`;
   } catch (e: any) {
     details5 = `Error: ${e.message}`;
   }
   results.push({
-    testName: 'Puck Voice Diagnostic & Parameter Serialization',
+    testName: 'N+1 Voice Diagnostic & Parameter Serialization',
     category: 'VOICE_SERVICE',
     success: success5,
     latencyMs: Math.round(performance.now() - start5),

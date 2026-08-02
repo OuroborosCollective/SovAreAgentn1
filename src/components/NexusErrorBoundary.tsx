@@ -39,7 +39,12 @@ export class NexusErrorBoundary extends Component<NexusErrorBoundaryProps, Nexus
     });
   }
 
-  public handleReset = () => {
+  public handleReset = async () => {
+    try {
+      await fetch('/api/self-heal', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    } catch (e) {
+      console.warn('[SelfHeal] Network self-heal call failed silently, proceeding with local reset.');
+    }
     this.setState({
       hasError: false,
       error: null,

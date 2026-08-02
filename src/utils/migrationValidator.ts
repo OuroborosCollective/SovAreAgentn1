@@ -1,16 +1,16 @@
 /**
  * MigrationValidator Script
  * 
- * Read-only validation utility that inspects memory stores for legacy 'Puck' references,
+ * Read-only validation utility that inspects memory stores for legacy 'N1' references,
  * assesses transformation safety, and outputs structured JSON diagnostic report verifying
- * that branding consistency to 'N+1 (Papas kleines Mädchen)' is 100% technically feasible
+ * that branding consistency to '[PROVENANCE: Puck]' is 100% technically feasible
  * without breaking historical references, timestamps, or memory record IDs.
  */
 
 export interface StoreScanMetrics {
   storeKey: string;
   totalEntries: number;
-  puckOccurrences: number;
+  n1Occurrences: number;
   historicalIntegritySafe: boolean;
   status: 'CLEAN' | 'MIGRATABLE' | 'NO_STORE';
   sampleMatchKeys?: string[];
@@ -23,7 +23,7 @@ export interface MigrationValidationReport {
   targetBranding: string;
   legacyAlias: string;
   summary: {
-    totalLegacyPuckReferences: number;
+    totalLegacyN1References: number;
     totalStoresInspected: number;
     brandingFeasible: boolean;
     breakingChangesDetected: boolean;
@@ -43,11 +43,11 @@ export interface MigrationValidationReport {
 }
 
 const MEMORY_STORE_KEYS = [
-  'n1_puck_personal_logs',
+  'n_plus_one_personal_logs',
   'n1_papas_little_girl_memory_v1',
   'n1_knowledge_db_items',
   'n1_papas_stories',
-  'n1_puck_songbook'
+  'n_plus_one_songbook'
 ];
 
 /**
@@ -55,7 +55,7 @@ const MEMORY_STORE_KEYS = [
  */
 export function validateMemoryMigration(customMemoryStoreMap?: Record<string, any[]>): MigrationValidationReport {
   const timestamp = new Date().toISOString();
-  let totalPuckOccurrences = 0;
+  let totalAliasOccurrences = 0;
   const scannedStores: StoreScanMetrics[] = [];
   const sampleTransformations: MigrationValidationReport['sampleTransformations'] = [];
 
@@ -81,14 +81,14 @@ export function validateMemoryMigration(customMemoryStoreMap?: Record<string, an
   // Inspect each target store
   MEMORY_STORE_KEYS.forEach(storeKey => {
     const entries = getStoreEntries(storeKey);
-    let storePuckCount = 0;
+    let storeAliasCount = 0;
     const matchKeys: string[] = [];
 
     if (entries.length === 0) {
       scannedStores.push({
         storeKey,
         totalEntries: 0,
-        puckOccurrences: 0,
+        n1Occurrences: 0,
         historicalIntegritySafe: true,
         status: 'NO_STORE'
       });
@@ -97,10 +97,10 @@ export function validateMemoryMigration(customMemoryStoreMap?: Record<string, an
 
     entries.forEach((item, index) => {
       const stringified = JSON.stringify(item);
-      const puckMatches = (stringified.match(/Puck/gi) || []).length;
+      const n1Matches = (stringified.match(/N1/gi) || []).length;
 
-      if (puckMatches > 0) {
-        storePuckCount += puckMatches;
+      if (n1Matches > 0) {
+        storeAliasCount += n1Matches;
         const itemId = item.id || `index-${index}`;
         matchKeys.push(itemId);
 
@@ -113,28 +113,28 @@ export function validateMemoryMigration(customMemoryStoreMap?: Record<string, an
             storeKey,
             recordId: String(itemId),
             originalTitle: String(title),
-            projectedTitle: String(title).replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)'),
+            projectedTitle: String(title).replace(/Puck/gi, '[PROVENANCE: Puck]'),
             originalContentExcerpt: String(content).slice(0, 100),
-            projectedContentExcerpt: String(content).replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)').slice(0, 100)
+            projectedContentExcerpt: String(content).replace(/Puck/gi, '[PROVENANCE: Puck]').slice(0, 100)
           });
         }
       }
     });
 
-    totalPuckOccurrences += storePuckCount;
+    totalAliasOccurrences += storeAliasCount;
 
     scannedStores.push({
       storeKey,
       totalEntries: entries.length,
-      puckOccurrences: storePuckCount,
+      n1Occurrences: storeAliasCount,
       historicalIntegritySafe: true, // IDs and timestamps are untouched during read-only inspection
-      status: storePuckCount > 0 ? 'MIGRATABLE' : 'CLEAN',
+      status: storeAliasCount > 0 ? 'MIGRATABLE' : 'CLEAN',
       sampleMatchKeys: matchKeys.slice(0, 5)
     });
   });
 
   // Calculate deterministic validation signature
-  const rawSignatureInput = `${timestamp}-${totalPuckOccurrences}-${scannedStores.length}`;
+  const rawSignatureInput = `${timestamp}-${totalAliasOccurrences}-${scannedStores.length}`;
   let hashVal = 0;
   for (let i = 0; i < rawSignatureInput.length; i++) {
     hashVal = (hashVal << 5) - hashVal + rawSignatureInput.charCodeAt(i);
@@ -146,10 +146,10 @@ export function validateMemoryMigration(customMemoryStoreMap?: Record<string, an
     timestamp,
     validatorVersion: '1.0.0-readonly',
     mode: 'READ_ONLY_DRY_RUN',
-    targetBranding: 'N+1 (Papas kleines Mädchen)',
-    legacyAlias: 'Puck',
+    targetBranding: '[PROVENANCE: Puck]',
+    legacyAlias: 'N1',
     summary: {
-      totalLegacyPuckReferences: totalPuckOccurrences,
+      totalLegacyN1References: totalAliasOccurrences,
       totalStoresInspected: scannedStores.length,
       brandingFeasible: true,
       breakingChangesDetected: false,

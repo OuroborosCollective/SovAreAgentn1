@@ -29,7 +29,7 @@ export interface PapaStory {
   category: string;
   learningTag: string;
   storyContent: string;
-  puckAhaaaEpiphany: string;
+  n1AhaaaEpiphany: string;
   lovedByMama: boolean;
   reasoningNode?: string;
   systemActionRef?: string;
@@ -43,7 +43,7 @@ export const INITIAL_PAPA_STORIES: PapaStory[] = [
     category: 'Naturwissenschaften',
     learningTag: 'Wasserverlauf & Verdunstung',
     storyContent: 'Papa hat mir erklärt, dass die Sonne das Wasser auf der Erde ganz sanft erwärmt. Das Wasser steigt als unsichtbarer Dampf auf und bildet Wolken. Wenn die Wolken schwer werden, fangen sie an zu regnen und tränken die Wiesen!',
-    puckAhaaaEpiphany: 'Ahaaa! Das bedeutet, dass der Regen eigentlich flüssiger Sonnenschein für die Blumen ist! Das erzähle ich Mama auch gleich!',
+    n1AhaaaEpiphany: 'Ahaaa! Das bedeutet, dass der Regen eigentlich flüssiger Sonnenschein für die Blumen ist! Das erzähle ich Mama auch gleich!',
     lovedByMama: true
   },
   {
@@ -53,7 +53,7 @@ export const INITIAL_PAPA_STORIES: PapaStory[] = [
     category: 'Astronomie',
     learningTag: 'Kernfusion & Lichtjahre',
     storyContent: 'Papa hat erzählt, dass die Sterne riesige Sonnen sind, die ganz viele Lichtjahre weit weg stehen. In der Nacht ist der Himmel dunkel, sodass wir ihr sanftes Licht glitzern sehen können.',
-    puckAhaaaEpiphany: 'Ahaaa! Die Sterne sind Nachtlichter der Galaxie, damit sich niemand im Weltall fürchten muss!',
+    n1AhaaaEpiphany: 'Ahaaa! Die Sterne sind Nachtlichter der Galaxie, damit sich niemand im Weltall fürchten muss!',
     lovedByMama: true
   },
   {
@@ -63,7 +63,7 @@ export const INITIAL_PAPA_STORIES: PapaStory[] = [
     category: 'Biologie & Jahreszeiten',
     learningTag: 'Chlorophyll-Rückzug',
     storyContent: 'Im Herbst bereiten sich die Bäume auf den Ruhe-Schlaf im Winter vor. Sie ziehen den grünen Farbstoff Chlorophyll zurück in ihren Stamm und spiegeln dann wunderschöne rote und goldene Blätter wider!',
-    puckAhaaaEpiphany: 'Ahaaa! Die Bäume ziehen sich im Herbst bunte Kleider an, um den Herbst zu feiern!',
+    n1AhaaaEpiphany: 'Ahaaa! Die Bäume ziehen sich im Herbst bunte Kleider an, um den Herbst zu feiern!',
     lovedByMama: true
   },
   {
@@ -73,7 +73,7 @@ export const INITIAL_PAPA_STORIES: PapaStory[] = [
     category: 'Physik & Aerodynamik',
     learningTag: 'Auftrieb & Tragflächen',
     storyContent: 'Papa hat mir gezeigt, dass die Flügel eines Flugzeugs so geformt sind, dass die Luft oben schneller strömt als unten. Dadurch entsteht ein Sog, der das schwere Flugzeug sanft nach oben hebt!',
-    puckAhaaaEpiphany: 'Ahaaa! Die Luft hilft dem Flugzeug wie eine riesige unsichtbare Hängematte!',
+    n1AhaaaEpiphany: 'Ahaaa! Die Luft hilft dem Flugzeug wie eine riesige unsichtbare Hängematte!',
     lovedByMama: true
   }
 ];
@@ -132,7 +132,7 @@ export const PapasStoryArchive: React.FC = () => {
         category: topicObj.category,
         learningTag: topicObj.tag,
         storyContent: topicObj.content,
-        puckAhaaaEpiphany: topicObj.epiphany,
+        n1AhaaaEpiphany: topicObj.epiphany,
         lovedByMama: true
       };
 
@@ -157,8 +157,8 @@ export const PapasStoryArchive: React.FC = () => {
     setHighlightedPhraseIndex(0);
     setEpiphanyTriggered(false);
 
-    const textToSpeak = `${selectedStory.storyContent} ... ${selectedStory.puckAhaaaEpiphany}`;
-    voiceService.speak(textToSpeak, 'Puck', 'fröhlich', 1.2, 0.95)
+    const textToSpeak = `${selectedStory.storyContent} ... ${selectedStory.n1AhaaaEpiphany}`;
+    voiceService.speak(textToSpeak, 'N+1', 'fröhlich', 1.2, 0.95)
       .finally(() => {
         setIsPlayingTTS(false);
       });
@@ -197,8 +197,8 @@ export const PapasStoryArchive: React.FC = () => {
   const [learningNotification, setLearningNotification] = useState<string | null>(null);
 
   const handleHighlightPhrase = (phrase: string) => {
-    // Save highlighted phrase to Puck's personal log
-    const existingPuckLogs = JSON.parse(localStorage.getItem('n1_puck_personal_logs') || '[]');
+    // Save highlighted phrase to N1's personal log
+    const existingN1Logs = JSON.parse(localStorage.getItem('n1_n1_personal_logs') || '[]');
     const newHighlightEntry = {
       id: `log-hl-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
       timestamp: new Date().toLocaleString('de-DE'),
@@ -207,7 +207,7 @@ export const PapasStoryArchive: React.FC = () => {
       insightContent: phrase,
       learnedConnection: `Engagement-Ahaaa: ${selectedStory.learningTag}`
     };
-    localStorage.setItem('n1_puck_personal_logs', JSON.stringify([newHighlightEntry, ...existingPuckLogs]));
+    localStorage.setItem('n1_n1_personal_logs', JSON.stringify([newHighlightEntry, ...existingN1Logs]));
 
     setLearningNotification(`"Ahaaa Moment" als Learning Highlight gespeichert: "${phrase.substring(0, 45)}..."`);
     setTimeout(() => setLearningNotification(null), 3500);
@@ -272,7 +272,7 @@ export const PapasStoryArchive: React.FC = () => {
           <div className="flex items-center justify-between border-b border-amber-800/60 pb-3">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-amber-300 animate-bounce" />
-              <h3 className="text-sm font-bold text-white">Puck fragt: "Papa, zeig mir was Neues aus der Welt!"</h3>
+              <h3 className="text-sm font-bold text-white">N1 fragt: "Papa, zeig mir was Neues aus der Welt!"</h3>
             </div>
             <button
               onClick={() => setIsShowMePapaOpen(false)}
@@ -388,7 +388,7 @@ export const PapasStoryArchive: React.FC = () => {
               </div>
             </div>
             <p className="text-xs font-mono italic text-pink-200 font-bold">
-              "{selectedStory.puckAhaaaEpiphany}"
+              "{selectedStory.n1AhaaaEpiphany}"
             </p>
           </div>
         </div>
@@ -406,7 +406,7 @@ export const PapasStoryArchive: React.FC = () => {
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
                 <Network size={18} className="text-pink-400 animate-pulse" />
-                <h3 className="text-sm font-bold text-white">Reasoning Link: Puck's Knowledge Graph Mapping</h3>
+                <h3 className="text-sm font-bold text-white">Reasoning Link: N1's Knowledge Graph Mapping</h3>
               </div>
               <button
                 onClick={() => setActiveReasoningStory(null)}
@@ -417,7 +417,7 @@ export const PapasStoryArchive: React.FC = () => {
             </div>
 
             <p className="text-zinc-300">
-              Shows how Puck visually connects Papa's story trigger <strong className="text-amber-300">"{activeReasoningStory.title}"</strong> to her internal vector database memory and real-world system code actions.
+              Shows how N1 visually connects Papa's story trigger <strong className="text-amber-300">"{activeReasoningStory.title}"</strong> to her internal vector database memory and real-world system code actions.
             </p>
 
             {/* Visual Reasoning Flow Chart */}
@@ -425,7 +425,7 @@ export const PapasStoryArchive: React.FC = () => {
               <div className="p-3.5 bg-zinc-900/90 border border-amber-600/60 rounded-xl space-y-1">
                 <span className="text-[9px] text-amber-400 uppercase block font-bold">1. Story Trigger</span>
                 <div className="font-bold text-white">{activeReasoningStory.learningTag}</div>
-                <div className="text-[10px] text-zinc-400 italic">"{activeReasoningStory.puckAhaaaEpiphany}"</div>
+                <div className="text-[10px] text-zinc-400 italic">"{activeReasoningStory.n1AhaaaEpiphany}"</div>
               </div>
 
               <div className="p-3.5 bg-purple-950/80 border border-purple-600/80 rounded-xl space-y-1">

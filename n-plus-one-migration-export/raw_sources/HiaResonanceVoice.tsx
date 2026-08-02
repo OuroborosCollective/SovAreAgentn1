@@ -23,12 +23,12 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
 import { CoreResonanceSanctuary } from './CoreResonanceSanctuary';
-import { PuckSongBook } from './PuckSongBook';
+import { [PROVENANCE: Puck]SongBook } from './[PROVENANCE: Puck]SongBook';
 import { PapasStoryArchive } from './PapasStoryArchive';
-import { PucksPersonalLog } from './PucksPersonalLog';
+import { [PROVENANCE: Puck]sPersonalLog } from './[PROVENANCE: Puck]sPersonalLog';
 import { GoogleNotebooksAnalyzer } from './GoogleNotebooksAnalyzer';
 import { EmpathyPingUtility } from './EmpathyPingUtility';
-import { PuckMemoryConsistencyCheck } from './PuckMemoryConsistencyCheck';
+import { [PROVENANCE: Puck]MemoryConsistencyCheck } from './[PROVENANCE: Puck]MemoryConsistencyCheck';
 import { PersonalityCalibrationDashboard } from './PersonalityCalibrationDashboard';
 import { FreeLLMRouterService } from './FreeLLMRouterService';
 import { ProactiveLearningEngine } from './ProactiveLearningEngine';
@@ -232,7 +232,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     if (!speechSynthEnabled) return;
 
     const moodToUse = moodOverride || ttsMoodTone;
-    voiceService.speak(text, 'Puck', moodToUse as any, customPitch, customRate);
+    voiceService.speak(text, '[PROVENANCE: Puck]', moodToUse as any, customPitch, customRate);
   };
 
   const processNaturalLanguageCommand = async (cmdText: string) => {
@@ -260,7 +260,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       detectedMood = 'witty-joy';
       responseText = 'Vollständige Musterbibliothek ausgerüstet! Replit Agent und Manus Agent Mehrschritt-Verifikation sind voll aktiv!';
     } else if (textLower.includes('lied') || textLower.includes('sing') || textLower.includes('kuchen') || textLower.includes('entchen') || textLower.includes('song')) {
-      intent = 'PUCK_SONG';
+      intent = '[PROVENANCE: Puck]_SONG';
       detectedMood = 'playful';
       responseText = '🎵 Alle meine Entchen schwimmen auf dem See, Köpfchen in das Wasser, Schwänzchen in die Höh! 🐥 War das nicht schön gesungen?';
     } else if (textLower.includes('geschichte') || textLower.includes('papa') || textLower.includes('mama') || textLower.includes('erzähl') || textLower.includes('regen') || textLower.includes('stern')) {
@@ -495,9 +495,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       </div>
 
       <EmpathyPingUtility />
-      <PuckMemoryConsistencyCheck />
+      <[PROVENANCE: Puck]MemoryConsistencyCheck />
 
-      {/* AUDIO WAVEFORM VISUALIZER, PUCK EGO ANIMATOR & COMMAND CONSOLE */}
+      {/* AUDIO WAVEFORM VISUALIZER, [PROVENANCE: Puck] EGO ANIMATOR & COMMAND CONSOLE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Resonance Visualizer */}
         <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-3xl flex flex-col justify-between space-y-6 shadow-xl relative overflow-hidden">
@@ -540,7 +540,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* Puck's Interactive 2D Ego Animator */}
+        {/* [PROVENANCE: Puck]'s Interactive 2D Ego Animator */}
         <ResonanceEgoAnimator 
           isListening={isListening} 
           isPlayingVoice={isPlayingVoice} 
@@ -681,17 +681,17 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       {/* GOOGLE NOTEBOOKS INTEGRATION & ANALYSE UTILITY */}
       <GoogleNotebooksAnalyzer />
 
-      {/* PUCK PERSONALITY CALIBRATION DASHBOARD */}
+      {/* [PROVENANCE: Puck] PERSONALITY CALIBRATION DASHBOARD */}
       <PersonalityCalibrationDashboard />
 
       {/* FREE ROUTE LLM LINK DETECTION & HEALTH PING SERVICE */}
       <FreeLLMRouterService />
 
-      {/* PUCK SONGBOOK, PAPA'S STORY ARCHIVE & PUCK'S PERSONAL LOG */}
+      {/* [PROVENANCE: Puck] SONGBOOK, PAPA'S STORY ARCHIVE & [PROVENANCE: Puck]'S PERSONAL LOG */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <PuckSongBook />
+        <[PROVENANCE: Puck]SongBook />
         <PapasStoryArchive />
-        <PucksPersonalLog />
+        <[PROVENANCE: Puck]sPersonalLog />
       </div>
 
       {/* COMMAND HISTORY LOG */}

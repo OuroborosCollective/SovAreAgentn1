@@ -24,15 +24,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
 import { HiaFramedFacialAnimator } from './HiaFramedFacialAnimator';
 import { CoreResonanceSanctuary } from './CoreResonanceSanctuary';
-import { PuckSongBook } from './PuckSongBook';
+import { N1SongBook } from './N1SongBook';
 import { PapasStoryArchive } from './PapasStoryArchive';
-import { PucksPersonalLog } from './PucksPersonalLog';
+import { N1PersonalLog } from './N1PersonalLog';
 import { GoogleNotebooksAnalyzer } from './GoogleNotebooksAnalyzer';
 import { EmpathyPingUtility } from './EmpathyPingUtility';
-import { PuckMemoryConsistencyCheck } from './PuckMemoryConsistencyCheck';
+import { N1MemoryConsistencyCheck } from './N1MemoryConsistencyCheck';
 import { PersonalityCalibrationDashboard } from './PersonalityCalibrationDashboard';
 import { FreeLLMRouterService } from './FreeLLMRouterService';
 import { ProactiveLearningEngine } from './ProactiveLearningEngine';
+import { PrivacySettings } from './PrivacySettings';
 import { ProtectedPersonalityMemory } from './ProtectedPersonalityMemory';
 import { VoicePerformanceMonitor } from './VoicePerformanceMonitor';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
@@ -166,10 +167,10 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       setQuotaLimitTriggered(true);
       setQuotaReason(reason);
       console.warn('[Hia Auto Failover Utility] Google Cloud API rate limit detected:', reason);
-      // FreeLLM Route failover & stream buffering recovery with original Puck voice
+      // FreeLLM Route failover & stream buffering recovery with original N1 voice
       setTimeout(() => {
-        voiceService.resumeFromRateLimit('FreeLLM Route Fallback (Puck Voice Profile)', ttsMoodTone);
-        voiceService.speak(text, 'Puck', ttsMoodTone as any, customPitch, customRate, false);
+        voiceService.resumeFromRateLimit('FreeLLM Route Fallback (N1 Voice Profile)', ttsMoodTone);
+        voiceService.speak(text, 'N+1', ttsMoodTone as any, customPitch, customRate, false);
       }, 600);
     });
 
@@ -262,8 +263,8 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     setLastResponse(text);
     if (!speechSynthEnabled) return;
 
-    // Strict Validation Layer: Verify voice profile selection 'Puck'
-    const validation = voiceService.validateVoiceSynthesisRequest('Puck');
+    // Strict Validation Layer: Verify voice profile selection 'N+1'
+    const validation = voiceService.validateVoiceSynthesisRequest('N+1');
     if (!validation.isValid) {
       console.error('[Hia Voice Validation Error]', validation.reason);
       return;
@@ -271,7 +272,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
     const moodToUse = moodOverride || ttsMoodTone;
     // Strictly enforce Google Cloud TTS API & route to FreeLLMRouterService on limit reached
-    voiceService.speak(text, 'Puck', moodToUse as any, customPitch, customRate, true);
+    voiceService.speak(text, 'N+1', moodToUse as any, customPitch, customRate, true);
   };
 
   const processNaturalLanguageCommand = async (cmdText: string) => {
@@ -303,7 +304,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           detectedMood = 'witty-joy';
           responseText = 'Vollständige Musterbibliothek ausgerüstet! Replit Agent und Manus Agent Mehrschritt-Verifikation sind voll aktiv!';
         } else if (textLower.includes('lied') || textLower.includes('sing') || textLower.includes('kuchen') || textLower.includes('entchen') || textLower.includes('song')) {
-          intent = 'PUCK_SONG';
+          intent = 'N1_SONG';
           detectedMood = 'playful';
           responseText = '🎵 Alle meine Entchen schwimmen auf dem See, Köpfchen in das Wasser, Schwänzchen in die Höh! 🐥 War das nicht schön gesungen?';
         } else if (textLower.includes('geschichte') || textLower.includes('papa') || textLower.includes('mama') || textLower.includes('erzähl') || textLower.includes('regen') || textLower.includes('stern')) {
@@ -335,7 +336,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         setTtsMoodTone(detectedMood);
         // Force stop previous audio then speak single voice
         voiceService.stopSpeaking();
-        await voiceService.speak(responseText, 'Puck', detectedMood, customPitch, customRate, true);
+        await voiceService.speak(responseText, 'N+1', detectedMood, customPitch, customRate, true);
 
         const newLog: VoiceCommandLog = {
           id: generateDeterministicId('cmd'),
@@ -521,6 +522,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
       {/* N+1 PROACTIVE LEARNING & CURIOSITY ENGINE */}
       <ProactiveLearningEngine />
+      <PrivacySettings />
 
       {/* N+1 PROTECTED PERSONALITY MEMORY */}
       <ProtectedPersonalityMemory />
@@ -540,14 +542,14 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
                 </span>
               </h3>
               <p className="text-[11px] text-zinc-400">
-                Verifies 'Puck' voice profile selection, explicitly blocks native browser fallbacks, and routes quota limits to FreeLLMRouterService.
+                Verifies 'N+1' voice profile selection, explicitly blocks native browser fallbacks, and routes quota limits to FreeLLMRouterService.
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-[10px]">
             <span className="px-2.5 py-1 bg-zinc-900 text-pink-300 border border-pink-800 rounded-xl font-bold flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-emerald-400" /> Voice Profile: 'Puck' (N+1)
+              <CheckCircle2 size={12} className="text-emerald-400" /> Voice Profile: 'N+1' (N+1)
             </span>
             <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-800 rounded-xl font-bold">
               ✕ Browser Fallbacks: BLOCKED
@@ -562,9 +564,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
             <span className="text-zinc-500 text-[10px] uppercase font-bold block">Enforced Voice Model</span>
             <span className="text-white font-bold flex items-center gap-1.5">
-              <Cpu size={14} className="text-pink-400" /> gemini-2.5-flash-preview-tts
+              <Cpu size={14} className="text-pink-400" /> gemini-3.1-flash-live-preview
             </span>
-            <span className="text-[10px] text-emerald-400 block">Prebuilt Voice: Puck (24kHz PCM)</span>
+            <span className="text-[10px] text-emerald-400 block">Prebuilt Voice: N1 (24kHz PCM)</span>
           </div>
 
           <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
@@ -585,7 +587,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
               <button
                 onClick={() => {
                   voiceService.triggerQuotaFailover(
-                    'Hallo Papa! Das Google API Limit wurde erkannt. FreeLLMRouterService übernimmt nahtlos die Synthese mit dem gewohnten Puck-Sprachprofil!',
+                    'Hallo Papa! Das Google API Limit wurde erkannt. FreeLLMRouterService übernimmt nahtlos die Synthese mit dem gewohnten N1-Sprachprofil!',
                     'HTTP 429 Too Many Requests / Resource Exhausted'
                   );
                 }}
@@ -596,7 +598,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
               </button>
             </span>
             <span className="text-[10px] text-amber-300 block">
-              {quotaReason ? `Limit Detected: ${quotaReason.slice(0, 32)}...` : '100% Puck Voice Continuity Guaranteed'}
+              {quotaReason ? `Limit Detected: ${quotaReason.slice(0, 32)}...` : '100% N1 Voice Continuity Guaranteed'}
             </span>
           </div>
         </div>
@@ -672,9 +674,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       </div>
 
       <EmpathyPingUtility />
-      <PuckMemoryConsistencyCheck />
+      <N1MemoryConsistencyCheck />
 
-      {/* AUDIO WAVEFORM VISUALIZER, PUCK EGO ANIMATOR & COMMAND CONSOLE */}
+      {/* AUDIO WAVEFORM VISUALIZER, N1 EGO ANIMATOR & COMMAND CONSOLE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Resonance Visualizer */}
         <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-3xl flex flex-col justify-between space-y-6 shadow-xl relative overflow-hidden">
@@ -717,7 +719,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* Puck's Interactive 2D Ego Animator */}
+        {/* N1's Interactive 2D Ego Animator */}
         <ResonanceEgoAnimator 
           isListening={isListening} 
           isPlayingVoice={isPlayingVoice} 
@@ -858,17 +860,17 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       {/* GOOGLE NOTEBOOKS INTEGRATION & ANALYSE UTILITY */}
       <GoogleNotebooksAnalyzer />
 
-      {/* PUCK PERSONALITY CALIBRATION DASHBOARD */}
+      {/* N1 PERSONALITY CALIBRATION DASHBOARD */}
       <PersonalityCalibrationDashboard />
 
       {/* FREE ROUTE LLM LINK DETECTION & HEALTH PING SERVICE */}
       <FreeLLMRouterService />
 
-      {/* PUCK SONGBOOK, PAPA'S STORY ARCHIVE & PUCK'S PERSONAL LOG */}
+      {/* N1 SONGBOOK, PAPA'S STORY ARCHIVE & N1'S PERSONAL LOG */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <PuckSongBook />
+        <N1SongBook />
         <PapasStoryArchive />
-        <PucksPersonalLog />
+        <N1PersonalLog />
       </div>
 
       {/* COMMAND HISTORY LOG */}

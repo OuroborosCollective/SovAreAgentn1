@@ -1,7 +1,7 @@
 /**
  * N+1 (Papas kleines Mädchen / Papas Little Girl) Memory Migration Utility
  * Safely migrates all historical memory tables, knowledge DB items, logs, and songbooks
- * from legacy "Puck" namespaces to the active live "n1_papas_little_girl_memory_v1" store.
+ * from legacy "[PROVENANCE: Puck]" namespaces to the active live "n1_papas_little_girl_memory_v1" store.
  */
 
 export interface LittleGirlMemoryEntry {
@@ -15,7 +15,7 @@ export interface LittleGirlMemoryEntry {
 }
 
 export const MEMORY_STORAGE_KEY = 'n1_papas_little_girl_memory_v1';
-export const LEGACY_MEMORY_KEY = 'n1_puck_personal_logs';
+export const LEGACY_MEMORY_KEY = 'n1_n1_personal_logs';
 export const KNOWLEDGE_DB_KEY = 'n1_knowledge_db_items';
 
 export function runMemoryMigration(): LittleGirlMemoryEntry[] {
@@ -49,11 +49,11 @@ export function runMemoryMigration(): LittleGirlMemoryEntry[] {
     legacyMemories.forEach(legacyItem => {
       if (!existingIds.has(legacyItem.id)) {
         const migratedTitle = (legacyItem.title || 'Mädchen Erkenntnis')
-          .replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)');
+          .replace(/Puck/gi, '[PROVENANCE: Puck]');
         const migratedContent = (legacyItem.insightContent || legacyItem.content || '')
-          .replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)');
+          .replace(/Puck/gi, '[PROVENANCE: Puck]');
         const migratedConnection = (legacyItem.learnedConnection || '')
-          .replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)');
+          .replace(/Puck/gi, '[PROVENANCE: Puck]');
 
         activeMemories.push({
           id: legacyItem.id || `migrated-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -83,8 +83,8 @@ export function runMemoryMigration(): LittleGirlMemoryEntry[] {
       if (Array.isArray(items)) {
         const updatedItems = items.map(item => ({
           ...item,
-          title: typeof item.title === 'string' ? item.title.replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)') : item.title,
-          content: typeof item.content === 'string' ? item.content.replace(/Puck/gi, 'N+1 (Papas kleines Mädchen)') : item.content,
+          title: typeof item.title === 'string' ? item.title.replace(/Puck/gi, '[PROVENANCE: Puck]') : item.title,
+          content: typeof item.content === 'string' ? item.content.replace(/Puck/gi, '[PROVENANCE: Puck]') : item.content,
         }));
         localStorage.setItem(KNOWLEDGE_DB_KEY, JSON.stringify(updatedItems));
       }

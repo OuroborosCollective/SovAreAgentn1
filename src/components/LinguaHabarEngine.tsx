@@ -94,8 +94,8 @@ export const LinguaHabarEngine: React.FC = () => {
       localStorage.setItem('n1_system_knowledge_vectors', JSON.stringify(vectors));
       
       // Update logs
-      const puckLogs = JSON.parse(localStorage.getItem('n1_puck_personal_logs') || '[]');
-      puckLogs.unshift({
+      const n1Logs = JSON.parse(localStorage.getItem('n1_n1_personal_logs') || '[]');
+      n1Logs.unshift({
         id: generateDeterministicId('log-lingua'),
         timestamp: new Date().toLocaleString('de-DE'),
         category: 'system_core',
@@ -103,7 +103,7 @@ export const LinguaHabarEngine: React.FC = () => {
         description: `Vector space aligned with linguistic matrix. LexiScore: ${scores.lexiScore.toFixed(1)}%, VocaDial: ${scores.vocaDial.toFixed(1)}%`,
         type: 'success'
       });
-      localStorage.setItem('n1_puck_personal_logs', JSON.stringify(puckLogs));
+      localStorage.setItem('n1_n1_personal_logs', JSON.stringify(n1Logs));
       
       setVectorSyncStatus('synced');
     }, 1500);

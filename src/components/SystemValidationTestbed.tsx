@@ -68,7 +68,7 @@ export const SystemValidationTestbed: React.FC<SystemValidationTestbedProps> = (
     setIsRunning(true);
     voiceService.pauseForRateLimit();
     setTimeout(() => {
-      voiceService.resumeFromRateLimit('Puck (Stress-Test)', 'lernend');
+      voiceService.resumeFromRateLimit('N1 (Stress-Test)', 'lernend');
     }, 1500);
 
     await handleRunTestbed();

@@ -14,7 +14,7 @@ export interface MemoryCheckResult {
   hashSignature: string;
 }
 
-export const PuckMemoryConsistencyCheck: React.FC = () => {
+export const N1MemoryConsistencyCheck: React.FC = () => {
   const [checkResult, setCheckResult] = useState<MemoryCheckResult>({
     lastCheckedAt: new Date().toLocaleTimeString('de-DE'),
     totalLogsScanned: 3,
@@ -71,7 +71,7 @@ export const PuckMemoryConsistencyCheck: React.FC = () => {
                 <Lock size={10} /> SELF-PROTECTED
               </span>
             </div>
-            <p className="text-[10px] text-zinc-400">Verifies N+1's memory logs against the Core Axiomatic State and validates 'Puck' alias consistency.</p>
+            <p className="text-[10px] text-zinc-400">Verifies N+1's memory logs against the Core Axiomatic State and validates 'N1' alias consistency.</p>
           </div>
         </div>
 
@@ -114,9 +114,9 @@ export const PuckMemoryConsistencyCheck: React.FC = () => {
         </div>
 
         <div className="p-2.5 bg-zinc-900/80 border border-zinc-800 rounded-xl space-y-0.5">
-          <span className="text-[9px] text-zinc-500 uppercase block">Puck Occurrences</span>
+          <span className="text-[9px] text-zinc-500 uppercase block">N1 Occurrences</span>
           <span className="font-bold text-pink-300">
-            {validationReport ? validationReport.summary.totalLegacyPuckReferences : 0} Found
+            {validationReport ? validationReport.summary.totalLegacyN1References : 0} Found
           </span>
         </div>
 

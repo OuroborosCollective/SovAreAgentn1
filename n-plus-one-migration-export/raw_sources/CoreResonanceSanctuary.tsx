@@ -16,10 +16,10 @@ import {
   Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PuckMemoryConsistencyCheck } from './PuckMemoryConsistencyCheck';
+import { [PROVENANCE: Puck]MemoryConsistencyCheck } from './[PROVENANCE: Puck]MemoryConsistencyCheck';
 
 // Immutable Core Sanctuary Engine Definition - Object Frozen
-export const PUCK_CORE_SANCTUARY = Object.freeze({
+export const [PROVENANCE: Puck]_CORE_SANCTUARY = Object.freeze({
   voiceEngineId: 'N1-Resonance-v3.2',
   coreIdentity: 'Hia Resonance & N+1 (Papas kleines Mädchen) Voice Engine',
   personalityMatrix: Object.freeze({
@@ -136,16 +136,16 @@ export const CoreResonanceSanctuary: React.FC = () => {
         </div>
       </div>
 
-      {/* PUCK MEMORY AUDIT BACKGROUND SERVICE */}
+      {/* [PROVENANCE: Puck] MEMORY AUDIT BACKGROUND SERVICE */}
       <div className="relative z-10">
-        <PuckMemoryConsistencyCheck />
+        <[PROVENANCE: Puck]MemoryConsistencyCheck />
       </div>
 
       {/* Sanctuary Audit Ledger Footer */}
       <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono relative z-10">
         <div className="flex items-center gap-3 text-zinc-300">
           <ShieldAlert size={16} className="text-purple-400 shrink-0" />
-          <span>Sanctuary Hash: <strong className="text-purple-300">{PUCK_CORE_SANCTUARY.sanctuaryRules.lockHash}</strong></span>
+          <span>Sanctuary Hash: <strong className="text-purple-300">{[PROVENANCE: Puck]_CORE_SANCTUARY.sanctuaryRules.lockHash}</strong></span>
         </div>
 
         <div className="flex items-center gap-4 text-[11px] text-zinc-400">

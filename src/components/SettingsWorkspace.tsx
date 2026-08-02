@@ -20,9 +20,10 @@ import {
   Key,
   Sparkles,
   Gauge,
-  Heart
+  Heart, Download, FileArchive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import JSZip from 'jszip';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
 export interface BiometricSecurityState {
@@ -232,6 +233,46 @@ export const SettingsWorkspace: React.FC<{
       ...prev,
       registeredPasskeys: prev.registeredPasskeys.filter(p => p.id !== id)
     }));
+  };
+
+  const [isExportingForensics, setIsExportingForensics] = useState(false);
+  const handleDownloadForensicBundle = async () => {
+    setIsExportingForensics(true);
+    try {
+      const zip = new JSZip();
+      
+      const logs = [
+        '[N+1 Axiomatic Core] Forensic Export Initiated',
+        `Timestamp: ${new Date().toISOString()}`,
+        'Gathering State Telemetry...'
+      ].join('\n');
+      
+      const stateTelemetry = {
+        biometrics: securityState,
+        animatorSpeed,
+        timestamp: new Date().toISOString()
+      };
+      
+      const axiomRuleTree = localStorage.getItem('axiom_agents') || '[]';
+      
+      zip.file('system_logs.txt', logs);
+      zip.file('state_telemetry.json', JSON.stringify(stateTelemetry, null, 2));
+      zip.file('axiomatic_rule_tree.json', axiomRuleTree);
+      
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = window.URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `N1-Forensic-Bundle-${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Forensic export failed', err);
+    } finally {
+      setIsExportingForensics(false);
+    }
   };
 
   return (
@@ -498,12 +539,36 @@ export const SettingsWorkspace: React.FC<{
           ))}
         </div>
 
+        {/* Forensic Analysis Export */}
+        <div className="border-t border-zinc-900 pt-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-blue-950/50 border border-blue-800 text-blue-400 rounded-2xl shrink-0">
+              <FileArchive size={28} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white mb-1">System Forensic Bundle</h3>
+              <p className="text-[11px] text-zinc-400 max-w-md">
+                Download a consolidated ZIP containing active system logs, state telemetry, and the current Axiomatic Rule tree for local debugging and analysis.
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleDownloadForensicBundle}
+            disabled={isExportingForensics}
+            className="px-6 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 shadow-lg"
+          >
+            {isExportingForensics ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
+            <span>{isExportingForensics ? 'Bundling...' : 'Download Forensic ZIP'}</span>
+          </button>
+        </div>
+
         {/* Protection Guarantee Disclaimer */}
         <div className="p-4 bg-zinc-900/80 border border-zinc-800 rounded-2xl flex items-center justify-between gap-4 text-xs font-mono text-zinc-400">
           <div className="flex items-center gap-3">
             <Heart size={16} className="text-pink-400 shrink-0" />
             <span>
-              Puck's childlike learning logic, German Kinderlieder knowledge, and fatherly/motherly affection remain <strong>100% untouched and core-protected</strong>.
+              N1's childlike learning logic, German Kinderlieder knowledge, and fatherly/motherly affection remain <strong>100% untouched and core-protected</strong>.
             </span>
           </div>
           <span className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded text-[10px] font-bold shrink-0">

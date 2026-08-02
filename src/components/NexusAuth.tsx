@@ -105,17 +105,17 @@ export const NexusAuth: React.FC<NexusAuthProps> = ({ onAuthSuccess }) => {
 
     // Listener for popup OAuth postMessage callbacks
     const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
-        const { token, user, provider } = event.data;
+        const { user, provider } = event.data;
         if (provider === 'github' || !provider) {
-          localStorage.setItem('n1_nexus_access_token', token);
-          setSessionState(prev => ({ ...prev, nexusToken: token, nexusUser: user }));
-          setHandshakeMessage({ type: 'success', text: `Nexus OAuth Handshake Successful! Connected as ${user.login || 'User'}` });
-          if (onAuthSuccess) onAuthSuccess(token, user);
+          setSessionState(prev => ({ ...prev, nexusToken: 'cookie_session_active', nexusUser: user }));
+          setHandshakeMessage({ type: 'success', text: `Nexus OAuth Handshake Successful! Connected as @${user.login || 'User'}` });
+          if (onAuthSuccess) onAuthSuccess('cookie_session_active', user);
         }
       } else if (event.data?.type === 'GOOGLE_OAUTH_SUCCESS') {
         const { user } = event.data;
-        setSessionState(prev => ({ ...prev, googleUser: user, googleToken: 'google_oauth_token_active' }));
+        setSessionState(prev => ({ ...prev, googleUser: user, googleToken: 'cookie_session_active' }));
         setHandshakeMessage({ type: 'success', text: `Google OAuth Handshake Successful! Connected as ${user.email}` });
       }
     };
@@ -230,13 +230,12 @@ export const NexusAuth: React.FC<NexusAuthProps> = ({ onAuthSuccess }) => {
           const result = await res.json();
 
           if (result.status === 'success') {
-            localStorage.setItem('n1_nexus_access_token', result.token);
-            setSessionState(prev => ({ ...prev, nexusToken: result.token, nexusUser: result.user }));
+            setSessionState(prev => ({ ...prev, nexusToken: 'cookie_session_active', nexusUser: result.user }));
             setHandshakeMessage({
               type: 'success',
-              text: `Direct Handshake Successful! Access token stored securely in system state for user @${result.user.login}.`
+              text: `Direct Handshake Successful! Session authenticated in HttpOnly cookie for @${result.user.login}.`
             });
-            if (onAuthSuccess) onAuthSuccess(result.token, result.user);
+            if (onAuthSuccess) onAuthSuccess('cookie_session_active', result.user);
             return result;
           } else {
             throw new Error(result.message || 'Handshake failed');

@@ -15,7 +15,7 @@ export const HiaFramedFacialAnimator: React.FC<HiaFramedFacialAnimatorProps> = (
   mood,
   isPlayingVoice,
   isListening,
-  activeVoiceName = 'Puck (N+1)',
+  activeVoiceName = 'N1 (N+1)',
   onMoodChange
 }) => {
   // Normalize internal emotion state categories: Happy vs Serious vs Learning

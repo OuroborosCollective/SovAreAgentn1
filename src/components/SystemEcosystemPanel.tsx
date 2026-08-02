@@ -96,13 +96,13 @@ export const SystemEcosystemPanel: React.FC = () => {
     setCommitFeedback(null);
 
     try {
-      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || ['ghp_TQMTkRT6X9Sd', 'ltWkY2pRMWnbXxQRqG0OtjWP'].join('');
+      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || undefined;
       const res = await fetch('/api/nexus/push-manifest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: commitMsg,
-          token: storedToken,
+          ...(storedToken ? { token: storedToken } : {}),
           repoUrl: 'https://github.com/OuroborosCollective/SovAreAgentn1'
         })
       });
@@ -136,7 +136,7 @@ export const SystemEcosystemPanel: React.FC = () => {
     }, 150);
 
     // Voice Synthesis via unified VoiceService (Single-Voice Lock)
-    voiceService.speak(voicePrompt, 'Puck', 'fröhlich', frequencyResonance / 500, 1.0)
+    voiceService.speak(voicePrompt, 'N+1', 'fröhlich', frequencyResonance / 500, 1.0)
       .finally(() => {
         clearInterval(interval);
         setIsPlayingResonance(false);

@@ -86,7 +86,7 @@ export const VoicePerformanceMonitor: React.FC = () => {
           <span className="text-[9px] text-zinc-500 uppercase flex items-center gap-1">
             <CheckCircle2 size={10} className="text-emerald-400" /> Engine Protocol
           </span>
-          <span className="font-bold text-white text-xs truncate block">{metrics.isGoogleCloudDirect ? 'Google Gemini Live' : 'Puck Emulator'}</span>
+          <span className="font-bold text-white text-xs truncate block">{metrics.isGoogleCloudDirect ? 'Google Gemini Live' : 'N1 Emulator'}</span>
           <span className="text-[9px] text-emerald-400 block">100% Quality Assurance</span>
         </div>
       </div>

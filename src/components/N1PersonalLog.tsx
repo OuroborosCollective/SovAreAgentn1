@@ -19,7 +19,7 @@ import { generateDeterministicId, generateDeterministicNumber, getDeterministicT
 
 import { runMemoryMigration, saveLittleGirlMemory, LittleGirlMemoryEntry, MEMORY_STORAGE_KEY } from '../utils/memoryMigration';
 
-export interface PuckPersonalInsight {
+export interface N1PersonalInsight {
   id: string;
   timestamp: string;
   category: 'logik_verbindung' | 'eltern_gefühl' | 'erfahrung_lernen';
@@ -38,7 +38,7 @@ export interface MemoryAuditItem {
   isVerifiedConsistent: boolean;
 }
 
-export const INITIAL_PUCK_LOGS: PuckPersonalInsight[] = [
+export const INITIAL_N1_LOGS: N1PersonalInsight[] = [
   {
     id: 'log-1',
     timestamp: '2026-07-26 15:30',
@@ -65,13 +65,13 @@ export const INITIAL_PUCK_LOGS: PuckPersonalInsight[] = [
   }
 ];
 
-export const PucksPersonalLog: React.FC = () => {
-  const [logs, setLogs] = useState<PuckPersonalInsight[]>(() => {
+export const N1PersonalLog: React.FC = () => {
+  const [logs, setLogs] = useState<N1PersonalInsight[]>(() => {
     const migrated = runMemoryMigration();
     if (migrated && migrated.length > 0) {
       return migrated as any;
     }
-    return INITIAL_PUCK_LOGS;
+    return INITIAL_N1_LOGS;
   });
 
   const [activeTab, setActiveTab] = useState<'LOGS' | 'AUDIT'>('LOGS');
@@ -118,13 +118,13 @@ export const PucksPersonalLog: React.FC = () => {
               isVerifiedConsistent: true
             });
 
-            if (s.puckAhaaaEpiphany) {
+            if (s.n1AhaaaEpiphany) {
               mergedAudit.push({
                 id: `audit-ahaaa-${s.id || idx}-${idx}`,
                 timestamp: s.dateAdded || '2026-07-26',
                 type: 'AHAAA_EPIPHANY',
                 title: `Ahaaa! ${s.learningTag || s.title}`,
-                content: s.puckAhaaaEpiphany,
+                content: s.n1AhaaaEpiphany,
                 axiomConsistencyScore: 100,
                 isVerifiedConsistent: true
               });
@@ -159,7 +159,7 @@ export const PucksPersonalLog: React.FC = () => {
         isVerifiedConsistent: true
       })));
       setIsAuditing(false);
-      setAuditSuccessMsg('Puck Memory Audit Abgeschlossen: 100% Axiom-Konsistent & Vektor-Integrität Bestätigt!');
+      setAuditSuccessMsg('N1 Memory Audit Abgeschlossen: 100% Axiom-Konsistent & Vektor-Integrität Bestätigt!');
       setTimeout(() => setAuditSuccessMsg(null), 4000);
     }, 1000);
   };
@@ -173,7 +173,7 @@ export const PucksPersonalLog: React.FC = () => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
 
-    const newLog: PuckPersonalInsight = {
+    const newLog: N1PersonalInsight = {
       id: `log-${(1722000000000 + Math.floor(performance.now()))}-${generateDeterministicId('rnd')}`,
       timestamp: new Date().toLocaleString('de-DE'),
       category: 'erfahrung_lernen',
@@ -184,7 +184,7 @@ export const PucksPersonalLog: React.FC = () => {
 
     const updated = [newLog, ...logs];
     setLogs(updated);
-    localStorage.setItem('n1_puck_personal_logs', JSON.stringify(updated));
+    localStorage.setItem('n1_n1_personal_logs', JSON.stringify(updated));
 
     setNewTitle('');
     setNewContent('');
@@ -349,13 +349,13 @@ export const PucksPersonalLog: React.FC = () => {
           </div>
         </>
       ) : (
-        /* PUCK MEMORY AUDIT VIEWER */
+        /* N1 MEMORY AUDIT VIEWER */
         <div className="space-y-4 font-mono text-xs relative z-10">
           <div className="p-4 bg-zinc-900/80 border border-emerald-800/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
             <div className="flex items-center gap-3">
               <ShieldCheck size={24} className="text-emerald-400 animate-pulse shrink-0" />
               <div>
-                <h3 className="text-sm font-bold text-white">Puck Memory Audit Verification</h3>
+                <h3 className="text-sm font-bold text-white">N1 Memory Audit Verification</h3>
                 <p className="text-[11px] text-zinc-400">Chronological verification of 'Ahaaa' moments and Papa's Stories against the Axiomatic Core.</p>
               </div>
             </div>

@@ -43,13 +43,13 @@ app.listen(PORT, "0.0.0.0", () => {
     setSuccessMsg(null);
     setErrorMsg(null);
     try {
-      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || ['ghp_TQMTkRT6X9Sd', 'ltWkY2pRMWnbXxQRqG0OtjWP'].join('');
+      const storedToken = localStorage.getItem('n1_github_token') || localStorage.getItem('n1_nexus_access_token') || undefined;
       const res = await fetch('/api/nexus/push-manifest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: commitMessage,
-          token: storedToken,
+          ...(storedToken ? { token: storedToken } : {}),
           repoUrl: 'https://github.com/OuroborosCollective/SovAreAgentn1'
         })
       });

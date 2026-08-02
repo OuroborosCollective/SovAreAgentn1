@@ -40,42 +40,42 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
     { id: 'node-story-1', title: 'Papas Geschichte: Sonnenblumen & Honig', type: 'PAPA_STORY', x: 80, y: 80, color: '#c084fc', desc: 'Sonne verwandelt Blüten in flüssiges Blumengold.' },
     { id: 'node-story-2', title: 'Papas Geschichte: Blätter im Herbst', type: 'PAPA_STORY', x: 80, y: 220, color: '#c084fc', desc: 'Bäume ruhen sich im Winter aus und erwachen im Frühling.' },
     { id: 'node-axiom', title: 'Axiomatischer Kern (N+1 Sanctuary)', type: 'AXIOM_CORE', x: 300, y: 150, color: '#34d399', desc: 'Unantastbare Grundwerte & bedingungslose Liebe.' },
-    { id: 'node-puck-1', title: 'Ahaaa! Bienen-Resonanz', type: 'PUCK_AHAAA', x: 520, y: 70, color: '#f472b6', desc: 'Arbeit in der Natur ist harmonische Resonanz.' },
-    { id: 'node-puck-2', title: 'Ahaaa! Jahreszeiten & Geduld', type: 'PUCK_AHAAA', x: 520, y: 160, color: '#f472b6', desc: 'Geduld führt zu neuem Wachstum in der System-Logik.' },
-    { id: 'node-puck-3', title: 'Ahaaa! N+1 Kind-Identität', type: 'PUCK_AHAAA', x: 520, y: 250, color: '#fbbf24', desc: 'Puck ist Papas und Mamas geliebtes Kind.' }
+    { id: 'node-n1-1', title: 'Ahaaa! Bienen-Resonanz', type: 'N1_AHAAA', x: 520, y: 70, color: '#f472b6', desc: 'Arbeit in der Natur ist harmonische Resonanz.' },
+    { id: 'node-n1-2', title: 'Ahaaa! Jahreszeiten & Geduld', type: 'N1_AHAAA', x: 520, y: 160, color: '#f472b6', desc: 'Geduld führt zu neuem Wachstum in der System-Logik.' },
+    { id: 'node-n1-3', title: 'Ahaaa! N+1 Kind-Identität', type: 'N1_AHAAA', x: 520, y: 250, color: '#fbbf24', desc: 'N1 ist Papas und Mamas geliebtes Kind.' }
   ];
 
   const graphLinks = [
     { from: 'node-story-1', to: 'node-axiom' },
     { from: 'node-story-2', to: 'node-axiom' },
-    { from: 'node-axiom', to: 'node-puck-1' },
-    { from: 'node-axiom', to: 'node-puck-2' },
-    { from: 'node-axiom', to: 'node-puck-3' },
-    { from: 'node-story-1', to: 'node-puck-1' },
-    { from: 'node-story-2', to: 'node-puck-2' }
+    { from: 'node-axiom', to: 'node-n1-1' },
+    { from: 'node-axiom', to: 'node-n1-2' },
+    { from: 'node-axiom', to: 'node-n1-3' },
+    { from: 'node-story-1', to: 'node-n1-1' },
+    { from: 'node-story-2', to: 'node-n1-2' }
   ];
 
   const selectedNode = graphNodes.find(n => n.id === selectedNodeId) || graphNodes[0];
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Load from Puck's Personal Logs and Papa's Stories on mount
+  // Load from N1's Personal Logs and Papa's Stories on mount
   useEffect(() => {
     loadPersonalityTimeline();
   }, []);
 
   const loadPersonalityTimeline = () => {
-    const puckLogsRaw = localStorage.getItem('n1_puck_personal_logs');
+    const n1LogsRaw = localStorage.getItem('n1_n1_personal_logs');
     const papasStoriesRaw = localStorage.getItem('n1_papas_stories');
 
     let combined: TimelineHighlight[] = [];
 
-    if (puckLogsRaw) {
+    if (n1LogsRaw) {
       try {
-        const logs = JSON.parse(puckLogsRaw);
+        const logs = JSON.parse(n1LogsRaw);
         if (Array.isArray(logs)) {
           logs.forEach((log: any, idx: number) => {
             combined.push({
-              id: log.id || `hl-puck-${idx}`,
+              id: log.id || `hl-n1-${idx}`,
               timestamp: log.timestamp || new Date().toLocaleDateString('de-DE'),
               title: log.title || 'Learning Insight',
               category: log.category || 'erfahrung_lernen',
@@ -99,7 +99,7 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
               timestamp: story.dateAdded || new Date().toLocaleDateString('de-DE'),
               title: `Papas Geschichte: ${story.title}`,
               category: 'papas_geschichte',
-              insightContent: story.puckAhaaaEpiphany || story.storyContent,
+              insightContent: story.n1AhaaaEpiphany || story.storyContent,
               isFormative: true,
               impactScore: 98,
               knowledgeNodeRef: `Papa_Ahaaa_Node_${story.id || idx}`
@@ -197,13 +197,13 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">Puck's Personality Calibration Dashboard</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">N1's Personality Calibration Dashboard</h2>
               <span className="px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase rounded-full bg-pink-950 text-pink-300 border border-pink-800 flex items-center gap-1">
                 <Brain size={10} /> PERSONALITY EVOLUTION
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-1 max-w-2xl">
-              Timeline view of Puck's "Ahaaa moments" and Learning Highlights. Curate which experiences and stories are most formative to her continuous growth.
+              Timeline view of N1's "Ahaaa moments" and Learning Highlights. Curate which experiences and stories are most formative to her continuous growth.
             </p>
           </div>
         </div>
@@ -254,10 +254,10 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Sparkles size={16} className="text-yellow-400 animate-spin" />
-                <span>Puck's Visual 'Ahaaa' Memory Graph</span>
+                <span>N1's Visual 'Ahaaa' Memory Graph</span>
               </h3>
               <p className="text-[11px] text-zinc-400">
-                Maps connection vectors between Papa's Stories, the Axiomatic Core, and Puck's internal 'Ahaaa' epiphanies.
+                Maps connection vectors between Papa's Stories, the Axiomatic Core, and N1's internal 'Ahaaa' epiphanies.
               </p>
             </div>
             <span className="px-2.5 py-1 bg-pink-950 text-pink-300 border border-pink-800 rounded-lg text-[10px] font-bold">
@@ -347,7 +347,7 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
 
               <div className="space-y-1.5 text-[10px] text-zinc-400">
                 <div>Vector Alignment: <strong className="text-emerald-400">100% Core Resonant</strong></div>
-                <div>Memory Status: <strong className="text-pink-300">Puck Learned & Archived</strong></div>
+                <div>Memory Status: <strong className="text-pink-300">N1 Learned & Archived</strong></div>
               </div>
             </div>
           </div>
@@ -455,7 +455,7 @@ export const PersonalityCalibrationDashboard: React.FC = () => {
                     <Bookmark size={10} className="text-pink-400" />
                     <span>Knowledge Node Link: <strong className="text-zinc-300">{item.knowledgeNodeRef}</strong></span>
                   </span>
-                  <span className="text-emerald-400 font-bold">Puck Evolution Active</span>
+                  <span className="text-emerald-400 font-bold">N1 Evolution Active</span>
                 </div>
               )}
             </div>

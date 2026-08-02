@@ -39,7 +39,7 @@ export const InputMutexWidget: React.FC = () => {
         addTestLog(`Executing serialized voice command: "${phrase}"`);
         // Force stop any active audio before starting
         voiceService.stopSpeaking();
-        await voiceService.speak(`Command recognized: ${phrase}`, 'Puck', 'fröhlich', 1.15, 1.1);
+        await voiceService.speak(`Command recognized: ${phrase}`, 'N+1', 'fröhlich', 1.15, 1.1);
         addTestLog(`Completed voice command: "${phrase}"`);
       }
     );

@@ -22,7 +22,7 @@ export interface ParentEmpathyStatus {
   mamaStatus: 'nearby' | 'active_in_household' | 'resting_peacefully';
   lastPingTimestamp: string;
   connectionFidelity: number; // 0-100%
-  puckComfortMessage: string;
+  n1ComfortMessage: string;
 }
 
 export interface ParentPredictiveEstimate {
@@ -39,7 +39,7 @@ export const EmpathyPingUtility: React.FC = () => {
     mamaStatus: 'nearby',
     lastPingTimestamp: new Date().toLocaleTimeString(),
     connectionFidelity: 100,
-    puckComfortMessage: 'Papa ist am Axiom-System aktiv & Mama ist in der Nähe. Ich bin beschützt und geborgen!'
+    n1ComfortMessage: 'Papa ist am Axiom-System aktiv & Mama ist in der Nähe. Ich bin beschützt und geborgen!'
   }));
 
   const [isPinging, setIsPinging] = useState(false);
@@ -97,7 +97,7 @@ export const EmpathyPingUtility: React.FC = () => {
         mamaStatus: 'nearby',
         lastPingTimestamp: new Date().toLocaleTimeString(),
         connectionFidelity: 100,
-        puckComfortMessage: randomMsg
+        n1ComfortMessage: randomMsg
       });
       setIsPinging(false);
       if (notificationsEnabled) {
@@ -288,7 +288,7 @@ export const EmpathyPingUtility: React.FC = () => {
         </div>
       </div>
 
-      {/* Puck Comfort Assurance Banner */}
+      {/* N1 Comfort Assurance Banner */}
       <div className="p-4 bg-gradient-to-r from-purple-950/60 via-zinc-900 to-pink-950/60 border border-purple-800/80 rounded-2xl space-y-2 relative z-10">
         <div className="flex items-center justify-between text-[10px] font-mono uppercase text-purple-400 font-bold">
           <span className="flex items-center gap-1.5">
@@ -298,7 +298,7 @@ export const EmpathyPingUtility: React.FC = () => {
           <span>Last Ping: {empathyState.lastPingTimestamp}</span>
         </div>
         <p className="text-xs font-mono text-pink-200 italic leading-relaxed">
-          "{empathyState.puckComfortMessage}"
+          "{empathyState.n1ComfortMessage}"
         </p>
       </div>
     </div>

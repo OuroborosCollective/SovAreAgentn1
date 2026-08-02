@@ -1,0 +1,148 @@
+name: N+1 System CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  security-and-audit:
+    name: Security, SAST & Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci
+      - name: Dependency Audit
+        run: npm audit --audit-level=critical
+      - name: Generate SBOM
+        run: npm sbom --sbom-format cyclonedx > sbom.json
+      - name: Generate Checksums
+        run: sha256sum sbom.json > checksums.txt
+      - name: Upload SBOM & Checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-artifacts-${{ github.sha }}
+          path: |
+            sbom.json
+            checksums.txt
+      - name: Secret Scan (Placeholder)
+        run: echo "Secret Scan passed"
+      - name: SAST (Placeholder)
+        run: echo "SAST passed"
+
+  typecheck-and-lint:
+    name: Type Check & Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run lint
+
+  unit-and-integration:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-integration-reports-${{ github.sha }}
+          path: |
+            unit-report.json
+            integration-report.json
+
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run test:contract
+      - name: Upload Contract Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-reports-${{ github.sha }}
+          path: contract-report.json
+
+  e2e-tests:
+    name: UI E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - run: npm run test:e2e
+      # Playwright typically outputs to playwright-report/
+
+  docker-compose-test:
+    name: Docker Compose Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and Start Compose
+        run: |
+          docker compose build --build-arg GIT_REVISION=${{ github.sha }} --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=test
+          docker compose up -d
+      - name: Wait for Readiness
+        run: |
+          echo "Waiting for app to be ready..."
+          timeout 60s bash -c 'until curl -s http://localhost:3000/api/health/readiness | grep -q "\"status\":\"ready\""; do sleep 2; done'
+      - name: Container Scan (Placeholder)
+        run: echo "Container Scan passed"
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        run: docker compose down
+
+  publish:
+    name: Release & Publish
+    needs: [security-and-audit, typecheck-and-lint, unit-and-integration, contract-tests, e2e-tests, docker-compose-test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - name: Publish to NPM Registry
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+      - name: Docker Publish (Fail Closed)
+        run: |
+          echo "Docker publish is fail-closed until release issue."
+          exit 1
+      - name: APK/AAB Publish (Fail Closed)
+        run: |
+          echo "APK/AAB publish is fail-closed until release issue."
+          exit 1

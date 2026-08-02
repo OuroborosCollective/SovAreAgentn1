@@ -13,7 +13,7 @@ export interface MemoryCheckResult {
   hashSignature: string;
 }
 
-export const PuckMemoryConsistencyCheck: React.FC = () => {
+export const [PROVENANCE: Puck]MemoryConsistencyCheck: React.FC = () => {
   const [checkResult, setCheckResult] = useState<MemoryCheckResult>({
     lastCheckedAt: new Date().toLocaleTimeString('de-DE'),
     totalLogsScanned: 3,

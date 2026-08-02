@@ -5,6 +5,7 @@ import App from './src/App';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { GlobalErrorObserverProvider } from './src/context/GlobalErrorObserverContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { NexusErrorBoundary } from './src/components/NexusErrorBoundary';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -17,7 +18,9 @@ root.render(
     <ThemeProvider>
       <NotificationProvider>
         <GlobalErrorObserverProvider>
-          <App />
+          <NexusErrorBoundary fallbackTitle="N+1 System Fault (Runtime Level)">
+            <App />
+          </NexusErrorBoundary>
         </GlobalErrorObserverProvider>
       </NotificationProvider>
     </ThemeProvider>

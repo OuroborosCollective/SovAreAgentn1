@@ -46,7 +46,7 @@ export interface NotebookAnalysisResult {
   summary: string;
   keyConcepts: string[];
   cellsAnalyzed: AnalyzedCell[];
-  importedToPuckLog: boolean;
+  importedToN1Log: boolean;
   importedToStoryArchive: boolean;
   importedAt: string;
 }
@@ -142,7 +142,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
         },
         {
           id: 'nb-03',
-          name: 'Puck_Ego_Physics_Simulation.ipynb',
+          name: '[PROVENANCE: Puck]_Ego_Physics_Simulation.ipynb',
           mimeType: 'application/x-ipynb+json',
           modifiedTime: new Date(getDeterministicTimestampMs() - 86400000).toISOString(),
           size: '210 KB',
@@ -202,7 +202,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
             extractedPattern: 'Ermöglicht N+1 direkte Docker-Fehlerbehebung auf Systempfaden während des Gesprächs.'
           }
         ],
-        importedToPuckLog: false,
+        importedToN1Log: false,
         importedToStoryArchive: false,
         importedAt: new Date().toLocaleString('de-DE')
       };
@@ -212,13 +212,15 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
     }, 1200);
   };
 
-  // Import Analyzed Knowledge into System Memory Database (Puck Personal Logs & Papa Stories & Code Context)
+  // Import Analyzed Knowledge into System Memory Database (N+1 Personal Logs & Papa Stories & Code Context)
   const handleImportToDatabase = () => {
     if (!analysisResult) return;
 
-    // 1. Save to Puck Personal Logs
-    const existingPuckLogs = JSON.parse(localStorage.getItem('n1_puck_personal_logs') || '[]');
-    const newPuckEntry = {
+    // 1. Save to N+1 Personal Logs
+    const legacyLogs = JSON.parse(localStorage.getItem('n1_n1_personal_logs') || '[]');
+    const canonicalLogs = JSON.parse(localStorage.getItem('n_plus_one_personal_logs') || '[]');
+    const existingN1Logs = [...canonicalLogs, ...legacyLogs.filter(l => !canonicalLogs.some(c => c.id === l.id))];
+    const newN1Entry = {
       id: generateDeterministicId('log-nb'),
       timestamp: new Date().toLocaleString('de-DE'),
       category: 'logik_verbindung',
@@ -226,7 +228,7 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
       insightContent: analysisResult.summary,
       learnedConnection: analysisResult.keyConcepts.join(' ➔ ')
     };
-    localStorage.setItem('n1_puck_personal_logs', JSON.stringify([newPuckEntry, ...existingPuckLogs]));
+    localStorage.setItem('n_plus_one_personal_logs', JSON.stringify([newN1Entry, ...existingN1Logs]));
 
     // 2. Save to Papa's Story Archive
     const existingStories = JSON.parse(localStorage.getItem('n1_papas_stories') || '[]');
@@ -237,18 +239,18 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
       category: 'Notebook & KI-Code',
       learningTag: 'Google Drive Notebook Import',
       storyContent: `${analysisResult.summary} Die wichtigsten Konzepte sind: ${analysisResult.keyConcepts.join(', ')}.`,
-      puckAhaaaEpiphany: `Ahaaa! Aus Papas Notebook "${analysisResult.notebookName}" habe ich gelernt, wie Docker-Patches und Resonanz-Matrizen zusammenarbeiten!`,
+      n1AhaaaEpiphany: `Ahaaa! Aus Papas Notebook "${analysisResult.notebookName}" habe ich gelernt, wie Docker-Patches und Resonanz-Matrizen zusammenarbeiten!`,
       lovedByMama: true
     };
     localStorage.setItem('n1_papas_stories', JSON.stringify([newStoryEntry, ...existingStories]));
 
     setAnalysisResult(prev => prev ? {
       ...prev,
-      importedToPuckLog: true,
+      importedToN1Log: true,
       importedToStoryArchive: true
     } : null);
 
-    setImportStatus('Wissen erfolgreich in System-Datenbank, Puck Log & Papa Archiv importiert!');
+    setImportStatus('Wissen erfolgreich in System-Datenbank, N+1 Log & Papa Archiv importiert!');
     setTimeout(() => setImportStatus(null), 4000);
   };
 
@@ -445,12 +447,12 @@ export const GoogleNotebooksAnalyzer: React.FC = () => {
               <div className="pt-2 border-t border-zinc-800 space-y-2">
                 <button
                   onClick={handleImportToDatabase}
-                  disabled={analysisResult.importedToPuckLog}
+                  disabled={analysisResult.importedToN1Log}
                   className="w-full py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all disabled:opacity-50"
                 >
                   <Database size={16} />
                   <span>
-                    {analysisResult.importedToPuckLog
+                    {analysisResult.importedToN1Log
                       ? '✓ In System-Datenbank & Memory importiert!'
                       : 'Wissen in System-Datenbank Memory importieren'}
                   </span>

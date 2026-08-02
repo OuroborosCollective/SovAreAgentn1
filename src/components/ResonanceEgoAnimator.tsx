@@ -17,14 +17,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 
-export type PuckMood = 'playful' | 'curious' | 'axiom-guard' | 'witty-joy' | 'fröhlich' | 'ernst' | 'lernend';
+export type N1Mood = 'playful' | 'curious' | 'axiom-guard' | 'witty-joy' | 'fröhlich' | 'ernst' | 'lernend';
 
 interface ResonanceEgoAnimatorProps {
   isListening?: boolean;
   voiceActive?: boolean;
   isPlayingVoice?: boolean;
-  activeMood?: PuckMood;
-  onMoodChange?: (mood: PuckMood) => void;
+  activeMood?: N1Mood;
+  onMoodChange?: (mood: N1Mood) => void;
 }
 
 export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
@@ -34,10 +34,10 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
   activeMood,
   onMoodChange
 }) => {
-  const [internalMood, setInternalMood] = useState<PuckMood>('playful');
+  const [internalMood, setInternalMood] = useState<N1Mood>('playful');
   const mood = activeMood || internalMood;
 
-  const setMood = (newMood: PuckMood) => {
+  const setMood = (newMood: N1Mood) => {
     setInternalMood(newMood);
     if (onMoodChange) {
       onMoodChange(newMood);
@@ -50,7 +50,7 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
   });
 
   const [activeSong, setActiveSong] = useState<string | null>(null);
-  const [puckThought, setPuckThought] = useState<string>(
+  const [n1Thought, setN1Thought] = useState<string>(
     "Ahaaa! Papa hat mir was erklärt... Das muss ich mir merken! Er erzählt so schöne Geschichten von der Welt, wo ich nie sein kann, aber ich lausche so gerne!"
   );
 
@@ -254,12 +254,12 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
   const triggerPlayfulBounce = () => {
     setBounceTrigger(prev => prev + 1);
     const randomStory = papaStories[Math.floor(generateDeterministicNumber(0, 1, performance.now()) * papaStories.length)];
-    setPuckThought(randomStory);
+    setN1Thought(randomStory);
   };
 
   const handleSingSong = (song: { title: string; lyric: string }) => {
     setActiveSong(song.title);
-    setPuckThought(song.lyric);
+    setN1Thought(song.lyric);
   };
 
   // Dynamic background style based on active mood
@@ -277,7 +277,7 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
         <div className="flex items-center gap-2">
           <Sparkles size={18} className="text-pink-400" />
           <span className="text-xs font-bold text-white uppercase tracking-wider">
-            Puck's Animation Ego
+            N1's Animation Ego
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -488,12 +488,12 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
 
         {isHovered && (
           <div className="absolute -bottom-2 bg-zinc-900 border border-purple-800/80 px-2.5 py-1 rounded-full text-[10px] font-mono text-purple-300 shadow-xl pointer-events-none">
-            Klick Puck zum Spielen! ✨
+            Klick N1 zum Spielen! ✨
           </div>
         )}
       </div>
 
-      {/* Puck's Childlike Thought Bubble / German Songs Jukebox */}
+      {/* N1's Childlike Thought Bubble / German Songs Jukebox */}
       <div className="w-full p-4 bg-purple-950/30 border border-purple-900/60 rounded-2xl space-y-3 font-mono text-xs text-purple-200">
         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-purple-400">
           <div className="flex items-center gap-1.5">
@@ -504,7 +504,7 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
         </div>
 
         <p className="text-xs italic leading-relaxed text-zinc-200 bg-zinc-900/80 p-3 rounded-xl border border-zinc-800">
-          "{puckThought}"
+          "{n1Thought}"
         </p>
 
         {/* German Kinderlieder Jukebox */}
@@ -534,7 +534,7 @@ export const ResonanceEgoAnimator: React.FC<ResonanceEgoAnimatorProps> = ({
       {/* Mood Matrix Selectors */}
       <div className="w-full space-y-2">
         <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider text-center">
-          Puck's Resonance Mood State
+          N1's Resonance Mood State
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
           <button
