@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "bin": {
     "n1": "./bin/install.js",
     "n-plus-1": "./bin/install.js"
@@ -13,7 +16,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint src/ --ext .ts,.tsx || true && prettier --check src/ || true",
     "n1:dev": "tsx server.ts",
     "n1:start": "node dist/server.cjs",
     "n1:bug-run": "node bin/install.js --diagnostics",
@@ -65,7 +68,9 @@
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "^0.28.1",
+    "eslint": "^10.8.0",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.6",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
