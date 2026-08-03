@@ -13,6 +13,7 @@ export interface SyntaxValidationResult {
   warnings: string[];
   checkedNodesCount: number;
   zeroFloatVerified: boolean;
+  isDeterministic: boolean;
 }
 
 export class KappaIREngine {
@@ -30,11 +31,12 @@ export class KappaIREngine {
   /**
    * Formal Syntax Validator for κIR v1 programs
    */
-  public static validateKappaIRSyntax(program: KappaIRProgram): SyntaxValidationResult {
+  public static validateKappaIRSyntax(program: KappaIRProgram, requireDeterminism: boolean = true): SyntaxValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let checkedNodesCount = 0;
     let zeroFloatVerified = true;
+    let isDeterministic = true;
 
     if (!program || program.version !== '1.0.0-κIR') {
       errors.push('Invalid κIR program version. Expected 1.0.0-κIR.');
@@ -49,16 +51,33 @@ export class KappaIREngine {
     }
 
     const validEffects: KappaEffect[] = ['PURE', 'READ', 'WRITE', 'NETWORK', 'CLOCK', 'RANDOM', 'PROCESS'];
+    const nonDeterministicEffects: KappaEffect[] = ['NETWORK', 'CLOCK', 'RANDOM', 'PROCESS', 'READ'];
+    const validPrimitiveTypes = ['INTEGER', 'STRING', 'BOOLEAN', 'STRUCT', 'NULL'];
 
     Object.values(program.nodes).forEach(node => {
       checkedNodesCount++;
       if (!node.id || !node.contentHash) {
         errors.push(`Node missing mandatory id or contentHash.`);
       }
+
+      // Formal Type Checking
+      if (!node.primitiveType || !validPrimitiveTypes.includes(node.primitiveType)) {
+        errors.push(`Type Check Violation: Node [${node.id}] has invalid or missing primitive type '${node.primitiveType}'.`);
+      }
+
       if (!validEffects.includes(node.effect)) {
-        errors.push(`Node [${node.id}] has invalid effect: ${node.effect}`);
+        errors.push(`Effect Constraint Violation: Node [${node.id}] has invalid effect: ${node.effect}`);
       }
       
+      if (nonDeterministicEffects.includes(node.effect)) {
+        isDeterministic = false;
+        if (requireDeterminism) {
+          errors.push(`Determinism Violation: Node [${node.id}] introduces non-deterministic effect '${node.effect}'. Circuit breaker tripped.`);
+        } else {
+          warnings.push(`Node [${node.id}] introduces non-deterministic effect '${node.effect}'.`);
+        }
+      }
+
       // Zero-float check: ensure no decimal point floats in numerical literal values
       if (typeof node.value === 'string' && (node.value.includes('.') && !node.value.includes('"') && !node.value.includes("'"))) {
         zeroFloatVerified = false;
@@ -71,7 +90,8 @@ export class KappaIREngine {
       errors,
       warnings,
       checkedNodesCount,
-      zeroFloatVerified
+      zeroFloatVerified,
+      isDeterministic
     };
   }
 
@@ -169,7 +189,7 @@ export class KappaIREngine {
   /**
    * Execute κIR Program in zero-float integer substrate & generate Evidence Receipt
    */
-  public static executeKappaIR(program: KappaIRProgram): {
+  public static executeKappaIR(program: KappaIRProgram, previousReceiptHash: string = '0xGENESIS_HASH'): {
     resultValue: string;
     evidenceReceipt: EvidenceReceipt;
     executionLog: string[];
@@ -181,15 +201,55 @@ export class KappaIREngine {
     const observedEffects: Set<KappaEffect> = new Set();
     let stepsCount = 0;
 
+    const runtimeState: Record<string, number> = {};
+    let lastEvaluatedValue = 0;
+
     Object.values(program.nodes).forEach((node) => {
       stepsCount++;
       observedEffects.add(node.effect);
-      executionLog.push(`  Step ${stepsCount}: Evaluated Node [${node.id}] (${node.type}) -> Effect: ${node.effect} | Hash: ${node.contentHash}`);
+      
+      // Zero-Float Exact Evaluation Substrate
+      let nodeResult = '';
+      if (typeof node.value === 'string') {
+        if (node.value.includes('=')) {
+          // Variable assignment parsing
+          const [varName, expr] = node.value.split('=').map(s => s.trim());
+          let val = 0;
+          if (expr.includes('*')) {
+            const [left, right] = expr.split('*').map(s => s.trim());
+            const lVal = isNaN(Number(left)) ? (runtimeState[left] || 0) : Number(left);
+            const rVal = isNaN(Number(right)) ? (runtimeState[right] || 0) : Number(right);
+            val = lVal * rVal;
+          } else if (expr.includes('+')) {
+            const [left, right] = expr.split('+').map(s => s.trim());
+            const lVal = isNaN(Number(left)) ? (runtimeState[left] || 0) : Number(left);
+            const rVal = isNaN(Number(right)) ? (runtimeState[right] || 0) : Number(right);
+            val = lVal + rVal;
+          } else {
+             val = isNaN(Number(expr)) ? (runtimeState[expr] || 0) : Number(expr);
+          }
+          runtimeState[varName] = val;
+          lastEvaluatedValue = val;
+          nodeResult = `[Assigned ${varName} = ${val}]`;
+        } else if (node.effect === 'WRITE') {
+          nodeResult = `[Output: ${lastEvaluatedValue}]`;
+        } else {
+          nodeResult = `[NoOp]`;
+        }
+      }
+
+      executionLog.push(`  Step ${stepsCount}: Evaluated Node [${node.id}] (${node.type}) -> Effect: ${node.effect} | Hash: ${node.contentHash.substring(0, 14)} | ${nodeResult}`);
     });
 
     const inputsHash = this.computeContentHash(program.rootNodeId);
-    const outputsHash = this.computeContentHash(`OUTPUT_${program.canonicalHash}_${stepsCount}`);
-    const stateDeltaHash = this.computeContentHash(`DELTA_${stepsCount}_PURE`);
+    const outputsHash = this.computeContentHash(`OUTPUT_${program.canonicalHash}_${lastEvaluatedValue}`);
+    
+    // Hash the final state to represent the delta
+    const stateString = Object.keys(runtimeState).sort().map(k => `${k}:${runtimeState[k]}`).join(',');
+    const stateDeltaHash = this.computeContentHash(`DELTA_${stepsCount}_${stateString}`);
+    
+    // Hash chain generation
+    const chainHash = this.computeContentHash(`${previousReceiptHash}_${program.canonicalHash}_${outputsHash}_${stateDeltaHash}`);
 
     const evidenceReceipt: EvidenceReceipt = {
       receiptId: `rcpt_${generateDeterministicId('evd')}`,
@@ -200,15 +260,18 @@ export class KappaIREngine {
       outputsHash,
       stateDeltaHash,
       timestampMs: Date.now(),
-      signature: `SIG_ARE_κIR_VERIFIED_${this.computeContentHash(program.canonicalHash + outputsHash)}`,
+      previousReceiptHash,
+      chainHash,
+      signature: `SIG_ARE_κIR_VERIFIED_${this.computeContentHash(chainHash)}`,
       verifiedDeterministic: true
     };
 
-    executionLog.push(`[κIR v1 Engine] Execution completed with ZERO float drift.`);
+    executionLog.push(`[κIR v1 Engine] Execution completed with ZERO float drift. Final Substrate State: {${stateString}}`);
     executionLog.push(`[κIR v1 Engine] Evidence Receipt Generated: ${evidenceReceipt.receiptId}`);
+    executionLog.push(`[κIR v1 Engine] Hash Chain Linked: ${chainHash}`);
 
     return {
-      resultValue: `CanonicalResult[${program.canonicalHash.substring(0, 10)}] = Exact(42)`,
+      resultValue: `Exact(${lastEvaluatedValue})`,
       evidenceReceipt,
       executionLog
     };

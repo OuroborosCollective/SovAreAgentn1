@@ -118,6 +118,8 @@ export interface EvidenceReceipt {
   outputsHash: string;
   stateDeltaHash: string;
   timestampMs: number;
+  previousReceiptHash: string;
+  chainHash: string;
   signature: string;
   verifiedDeterministic: boolean;
 }

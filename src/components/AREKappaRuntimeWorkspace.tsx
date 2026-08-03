@@ -30,6 +30,7 @@ import { ARCHITECTURE_LAYERS, KappaIRProgram, EvidenceReceipt, MultidimensionalR
 import { KappaIREngine, SyntaxValidationResult } from '../services/kappaIREngine';
 import { TopologyObserver } from '../services/topologyObserver';
 import { DeterministicTestRunner, DeterministicTestResult } from '../services/deterministicTestRunner';
+import { WolframResearchSandbox } from '../services/wolframResearchSandbox';
 
 export const AREKappaRuntimeWorkspace: React.FC = () => {
   const [selectedLayer, setSelectedLayer] = useState<string>('F3');
@@ -63,6 +64,8 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
       outputsHash: '0xOUTPUTS_ROOT_001',
       stateDeltaHash: '0xDELTA_PURE_001',
       timestampMs: Date.now() - 3600000,
+      previousReceiptHash: '0x00000000',
+      chainHash: '0xGENESIS_HASH',
       signature: 'SIG_ARE_κIR_VERIFIED_GENESIS',
       verifiedDeterministic: true
     }
@@ -81,7 +84,9 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
 
   // Wolfram Module Export state
   const [moduleNameInput, setModuleNameInput] = useState<string>('ErdosTopologyProof');
+  const [symbolicExpressionInput, setSymbolicExpressionInput] = useState<string>('Solve[x^2 - 5x + 6 == 0, x]');
   const [exportedModuleCode, setExportedModuleCode] = useState<string>('');
+  const [researchResult, setResearchResult] = useState<any>(null);
 
   const [decompiledTarget, setDecompiledTarget] = useState<string>('');
   const [targetLang, setTargetLang] = useState<'Python' | 'TypeScript'>('TypeScript');
@@ -102,11 +107,16 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
   };
 
   const handleExportWolframModule = () => {
-    const code = DeterministicTestRunner.exportWolframResearchModule(
-      moduleNameInput,
-      'Solve[InvariantPreservation[κIR] == True, {x, y}]'
-    );
-    setExportedModuleCode(code);
+    try {
+      const res = WolframResearchSandbox.evaluateSymbolicResearch(
+        symbolicExpressionInput,
+        moduleNameInput
+      );
+      setResearchResult(res);
+      setExportedModuleCode(res.exportedKernelModule);
+    } catch (e: any) {
+      setExportedModuleCode(`// ERROR: ${e.message}`);
+    }
   };
 
   const handleCompile = () => {
@@ -122,7 +132,36 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
 
   const handleExecuteInZeroFloatSubstrate = () => {
     if (!compiledProgram) return;
-    const output = KappaIREngine.executeKappaIR(compiledProgram);
+    
+    // Circuit Breaker: Enforce Determinism & Validate Syntax
+    const validationResult = KappaIREngine.validateKappaIRSyntax(compiledProgram, true);
+    if (!validationResult.isValid) {
+      setExecutionOutput({
+        resultValue: 'ERROR: Execution Blocked',
+        evidenceReceipt: {
+          receiptId: 'ERROR',
+          programHash: compiledProgram.canonicalHash,
+          executionStepsCount: 0,
+          effectMask: [],
+          inputsHash: '',
+          outputsHash: '',
+          stateDeltaHash: '',
+          timestampMs: Date.now(),
+          previousReceiptHash: '',
+          chainHash: '',
+          signature: 'INVALID_CIRCUIT_BREAKER_TRIPPED',
+          verifiedDeterministic: false
+        },
+        executionLog: [
+          '[CIRCUIT BREAKER] κIR Validation Failed. Execution blocked.',
+          ...validationResult.errors.map(err => `[ERROR] ${err}`)
+        ]
+      } as any);
+      return;
+    }
+
+    const previousHash = evidenceLedger.length > 0 ? evidenceLedger[0].chainHash : '0xGENESIS_HASH';
+    const output = KappaIREngine.executeKappaIR(compiledProgram, previousHash);
     setExecutionOutput(output);
     // Append to immutable hash-chained evidence ledger
     setEvidenceLedger(prev => [output.evidenceReceipt, ...prev]);
@@ -370,12 +409,12 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                       <div className="p-2 bg-black rounded-xl border border-zinc-800">
-                        <span className="text-zinc-500 block">Execution Steps:</span>
-                        <span className="text-white font-bold">{executionOutput.evidenceReceipt.executionStepsCount}</span>
+                        <span className="text-zinc-500 block">Final Result:</span>
+                        <span className="text-white font-bold">{executionOutput.resultValue}</span>
                       </div>
                       <div className="p-2 bg-black rounded-xl border border-zinc-800">
-                        <span className="text-zinc-500 block">Signature:</span>
-                        <span className="text-emerald-400 font-bold truncate block">{executionOutput.evidenceReceipt.signature.substring(0, 18)}...</span>
+                        <span className="text-zinc-500 block">Hash Chain Link:</span>
+                        <span className="text-emerald-400 font-bold truncate block">{executionOutput.evidenceReceipt.chainHash}</span>
                       </div>
                     </div>
                   </div>
@@ -481,7 +520,7 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
 
           {syntaxValidation ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-1">
                   <div className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Checked AST Nodes</div>
                   <div className="text-xl font-bold font-mono text-white">{syntaxValidation.checkedNodesCount}</div>
@@ -493,8 +532,16 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
                   </div>
                 </div>
                 <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-1">
-                  <div className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Effect System Rules</div>
-                  <div className="text-xl font-bold font-mono text-blue-400">ENFORCED</div>
+                  <div className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Type Checking</div>
+                  <div className="text-xl font-bold font-mono text-blue-400">
+                    VALIDATED
+                  </div>
+                </div>
+                <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-1">
+                  <div className="text-[10px] font-mono text-zinc-500 uppercase font-bold">Strict Determinism</div>
+                  <div className={`text-xl font-bold font-mono ${syntaxValidation.isDeterministic ? 'text-purple-400' : 'text-amber-400'}`}>
+                    {syntaxValidation.isDeterministic ? 'ENFORCED' : 'NON-DETERMINISTIC'}
+                  </div>
                 </div>
               </div>
 
@@ -552,23 +599,23 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
                   <th className="pb-3 px-3">INDEX & ID</th>
                   <th className="pb-3 px-3">PROGRAM HASH</th>
                   <th className="pb-3 px-3">EFFECT MASK</th>
-                  <th className="pb-3 px-3">STEPS</th>
-                  <th className="pb-3 px-3">TIMESTAMP</th>
                   <th className="pb-3 px-3">CHAIN HASH STATUS</th>
                   <th className="pb-3 px-3 text-right">SIGNATURE</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-900/80">
                 {evidenceLedger.map((receipt, idx) => {
-                  const chainLinkVerified = true;
+                  const previousReceipt = evidenceLedger[idx + 1];
+                  const chainLinkVerified = previousReceipt ? receipt.previousReceiptHash === previousReceipt.chainHash : true;
                   return (
                     <tr key={receipt.receiptId} className="hover:bg-zinc-900/40 transition-colors">
                       <td className="py-4 px-3">
                         <div className="font-bold text-emerald-400">#{evidenceLedger.length - idx}</div>
-                        <div className="text-[10px] text-zinc-500 truncate max-w-[120px]">{receipt.receiptId}</div>
+                        <div className="text-[10px] text-zinc-500 truncate max-w-[120px]" title={receipt.receiptId}>{receipt.receiptId}</div>
                       </td>
                       <td className="py-4 px-3 text-white font-mono text-[11px]">
                         <span className="truncate max-w-[140px] block" title={receipt.programHash}>{receipt.programHash}</span>
+                        <div className="text-[9px] text-zinc-500 mt-1">Steps: {receipt.executionStepsCount}</div>
                       </td>
                       <td className="py-4 px-3">
                         <div className="flex flex-wrap gap-1">
@@ -579,19 +626,24 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
                           ))}
                         </div>
                       </td>
-                      <td className="py-4 px-3 text-zinc-300 font-bold">
-                        {receipt.executionStepsCount}
-                      </td>
-                      <td className="py-4 px-3 text-zinc-500 text-[11px]">
-                        {new Date(receipt.timestampMs).toLocaleTimeString()}
-                      </td>
                       <td className="py-4 px-3">
-                        <span className="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px] font-bold flex items-center gap-1 w-max">
-                          <Check size={10} /> LINK_OK
-                        </span>
+                        <div className="flex flex-col space-y-1">
+                          {chainLinkVerified ? (
+                            <span className="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px] font-bold flex items-center gap-1 w-max">
+                              <Check size={10} /> LINK_OK
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-red-950/80 text-red-300 border border-red-800 rounded text-[10px] font-bold flex items-center gap-1 w-max">
+                              <AlertTriangle size={10} /> CHAIN_BROKEN
+                            </span>
+                          )}
+                          <span className="text-[9px] text-zinc-400 truncate max-w-[140px]" title={`Prev: ${receipt.previousReceiptHash}`}>Prev: {receipt.previousReceiptHash}</span>
+                          <span className="text-[9px] text-emerald-500 truncate max-w-[140px]" title={`Self: ${receipt.chainHash}`}>Self: {receipt.chainHash}</span>
+                        </div>
                       </td>
                       <td className="py-4 px-3 text-right text-blue-400 text-[10px]">
                         <span className="truncate max-w-[130px] block ml-auto" title={receipt.signature}>{receipt.signature}</span>
+                        <div className="text-[9px] text-zinc-500 mt-1">{new Date(receipt.timestampMs).toLocaleTimeString()}</div>
                       </td>
                     </tr>
                   );
@@ -738,22 +790,99 @@ export const AREKappaRuntimeWorkspace: React.FC = () => {
                   className="w-full p-3 bg-black border border-zinc-800 rounded-xl text-xs font-mono text-purple-300 focus:outline-none focus:border-purple-500"
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-zinc-400 block">Symbolic Expression to Verify</label>
+                <input
+                  type="text"
+                  value={symbolicExpressionInput}
+                  onChange={(e) => setSymbolicExpressionInput(e.target.value)}
+                  className="w-full p-3 bg-black border border-zinc-800 rounded-xl text-xs font-mono text-purple-300 focus:outline-none focus:border-purple-500"
+                />
+              </div>
               <button
                 onClick={handleExportWolframModule}
                 className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-purple-950/50 flex items-center justify-center gap-2"
               >
                 <Sparkles size={14} />
-                <span>Scan & Export Wolfram Kernel Module (.are)</span>
+                <span>Evaluate & Export Kernel Module</span>
               </button>
             </div>
 
             <div className="p-5 bg-black border border-zinc-800 rounded-2xl space-y-3 font-mono text-xs">
+              <div className="text-purple-400 font-bold flex items-center justify-between border-b border-zinc-900 pb-2">
+                <span>Verification Telemetry</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${researchResult ? (researchResult.status === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400') : 'bg-zinc-800 text-zinc-400'}`}>
+                  {researchResult ? researchResult.status : 'UNVERIFIED / UI PREVIEW'}
+                </span>
+              </div>
+              
+              <div className="space-y-2 text-[11px] overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
+                {researchResult ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Expression:</span>
+                      <span className="text-zinc-200">{researchResult.expression}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Canonical AST:</span>
+                      <span className="text-purple-300 truncate max-w-[200px]" title={researchResult.canonicalAST}>{researchResult.canonicalAST}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Kernel Result:</span>
+                      <span className="text-emerald-300">{researchResult.kernelResult}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Exact Result:</span>
+                      <span className="text-emerald-400 font-bold">{researchResult.exactResult}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Numerical Result:</span>
+                      <span className="text-blue-300">{researchResult.numericalResult}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Kernel Version:</span>
+                      <span className="text-zinc-400">{researchResult.kernelVersion}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Execution Mode:</span>
+                      <span className="text-zinc-400">{researchResult.executionMode}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Request Hash:</span>
+                      <span className="text-zinc-400 truncate max-w-[150px]" title={researchResult.requestHash}>{researchResult.requestHash}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Result Hash:</span>
+                      <span className="text-zinc-400 truncate max-w-[150px]" title={researchResult.resultHash}>{researchResult.resultHash}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Runtime Revision:</span>
+                      <span className="text-zinc-400 truncate max-w-[150px]" title={researchResult.runtimeRevision}>{researchResult.runtimeRevision}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Exit Code:</span>
+                      <span className="text-zinc-400">{researchResult.exitCode}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Duration:</span>
+                      <span className="text-zinc-400">{researchResult.durationMs}ms</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-zinc-500 italic py-4 text-center">
+                    Awaiting expression evaluation. Result will be deterministically hashed.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 bg-black border border-zinc-800 rounded-2xl space-y-3 font-mono text-xs lg:col-span-2">
               <div className="text-purple-400 font-bold flex items-center justify-between">
                 <span>Exported Kernel Code</span>
                 <span className="text-[10px] text-zinc-500">Installable .are Format</span>
               </div>
               <textarea
-                value={exportedModuleCode || '// Click "Scan & Export Wolfram Kernel Module" to generate package code.'}
+                value={exportedModuleCode || '// Click "Evaluate & Export Kernel Module" to generate package code.'}
                 readOnly
                 rows={7}
                 className="w-full bg-black border border-zinc-800 rounded-xl p-3 text-zinc-300 text-[11px] resize-none focus:outline-none"
