@@ -1,12 +1,22 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/services/voiceService.ts', 'utf8');
+let code = fs.readFileSync('src/services/voiceService.ts', 'utf8');
 
-// The type is 'Puck' | 'Charon' | ...
-content = content.replace(/voiceName: 'Puck'/g, "voiceName: 'N+1'");
-content = content.replace(/'Puck' \| 'Charon'/g, "'N+1' | 'Charon'");
-content = content.replace(/voiceName: any = 'Puck'/g, "voiceName: any = 'N+1'");
-content = content.replace(/includes\('puck'\)/g, "includes('n+1')");
-content = content.replace(/Puck/g, "N+1");
-content = content.replace(/runN\+1DiagnosticTest/g, "runN1DiagnosticTest");
+// The block was:
+//         }
+//       }
+//     } catch (error: any) {
+// One of those } belongs to `if (apiKey) {`.
+// Let's replace:
+//         }
+//       }
+//     } catch (error: any) {
+// with
+//         }
+//     } catch (error: any) {
 
-fs.writeFileSync('src/services/voiceService.ts', content);
+code = code.replace(
+  /        \}\n      \}\n    \} catch \(error: any\) \{/,
+  '        }\n    } catch (error: any) {'
+);
+
+fs.writeFileSync('src/services/voiceService.ts', code);

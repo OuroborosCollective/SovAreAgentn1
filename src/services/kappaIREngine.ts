@@ -52,7 +52,7 @@ export class KappaIREngine {
 
     const validEffects: KappaEffect[] = ['PURE', 'READ', 'WRITE', 'NETWORK', 'CLOCK', 'RANDOM', 'PROCESS'];
     const nonDeterministicEffects: KappaEffect[] = ['NETWORK', 'CLOCK', 'RANDOM', 'PROCESS', 'READ'];
-    const validPrimitiveTypes = ['INTEGER', 'STRING', 'BOOLEAN', 'STRUCT', 'NULL'];
+    const validPrimitiveTypes = ['I64_INTEGER', 'RATIONAL_EXACT', 'BOOLEAN', 'STRING_CANONICAL', 'SUBSTRATE_ADDRESS', 'EVIDENCE_HASH', 'HYPERGRAPH_NODE'];
 
     Object.values(program.nodes).forEach(node => {
       checkedNodesCount++;

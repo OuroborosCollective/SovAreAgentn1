@@ -81,8 +81,8 @@ async function runHardeningTests() {
       body: { embedding: dummyEmbedding, tenantId: 'default', limit: 5 }
     });
     assert(
-      resValidVector.status === 200 || (resValidVector.status === 500 && resValidVector.body?.message?.includes('database')),
-      "Valid 1536-Dimension Vector Search Endpoint Routing (200 OK or Graceful DB Error)",
+      resValidVector.status === 200,
+      "Valid 1536-Dimension Vector Search Endpoint Routing (200 OK)",
       `Status: ${resValidVector.status}`
     );
 

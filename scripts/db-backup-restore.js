@@ -42,7 +42,7 @@ export async function runBackupAndRestoreTest() {
     const encrypted = encryptData(mockData);
     console.log("✅ Backup Encrypted (AES-256-GCM):", { iv: encrypted.iv, tagLength: encrypted.authTag.length });
     const decrypted = decryptData(encrypted);
-    if (decrypted === mockData) {
+    if (decrypted === realData) {
       console.log("✅ Restore Decryption Verified: Data matches original exactly.");
       return true;
     } else {

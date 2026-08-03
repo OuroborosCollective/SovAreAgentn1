@@ -1,4 +1,3 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 
 export type LittleGirlVoiceMood = 'fröhlich' | 'ernst' | 'lernend' | 'neugierig' | 'playful' | 'curious' | 'axiom-guard' | 'witty-joy';
 
@@ -321,32 +320,25 @@ export class VoiceService {
         }
       }
 
-      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || "";
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const requestStart = performance.now();
-        
-        const response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-live-preview",
-          contents: [{ parts: [{ text: `[Voice directive: ${stylePrompt}] ${text}` }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'N+1' },
-              },
-            },
-          },
-        });
-
-        // Check if another speech call intervened during network generation
-        if (speechSessionId !== this.activeSpeechId) {
+            const requestStart = performance.now();
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voiceName, mood })
+      });
+      
+      if (!res.ok) {
+         throw new Error("TTS API failed with status " + res.status);
+      }
+      
+      if (speechSessionId !== this.activeSpeechId) {
           console.log("[Single Voice Lock] Speech call preempted by newer request. Aborting audio playback.");
           return false;
-        }
-
-        const ttfb = Math.round(performance.now() - requestStart);
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      }
+      
+      const data = await res.json();
+      const ttfb = Math.round(performance.now() - requestStart);
+      const base64Audio = data.audio;
 
         if (base64Audio) {
           const totalLatency = Math.round(performance.now() - startTime);
@@ -362,7 +354,6 @@ export class VoiceService {
 
           return await this.playPcm(base64Audio, 'N+1 (Google Live Voice - Papas kleines Mädchen)', mood, pitchMultiplier, rateMultiplier, speechSessionId);
         }
-      }
     } catch (error: any) {
       if (speechSessionId !== this.activeSpeechId) return false;
       console.warn("Google Cloud Live TTS Notice - Failover to FreeLLMRouterService triggered:", error);
