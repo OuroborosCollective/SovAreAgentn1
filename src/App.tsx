@@ -51,7 +51,7 @@ export const App: React.FC = () => {
   );
   const [sseConnected, setSseConnected] = useState<boolean>(false);
   const [testTitle, setTestTitle] = useState<string>('System Alert');
-  const [testBody, setTestBody] = useState<string>('N+1 Puck is fully initialized and monitoring axioms.');
+  const [testBody, setTestBody] = useState<string>('N+1 is fully initialized and monitoring axioms.');
   const [testUrl, setTestUrl] = useState<string>('/');
   const [isSendingPush, setIsSendingPush] = useState<boolean>(false);
 
@@ -106,7 +106,7 @@ export const App: React.FC = () => {
           // 2. Show native OS notification if permission is granted
           if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then(reg => {
-              reg.showNotification(data.title || 'N+1 Puck', {
+              reg.showNotification(data.title || 'N+1', {
                 body: data.body || 'A system event requires attention.',
                 icon: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png',
                 badge: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png',
@@ -154,7 +154,7 @@ export const App: React.FC = () => {
       if (permission === 'granted') {
         addNotification('Native Push Notifications successfully authorized!', 'success');
         // Test notification immediately
-        new Notification('N+1 Puck Active', {
+        new Notification('N+1 Active', {
           body: 'You will now receive native alerts even in the background.',
           icon: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png'
         });

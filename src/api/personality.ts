@@ -33,7 +33,7 @@ export function createPersonalityRouter(getPool: () => pg.Pool | null) {
           timestamp: new Date(Date.now() - 86400000).toISOString(),
           authorized: true,
           hash: "sha256-df0713be242aa88c1b3c4f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c",
-          diff: "+ Add immutable German songs memory hook\n- Remove legacy alias 'Puck'"
+          diff: "+ Add immutable German songs memory hook\n- Remove legacy alias 'legacy_alias'"
         }
       ]
     });

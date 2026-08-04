@@ -202,7 +202,7 @@ async function startServer() {
       }
 
       const payload = {
-        title: title || "N+1 Puck Alert",
+        title: title || "N+1 Alert",
         body,
         url: url || "/",
         timestamp: Date.now()

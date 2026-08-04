@@ -1,5 +1,5 @@
-import { Octokit } from "octokit";
-import fs from "fs";
+const { Octokit } = require("octokit");
+const fs = require("fs");
 
 async function main() {
     const token = process.env.N1_SYNC_TOKEN || process.env.GITHUB_TOKEN;
@@ -12,8 +12,8 @@ async function main() {
     const owner = "OuroborosCollective";
     const repo = "SovAreAgentn1";
     
-    // Close issues 4 to 17
-    for (let i = 4; i <= 17; i++) {
+    // Close issues 4 to 19
+    for (let i = 4; i <= 19; i++) {
         try {
             await octokit.rest.issues.update({
                 owner,
