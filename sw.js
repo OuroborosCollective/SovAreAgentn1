@@ -58,6 +58,11 @@ async function queueProgramOffline(program) {
   }
 }
 
+// Exponential backoff and state tracking
+let syncRetryCount = 0;
+let isIdleHoldState = false;
+let syncTimeoutId = null;
+
 // Helper to flush offline queue to server from SW
 async function flushOfflineQueue() {
   try {
@@ -73,6 +78,11 @@ async function flushOfflineQueue() {
 
     if (pendingTicks.length === 0) {
       console.log('[ServiceWorker] Background Sync: No pending ARE ticks to flush.');
+      syncRetryCount = 0; // reset on clean empty queue
+      if (syncTimeoutId) {
+        clearTimeout(syncTimeoutId);
+        syncTimeoutId = null;
+      }
       return;
     }
 
@@ -106,6 +116,12 @@ async function flushOfflineQueue() {
         }
         console.log(`[ServiceWorker] Background Sync: Successfully flushed atomic batch ${batchId} (${data.syncedIds.length} ticks).`);
 
+        syncRetryCount = 0; // Reset backoff on success
+        if (syncTimeoutId) {
+          clearTimeout(syncTimeoutId);
+          syncTimeoutId = null;
+        }
+
         // Notify client windows
         const clientsList = await self.clients.matchAll({ type: 'window' });
         for (const client of clientsList) {
@@ -117,10 +133,33 @@ async function flushOfflineQueue() {
             timestamp: Date.now()
           });
         }
+      } else {
+        throw new Error(data.message || 'Server did not report success in sync response.');
       }
+    } else {
+      throw new Error(`Sync HTTP error status: ${response.status}`);
     }
   } catch (err) {
     console.warn('[ServiceWorker] Background Sync flush attempt failed:', err);
+    
+    // Increment retry count
+    syncRetryCount++;
+
+    // Calculate backoff delay
+    const baseDelay = isIdleHoldState ? 15000 : 2000;
+    const maxDelay = isIdleHoldState ? 120000 : 30000;
+    const backoffDelay = Math.min(maxDelay, baseDelay * Math.pow(2, syncRetryCount - 1));
+
+    console.log(`[ServiceWorker] Scheduling background retry in ${backoffDelay}ms (Attempt #${syncRetryCount}, Idle-Hold: ${isIdleHoldState})`);
+
+    if (syncTimeoutId) {
+      clearTimeout(syncTimeoutId);
+    }
+    syncTimeoutId = setTimeout(() => {
+      flushOfflineQueue().catch(() => {});
+    }, backoffDelay);
+
+    throw err; // Re-throw to let native BackgroundSync event handle scheduling as well
   }
 }
 
@@ -207,13 +246,40 @@ self.addEventListener('fetch', event => {
 self.addEventListener('sync', event => {
   if (event.tag === 'are-logic-sync' || event.tag === 'are-tick-sync') {
     console.log('[ServiceWorker] "are-logic-sync" event triggered!');
-    event.waitUntil(flushOfflineQueue());
+    event.waitUntil(flushOfflineQueue().catch(() => {}));
   }
 });
 
 // Service Worker Message Listener
 self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'ARE_SYNC_NOW') {
-    event.waitUntil(flushOfflineQueue());
+  if (event.data) {
+    if (event.data.type === 'ARE_SYNC_NOW') {
+      event.waitUntil(flushOfflineQueue().catch(() => {}));
+    } else if (event.data.type === 'FOCUS_CHANGED') {
+      isIdleHoldState = event.data.hidden;
+      console.log('[ServiceWorker] Focus changed. isIdleHoldState:', isIdleHoldState);
+
+      // If we are back in active focus, speed up and retry immediately if there was a pending backoff
+      if (!isIdleHoldState) {
+        syncRetryCount = 0;
+        if (syncTimeoutId) {
+          clearTimeout(syncTimeoutId);
+          syncTimeoutId = null;
+        }
+        event.waitUntil(flushOfflineQueue().catch(() => {}));
+      }
+    } else if (event.data.type === 'POWER_SAVING_CHANGED') {
+      isIdleHoldState = event.data.active;
+      console.log('[ServiceWorker] Power saving changed. isIdleHoldState:', isIdleHoldState);
+
+      if (!isIdleHoldState) {
+        syncRetryCount = 0;
+        if (syncTimeoutId) {
+          clearTimeout(syncTimeoutId);
+          syncTimeoutId = null;
+        }
+        event.waitUntil(flushOfflineQueue().catch(() => {}));
+      }
+    }
   }
 });

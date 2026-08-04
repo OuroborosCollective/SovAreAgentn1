@@ -24,7 +24,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { areSqliteStorageService } from './services/areSqliteStorageService';
+import { areBackgroundSyncService } from './services/areBackgroundSyncService';
 import { voiceService } from './services/voiceService';
+import { deviceSensorService } from './services/deviceSensorService';
 
 // Import subcomponents
 import HiaResonanceVoice from './components/HiaResonanceVoice';
@@ -36,6 +38,7 @@ import { SystemBugHunt } from './components/SystemBugHunt';
 import { FailoverDiagnostics } from './components/FailoverDiagnostics';
 import { IntegrityDiagnostics } from './components/IntegrityDiagnostics';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
+import { PhysicalStabilityMonitor } from './components/PhysicalStabilityMonitor';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
 import Integrations from './components/Integrations';
 import { AREKappaRuntimeWorkspace } from './components/AREKappaRuntimeWorkspace';
@@ -82,6 +85,9 @@ export const App: React.FC = () => {
   const [testBody, setTestBody] = useState<string>('N+1 is fully initialized and monitoring axioms.');
   const [testUrl, setTestUrl] = useState<string>('/');
   const [isSendingPush, setIsSendingPush] = useState<boolean>(false);
+  const [showSyncAlert, setShowSyncAlert] = useState<boolean>(false);
+  const [unsyncedCount, setUnsyncedCount] = useState<number>(0);
+  const [isFlushingFromAlert, setIsFlushingFromAlert] = useState<boolean>(false);
 
   // Set up Service Worker registration
   useEffect(() => {
@@ -96,31 +102,77 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Set up Server-Sent Events (SSE) Push Stream
+  // Set up Server-Sent Events (SSE) Push Stream with Exponential Backoff & 'Idle-Hold' State
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let retryTimeout: any = null;
+    let retryCount = 0;
+    let currentlyConnected = false;
+
+    const getIdleHoldStatus = () => {
+      const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      const isPowerSaving = typeof window !== 'undefined' && localStorage.getItem('n1_power_saving') === 'true';
+      return isHidden || isPowerSaving;
+    };
+
+    const postStateToServiceWorker = () => {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const isHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        const isPowerSaving = typeof window !== 'undefined' && localStorage.getItem('n1_power_saving') === 'true';
+        navigator.serviceWorker.controller.postMessage({
+          type: 'FOCUS_CHANGED',
+          hidden: isHidden
+        });
+        navigator.serviceWorker.controller.postMessage({
+          type: 'POWER_SAVING_CHANGED',
+          active: isPowerSaving
+        });
+      }
+    };
 
     const connectSse = () => {
       if (typeof window === 'undefined') return;
 
-      console.log('[Push System] Connecting to SSE stream at /api/push/stream');
+      const isIdleHold = getIdleHoldStatus();
+      console.log(`[Push System] Connecting to SSE stream at /api/push/stream (Idle Hold Mode: ${isIdleHold})`);
+      
+      if (eventSource) {
+        eventSource.close();
+      }
+
       eventSource = new EventSource('/api/push/stream');
 
       eventSource.onopen = () => {
         console.log('[Push System] Connected to Real-time Notification Server.');
         setSseConnected(true);
+        currentlyConnected = true;
+        retryCount = 0; // Reset retry count on successful connection
+        postStateToServiceWorker();
       };
 
       eventSource.onerror = (err) => {
-        console.log('[Push System] SSE connection momentarily closed or reconnecting (normal during server restarts or proxy handshakes).');
+        const currentIdleHold = getIdleHoldStatus();
+        console.log(`[Push System] SSE connection closed. Reconnecting... (Idle Hold: ${currentIdleHold})`);
         setSseConnected(false);
-        eventSource?.close();
+        currentlyConnected = false;
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
 
-        // Retry connection after 5 seconds
+        // Exponential backoff calculation
+        const baseDelay = currentIdleHold ? 15000 : 1500;
+        const maxDelay = currentIdleHold ? 60000 : 30000;
+        const backoffDelay = Math.min(maxDelay, baseDelay * Math.pow(2, retryCount));
+
+        console.log(`[Push System] Reconnecting in ${backoffDelay}ms (Attempt #${retryCount + 1})`);
+
+        retryCount++;
+
+        clearTimeout(retryTimeout);
         retryTimeout = setTimeout(() => {
           connectSse();
-        }, 5000);
+        }, backoffDelay);
       };
 
       const handleSseMessage = (event: any) => {
@@ -175,19 +227,95 @@ export const App: React.FC = () => {
 
     connectSse();
 
+    // Focus & Visibility state change listeners
+    const handleVisibilityChange = () => {
+      const isHidden = document.visibilityState === 'hidden';
+      console.log(`[Push System] Tab visibility changed: ${isHidden ? 'hidden (idle-hold)' : 'visible'}`);
+      
+      postStateToServiceWorker();
+
+      // If visible again, aggressively reset backoff and reconnect immediately if offline
+      if (!isHidden) {
+        retryCount = 0;
+        if (!currentlyConnected) {
+          console.log('[Push System] Visible again: Force-triggering active high-fidelity reconnection...');
+          clearTimeout(retryTimeout);
+          connectSse();
+        }
+      }
+    };
+
+    // Monitor Power Saving state updates via LocalStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'n1_power_saving') {
+        const isPowerSaving = e.newValue === 'true';
+        console.log(`[Push System] Power saving mode changed: ${isPowerSaving ? 'active' : 'inactive'}`);
+        postStateToServiceWorker();
+        
+        // If power saving is disabled, try to reconnect with fresh speed
+        if (!isPowerSaving && !currentlyConnected) {
+          retryCount = 0;
+          clearTimeout(retryTimeout);
+          connectSse();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    const initSwSyncTimeout = setTimeout(() => {
+      postStateToServiceWorker();
+    }, 1000);
+
     // Fluctuating metric simulation for realistic dashboard telemetry
+    let organicBaseline = 100;
     const metricInterval = setInterval(() => {
       setCpuLoad(Math.floor(18 + Math.random() * 12));
-      setCoherenceScore(prev => {
-        const delta = Math.random() > 0.85 ? (Math.random() > 0.5 ? 1 : -1) : 0;
-        return Math.max(98, Math.min(100, prev + delta));
-      });
+      organicBaseline = Math.max(98, Math.min(100, organicBaseline + (Math.random() > 0.85 ? (Math.random() > 0.5 ? 1 : -1) : 0)));
     }, 4000);
+
+    // Dynamic Physical Telemetry Service Subscription
+    deviceSensorService.startListening();
+    const unsubscribeSensors = deviceSensorService.subscribe((sensorState) => {
+      const computedScore = organicBaseline - sensorState.coherenceImpact;
+      setCoherenceScore(Math.max(10, Math.min(100, parseFloat(computedScore.toFixed(1)))));
+    });
+
+    // Background 'Sync Auditor' hook: executes periodic query on are_ticks view
+    const queryAndAuditSync = async () => {
+      try {
+        const queryResult = await areSqliteStorageService.executeRawQuery(
+          "SELECT count(*) FROM are_ticks WHERE synced = 0;"
+        );
+        if (queryResult && queryResult[0] && queryResult[0].values) {
+          const count = Number(queryResult[0].values[0][0]);
+          setUnsyncedCount(count);
+          if (count > 30) {
+            setShowSyncAlert(true);
+          } else {
+            setShowSyncAlert(false);
+          }
+        }
+      } catch (err) {
+        console.warn('[Sync Auditor] Failed to query are_ticks count:', err);
+      }
+    };
+
+    // Run immediately and then every 10 seconds
+    queryAndAuditSync();
+    const syncAuditorInterval = setInterval(queryAndAuditSync, 10000);
 
     return () => {
       if (eventSource) eventSource.close();
       if (retryTimeout) clearTimeout(retryTimeout);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorageChange);
+      clearTimeout(initSwSyncTimeout);
       clearInterval(metricInterval);
+      clearInterval(syncAuditorInterval);
+      unsubscribeSensors();
+      deviceSensorService.stopListening();
     };
   }, [addNotification]);
 
@@ -310,6 +438,84 @@ export const App: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* BACKGROUND SYNC AUDITOR FLOATING ALERT BANNER */}
+      <AnimatePresence>
+        {showSyncAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            className="bg-amber-950/90 border-b border-amber-500/30 px-4 py-3 text-amber-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-mono z-30"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-lg animate-pulse shrink-0">
+                <AlertTriangle size={15} />
+              </div>
+              <div>
+                <span className="font-extrabold text-white block sm:inline mr-1">
+                  CRITICAL SYNC LATENCY DETECTED:
+                </span>
+                <span>
+                  The background SQLite buffer has accumulated <strong className="text-white underline">{unsyncedCount}</strong> pending unsynced ticks.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                disabled={isFlushingFromAlert}
+                onClick={async () => {
+                  setIsFlushingFromAlert(true);
+                  try {
+                    const res = await areBackgroundSyncService.flushQueue();
+                    if (res.syncedCount > 0) {
+                      addNotification(`Successfully flushed ${res.syncedCount} ticks!`, 'success');
+                      // Re-audit immediately
+                      const queryResult = await areSqliteStorageService.executeRawQuery(
+                        "SELECT count(*) FROM are_ticks WHERE synced = 0;"
+                      );
+                      if (queryResult && queryResult[0] && queryResult[0].values) {
+                        const count = Number(queryResult[0].values[0][0]);
+                        setUnsyncedCount(count);
+                        setShowSyncAlert(count > 30);
+                      }
+                    } else if (res.errors && res.errors.length > 0) {
+                      addNotification(`Flush failed: ${res.errors.join(', ')}`, 'error');
+                    } else {
+                      addNotification('Flush finished, but no ticks were synced.', 'info');
+                    }
+                  } catch (err: any) {
+                    addNotification(`Sync Error: ${err.message}`, 'error');
+                  } finally {
+                    setIsFlushingFromAlert(false);
+                  }
+                }}
+                className={`px-3 py-1.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-zinc-950 font-bold rounded-lg transition-all flex items-center gap-1 ${
+                  isFlushingFromAlert ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
+              >
+                {isFlushingFromAlert ? (
+                  <>
+                    <RefreshCw size={11} className="animate-spin" />
+                    <span>Flushing...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={11} />
+                    <span>Force Manual Flush</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowSyncAlert(false)}
+                className="px-2 py-1.5 hover:bg-white/10 text-amber-300 rounded-lg transition-all font-bold"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col md:flex-row">
@@ -520,6 +726,7 @@ export const App: React.FC = () => {
                   <div className="space-y-8">
                     <N1AudiobookReader />
                     <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
+                    <PhysicalStabilityMonitor />
                     <FleetManagementWorkspace />
                     <Integrations />
                   </div>

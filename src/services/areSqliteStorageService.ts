@@ -151,10 +151,37 @@ class ARESqliteStorageService {
         CREATE INDEX IF NOT EXISTS idx_queued_at ON are_offline_ticks(queued_at);
         CREATE INDEX IF NOT EXISTS idx_status ON are_offline_ticks(status);
         CREATE INDEX IF NOT EXISTS idx_sse_received_at ON are_sse_events(received_at);
+        
+        DROP VIEW IF EXISTS are_ticks;
+        CREATE VIEW are_ticks AS
+        SELECT id, tick_id, status,
+               CASE WHEN status = 'SYNCED' THEN 1 ELSE 0 END AS synced
+        FROM are_offline_ticks;
       `);
       this.persistToIndexedDB();
     } catch (e) {
       console.warn('[ARE SQLite Storage] Table creation notice:', e);
+    }
+  }
+
+  /**
+   * Executes a raw SQL query on the active SQLite database
+   */
+  public async executeRawQuery(sql: string): Promise<any[]> {
+    await this.init();
+    if (!this.db) {
+      // Return emulated results for fallback mode
+      if (sql.toLowerCase().includes('are_ticks') && sql.toLowerCase().includes('synced = 0')) {
+        const pendingCount = this.fallbackTicks.filter(t => t.status !== 'SYNCED').length;
+        return [{ values: [[pendingCount]] }];
+      }
+      return [];
+    }
+    try {
+      return this.db.exec(sql);
+    } catch (err) {
+      console.error(`[ARE SQLite Storage] Raw query failed: ${sql}`, err);
+      throw err;
     }
   }
 

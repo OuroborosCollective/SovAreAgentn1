@@ -191,6 +191,14 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     ttlExpiredCount: 0
   });
 
+  const [audioContextDetails, setAudioContextDetails] = useState({
+    state: 'no_context',
+    sampleRate: 24000,
+    currentTime: 0,
+    activeFilter: 'none',
+    activeNodes: [] as string[]
+  });
+
   const loadSqliteEvents = useCallback(async () => {
     try {
       const events = await areSqliteStorageService.getSseEvents();
@@ -312,6 +320,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   useEffect(() => {
     const timer = setInterval(() => {
       setBufferStatus(voiceService.getBufferStatus());
+      setAudioContextDetails(voiceService.getAudioContextDetails());
     }, 500);
     return () => clearInterval(timer);
   }, []);
@@ -624,47 +633,262 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         </div>
       </header>
 
-      {/* Live Streaming Buffer & Offset Monitor */}
-      <div className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-xs ${
-        bufferStatus.isPaused 
-          ? 'bg-amber-950/40 border-amber-500/50 text-amber-200 shadow-amber-950/50' 
-          : 'bg-zinc-950/80 border-zinc-800 text-zinc-300'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl border ${bufferStatus.isPaused ? 'bg-amber-900/40 border-amber-600 text-amber-300 animate-pulse' : 'bg-zinc-900 border-zinc-700 text-cyan-400'}`}>
-            <Activity size={18} />
-          </div>
-          <div>
-            <div className="font-bold text-white flex items-center gap-2">
-              <span>Hia Voice Streaming Buffer & Offset Monitor</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                bufferStatus.isPaused ? 'bg-amber-500 text-black' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-              }`}>
-                {bufferStatus.isPaused ? '429 Rate Limited (Paused)' : 'Buffer Streaming Normal'}
-              </span>
+      {/* Advanced AudioContext & DSP Filter Graceful Controller with Source Origin Pipeline */}
+      <div className="space-y-4">
+        <div className={`p-5 rounded-2xl border transition-all flex flex-col xl:flex-row items-stretch justify-between gap-6 font-mono text-xs ${
+          bufferStatus.isPaused 
+            ? 'bg-amber-950/40 border-amber-500/50 text-amber-200 shadow-amber-950/50' 
+            : 'bg-zinc-950/80 border-zinc-800 text-zinc-300'
+        }`}>
+          <div className="flex flex-col md:flex-row md:items-center gap-4 flex-1">
+            <div className={`p-3 rounded-xl border flex items-center justify-center shrink-0 ${
+              audioContextDetails.state === 'running' 
+                ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 animate-pulse' 
+                : 'bg-amber-950/80 border-amber-500/50 text-amber-400'
+            }`}>
+              <Activity size={24} />
             </div>
-            <div className="text-[11px] text-zinc-400 mt-0.5">
-              Real-time buffer transparency, millisecond offset tracking, and TTL request queue inspection.
+            <div className="space-y-1">
+              <div className="font-bold text-white flex flex-wrap items-center gap-2">
+                <span className="text-sm">Hia Voice Streaming Buffer & AudioContext Monitor</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
+                  audioContextDetails.state === 'running' 
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-800' 
+                    : 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse'
+                }`}>
+                  AudioContext: {audioContextDetails.state.toUpperCase()}
+                </span>
+                {bufferStatus.isPaused && (
+                  <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-amber-500 text-black">
+                    429 Rate Limited (Paused)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                Real-time Web Audio buffer transparency, low-latency DSP filters, and browser permission status.
+              </p>
+              
+              {audioContextDetails.state === 'suspended' && (
+                <div className="text-[10px] text-amber-400 font-semibold flex items-center gap-1.5 mt-1 animate-pulse">
+                  <span>⚠️ Browser suspended audio auto-play. Click 'Unlock Audio Context' below to resume.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center flex-1">
+              <div className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="text-[9px] text-zinc-500 uppercase">Buffer Size</div>
+                <div className="font-bold text-cyan-400">{bufferStatus.bufferSizeKb} KB</div>
+              </div>
+              <div className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="text-[9px] text-zinc-500 uppercase">Latency Offset</div>
+                <div className="font-bold text-pink-400">{bufferStatus.offsetMs} ms</div>
+              </div>
+              <div className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="text-[9px] text-zinc-500 uppercase">Queue Size</div>
+                <div className="font-bold text-amber-400">{bufferStatus.queueLength} reqs</div>
+              </div>
+              <div className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
+                <div className="text-[9px] text-zinc-500 uppercase">Sample Rate</div>
+                <div className="font-bold text-purple-400">{audioContextDetails.sampleRate} Hz</div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  voiceService.unlockAudio();
+                  setAudioContextDetails(voiceService.getAudioContextDetails());
+                  addNotification('AudioContext unlock signal broadcasted.', 'success', 'AUDIO_UNLOCK');
+                }}
+                className="py-1.5 px-3 bg-pink-950/60 hover:bg-pink-900 border border-pink-700/50 hover:border-pink-500 text-pink-200 rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5"
+                title="Trigger browser unlock gesture to resume suspended AudioContext"
+              >
+                <Zap size={12} className="text-pink-400" />
+                <span>Unlock Audio Context</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  voiceService.stopSpeaking();
+                  setAudioContextDetails(voiceService.getAudioContextDetails());
+                  addNotification('Active audio buffer purged and speech sessions cleared.', 'info', 'AUDIO_PURGE');
+                }}
+                className="py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5"
+                title="Immediately stop current playback and purge the queue"
+              >
+                <RefreshCw size={12} className="text-zinc-400" />
+                <span>Purge & Reset Buffer</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-center">
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Buffer Size</div>
-            <div className="font-bold text-cyan-400">{bufferStatus.bufferSizeKb} KB</div>
+        {/* Dynamic DSP Biquad Filters & Pipeline Flow Animator */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+          {/* DSP Filter Selection Card */}
+          <div className="md:col-span-4 p-4 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl flex flex-col justify-between gap-3 font-mono text-xs">
+            <div>
+              <div className="flex items-center gap-1.5 text-white font-bold mb-1">
+                <Layers size={14} className="text-purple-400" />
+                <span>AudioContext DSP Biquad Filters</span>
+              </div>
+              <p className="text-[10px] text-zinc-500">
+                Route real-time decoded speech directly through browser frequency filters to shape N+1's cadence.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { id: 'none', label: 'None (Clean)', desc: 'Pure direct output' },
+                { id: 'highpass', label: 'Crispy Highs', desc: 'optimizer' },
+                { id: 'lowpass', label: 'Warm Retro', desc: 'Muffled speaker' },
+                { id: 'peaking', label: 'Vocal Boost', desc: 'Punchy speech' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    voiceService.setAudioFilter(f.id);
+                    setAudioContextDetails(voiceService.getAudioContextDetails());
+                    addNotification(`Active DSP filter swapped: ${f.label}`, 'info');
+                  }}
+                  className={`p-2 rounded-xl text-left border transition-all ${
+                    audioContextDetails.activeFilter === f.id
+                      ? 'bg-purple-950/40 border-purple-600 text-purple-300'
+                      : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <div className="font-bold text-[11px]">{f.label}</div>
+                  <div className="text-[9px] text-zinc-500 mt-0.5">{f.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Millisecond Offset</div>
-            <div className="font-bold text-pink-400">{bufferStatus.offsetMs} ms</div>
-          </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">Queue Length</div>
-            <div className="font-bold text-amber-400">{bufferStatus.queueLength} reqs</div>
-          </div>
-          <div className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className="text-[10px] text-zinc-500 uppercase">TTL Purged</div>
-            <div className="font-bold text-purple-400">{bufferStatus.ttlExpiredCount}</div>
+
+          {/* Real-time Dynamic CSS Source Origin Pipeline Flow Animation */}
+          <div className="md:col-span-8 p-4 bg-zinc-950/80 border border-zinc-800/80 rounded-2xl flex flex-col justify-between gap-4 font-mono text-xs relative overflow-hidden">
+            {/* Embedded custom CSS animations for the flow particles */}
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes flowRealtime {
+                0% { left: 0%; opacity: 0.1; }
+                10% { opacity: 1; }
+                90% { opacity: 1; }
+                100% { left: 100%; opacity: 0.1; }
+              }
+              @keyframes flowSqlite {
+                0% { left: 0%; transform: scale(0.9); opacity: 0.2; }
+                50% { transform: scale(1.1); opacity: 1; }
+                100% { left: 100%; transform: scale(0.9); opacity: 0.2; }
+              }
+              .particle-rt {
+                animation: flowRealtime 2.5s infinite linear;
+              }
+              .particle-sq {
+                animation: flowSqlite 3s infinite linear;
+              }
+            `}} />
+
+            <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
+              <div className="flex items-center gap-1.5">
+                <Volume2 size={14} className={voiceDataSource === 'CACHED_SQLITE' ? 'text-cyan-400 animate-bounce' : 'text-pink-400 animate-pulse'} />
+                <span className="font-bold text-white">Interactive Audio Source Origin Flow Pipeline</span>
+              </div>
+              
+              <div className={`flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-0.5 rounded border ${
+                voiceDataSource === 'CACHED_SQLITE'
+                  ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
+                  : 'bg-pink-950 text-pink-300 border-pink-800'
+              }`}>
+                {voiceDataSource === 'CACHED_SQLITE' ? 'Source: SQLite Store' : 'Source: Live SSE Stream'}
+              </div>
+            </div>
+
+            {/* Visual Flow diagram */}
+            <div className="relative h-14 bg-zinc-900/40 rounded-xl border border-zinc-800/50 flex items-center justify-between px-4 overflow-hidden">
+              {/* Animated particle lanes */}
+              {isPlayingVoice && (
+                <>
+                  {voiceDataSource === 'REALTIME_STREAM' ? (
+                    <>
+                      <div className="absolute top-1/2 left-0 h-0.5 w-full bg-gradient-to-r from-pink-500/20 via-amber-500/30 to-purple-500/20 -translate-y-1/2" />
+                      <div className="absolute top-1/2 w-2 h-2 rounded-full bg-pink-400 shadow-[0_0_8px_#f43f5e] particle-rt -translate-y-1/2" style={{ animationDelay: '0s' }} />
+                      <div className="absolute top-1/2 w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#fbbf24] particle-rt -translate-y-1/2" style={{ animationDelay: '0.8s' }} />
+                      <div className="absolute top-1/2 w-2 h-2 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7] particle-rt -translate-y-1/2" style={{ animationDelay: '1.6s' }} />
+                    </>
+                  ) : (
+                    <>
+                      <div className="absolute top-1/2 left-0 h-0.5 w-full bg-gradient-to-r from-cyan-500/20 via-teal-500/30 to-indigo-500/20 -translate-y-1/2" />
+                      <div className="absolute top-1/2 w-3 h-3 rounded-md bg-cyan-400 shadow-[0_0_10px_#06b6d4] particle-sq -translate-y-1/2" style={{ animationDelay: '0s' }} />
+                      <div className="absolute top-1/2 w-3 h-3 rounded-md bg-teal-400 shadow-[0_0_10px_#14b8a6] particle-sq -translate-y-1/2" style={{ animationDelay: '1.5s' }} />
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Source Node */}
+              <div className="flex flex-col items-center gap-1 z-10 shrink-0">
+                <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
+                  voiceDataSource === 'CACHED_SQLITE'
+                    ? 'bg-cyan-950 border-cyan-700 text-cyan-300'
+                    : 'bg-pink-950 border-pink-700 text-pink-300'
+                }`}>
+                  {voiceDataSource === 'CACHED_SQLITE' ? <Database size={12} /> : <Radio size={12} />}
+                </div>
+                <span className="text-[8px] text-zinc-500">
+                  {voiceDataSource === 'CACHED_SQLITE' ? 'SQLite Cache' : 'Live SSE'}
+                </span>
+              </div>
+
+              {/* Decoder Node */}
+              <div className="flex flex-col items-center gap-1 z-10 shrink-0">
+                <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
+                  isPlayingVoice ? 'bg-zinc-900 border-purple-500 text-purple-300 animate-pulse' : 'bg-zinc-900 border-zinc-800 text-zinc-600'
+                }`}>
+                  <Cpu size={12} />
+                </div>
+                <span className="text-[8px] text-zinc-500">AudioContext</span>
+              </div>
+
+              {/* DSP Filter Node */}
+              <div className="flex flex-col items-center gap-1 z-10 shrink-0">
+                <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
+                  audioContextDetails.activeFilter !== 'none'
+                    ? 'bg-purple-950 border-purple-700 text-purple-300'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-600'
+                }`}>
+                  <Layers size={12} />
+                </div>
+                <span className="text-[8px] text-zinc-500">
+                  {audioContextDetails.activeFilter !== 'none' ? `DSP: ${audioContextDetails.activeFilter.toUpperCase()}` : 'DSP: Pass-through'}
+                </span>
+              </div>
+
+              {/* Output Speaker */}
+              <div className="flex flex-col items-center gap-1 z-10 shrink-0">
+                <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
+                  isPlayingVoice 
+                    ? voiceDataSource === 'CACHED_SQLITE'
+                      ? 'bg-cyan-950 border-cyan-500 text-cyan-300 animate-bounce'
+                      : 'bg-pink-950 border-pink-500 text-pink-300 animate-bounce'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-600'
+                }`}>
+                  <Volume2 size={12} />
+                </div>
+                <span className="text-[8px] text-zinc-500">Speaker</span>
+              </div>
+            </div>
+
+            {/* Explanatory footer indicator reflecting state details */}
+            <div className="text-[10px] text-zinc-500 flex justify-between items-center">
+              <span>Origin Status Code: {isPlayingVoice ? 'ACTIVE_DECODING_TICK' : 'STANDBY'}</span>
+              <span>
+                {voiceDataSource === 'CACHED_SQLITE' 
+                  ? '🔒 Secure SQLite Sandbox (WASM DB Local Decrypt)' 
+                  : '🌐 Direct Server-Sent Events Chunk stream'}
+              </span>
+            </div>
           </div>
         </div>
       </div>

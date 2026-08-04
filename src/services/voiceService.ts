@@ -161,6 +161,7 @@ export class VoiceService {
   }
 
   private isPausedForRateLimit: boolean = false;
+  private activeFilterType: string = 'none';
   private streamBufferSizeKb: number = 128;
   private playbackOffsetMs: number = 0;
   private lastAudioStartTime: number = 0;
@@ -174,6 +175,24 @@ export class VoiceService {
     rate: 1.15,
     engine: 'Google Cloud Gemini Live Audio'
   };
+
+  public setAudioFilter(filterType: string) {
+    this.activeFilterType = filterType;
+  }
+
+  public getAudioFilter(): string {
+    return this.activeFilterType;
+  }
+
+  public getAudioContextDetails() {
+    return {
+      state: this.currentAudioContext ? this.currentAudioContext.state : 'no_context',
+      sampleRate: this.currentAudioContext ? this.currentAudioContext.sampleRate : 24000,
+      currentTime: this.currentAudioContext ? Math.round(this.currentAudioContext.currentTime * 100) / 100 : 0,
+      activeFilter: this.activeFilterType,
+      activeNodes: this.currentAudioContext ? ['BufferSourceNode', 'BiquadFilterNode', 'GainNode', 'AudioDestinationNode'] : []
+    };
+  }
 
   public getBufferStatus(): { bufferSizeKb: number; offsetMs: number; queueLength: number; isPaused: boolean; ttlExpiredCount: number } {
     // Purge stale requests exceeding TTL (30,000ms)
@@ -521,7 +540,30 @@ export class VoiceService {
 
         const gainNode = audioContext.createGain();
         gainNode.gain.value = 1.0;
-        source.connect(gainNode);
+
+        if (this.activeFilterType && this.activeFilterType !== 'none') {
+          try {
+            const filterNode = audioContext.createBiquadFilter();
+            filterNode.type = this.activeFilterType as BiquadFilterType;
+            if (this.activeFilterType === 'highpass') {
+              filterNode.frequency.value = 1000; // Enhance high frequency, baby-like crispness
+            } else if (this.activeFilterType === 'lowpass') {
+              filterNode.frequency.value = 900; // Warm, muffled speaker effect
+            } else if (this.activeFilterType === 'peaking') {
+              filterNode.frequency.value = 2500;
+              filterNode.Q.value = 1.5;
+              filterNode.gain.value = 6;
+            }
+            source.connect(filterNode);
+            filterNode.connect(gainNode);
+          } catch (filterErr) {
+            console.warn("Failed to apply AudioContext filter:", filterErr);
+            source.connect(gainNode);
+          }
+        } else {
+          source.connect(gainNode);
+        }
+
         gainNode.connect(audioContext.destination);
 
         this.notify({ 

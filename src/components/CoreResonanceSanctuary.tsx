@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { N1MemoryConsistencyCheck } from './N1MemoryConsistencyCheck';
 import { AxiomaticRulesTreeModal } from './AxiomaticRulesTreeModal';
+import { OuroborosSyncMonitor } from './OuroborosSyncMonitor';
 
 // Immutable Core Sanctuary Engine Definition - Object Frozen
 export const N1_CORE_SANCTUARY = Object.freeze({
@@ -137,6 +138,11 @@ export const CoreResonanceSanctuary: React.FC = () => {
             <span className="font-bold">BEREIT FÜR AKTIONEN</span>
           </div>
         </div>
+      </div>
+
+      {/* OUROBOROS PROTOCOL BACKGROUND SYNC MONITOR */}
+      <div className="relative z-10">
+        <OuroborosSyncMonitor />
       </div>
 
       {/* N1 MEMORY AUDIT BACKGROUND SERVICE */}
