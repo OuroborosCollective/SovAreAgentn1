@@ -30,6 +30,7 @@ import { CoreResonanceSanctuary } from './components/CoreResonanceSanctuary';
 import NexusBridgeWithBoundary from './components/NexusBridge';
 import { SystemValidationTestbed } from './components/SystemValidationTestbed';
 import { SystemBugHunt } from './components/SystemBugHunt';
+import { FailoverDiagnostics } from './components/FailoverDiagnostics';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
 import Integrations from './components/Integrations';
@@ -38,6 +39,8 @@ import { PersistentVoiceAssistant } from './components/PersistentVoiceAssistant'
 import { NexusErrorBoundary } from './components/NexusErrorBoundary';
 
 import { useNotification } from './context/NotificationContext';
+
+import { N1AudiobookReader } from './components/N1AudiobookReader';
 
 export const App: React.FC = () => {
   const { addNotification } = useNotification();
@@ -475,9 +478,12 @@ export const App: React.FC = () => {
 
               {activeTab === 'diagnostics' && (
                 <NexusErrorBoundary fallbackTitle="Diagnostics View Exception">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                    <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
-                    <SystemBugHunt />
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                      <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
+                      <SystemBugHunt />
+                    </div>
+                    <FailoverDiagnostics />
                   </div>
                 </NexusErrorBoundary>
               )}
@@ -485,6 +491,7 @@ export const App: React.FC = () => {
               {activeTab === 'calibrations' && (
                 <NexusErrorBoundary fallbackTitle="Settings Workspace Exception">
                   <div className="space-y-8">
+                    <N1AudiobookReader />
                     <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
                     <FleetManagementWorkspace />
                     <Integrations />

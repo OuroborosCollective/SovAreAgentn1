@@ -1,0 +1,62 @@
+--- src/components/N1MorphingBlob.tsx
++++ src/components/N1MorphingBlob.tsx
+@@ -1,6 +1,7 @@
+ import React, { useMemo } from 'react';
+ import { motion } from 'framer-motion';
+ import { N1EmotionState } from '../services/emotionEngine';
++import { Star, Heart, Cloud, Book, Rabbit, Moon, Search } from 'lucide-react';
+ 
+ interface N1MorphingBlobProps {
+   emotion: N1EmotionState;
+@@ -9,6 +10,7 @@
+   isListening?: boolean;
+   seedVariance?: number; // 0 to 1 for deterministic variation
+   lowGraphics?: boolean;
++  idleMotif?: string | null;
+ }
+ 
+ export const N1MorphingBlob: React.FC<N1MorphingBlobProps> = ({
+@@ -18,7 +20,8 @@
+   isSpeaking = false,
+   isListening = false,
+   seedVariance = 0.5,
+-  lowGraphics = false
++  lowGraphics = false,
++  idleMotif = null
+ }) => {
+   // Map emotions to visual properties
+   const visualConfig = useMemo(() => {
+@@ -107,6 +110,21 @@
+     );
+   }
+ 
++  // Render Idle Motif Icon
++  const renderIdleMotif = () => {
++    if (!idleMotif) return null;
++    
++    switch(idleMotif) {
++      case 'stern': return <Star size={40} className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'herz': return <Heart size={40} fill="currentColor" className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'wolke': return <Cloud size={40} fill="currentColor" className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'lesen': return <Book size={40} className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'dösen': return <Moon size={40} className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'tier': return <Rabbit size={40} className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      case 'umsehen': return <Search size={40} className="text-zinc-900 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />;
++      default: return null;
++    }
++  };
++
+   return (
+     <div className="relative flex items-center justify-center w-64 h-64">
+       {/* Background Glow */}
+@@ -137,6 +155,9 @@
+         {/* Inner Highlight for 3D effect */}
+         <div className="absolute top-4 left-4 w-16 h-16 bg-white/30 rounded-full blur-md" />
+         
++        {/* Idle Motif */}
++        {renderIdleMotif()}
++
+         {/* Face / Expression (Optional, minimal) */}
+-        {emotion === 'müde' && (
++        {emotion === 'müde' && !idleMotif && (
+           <div className="flex gap-4 opacity-60">

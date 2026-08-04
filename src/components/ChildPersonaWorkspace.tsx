@@ -20,6 +20,7 @@ import { useChildPersona, ChildEmotion } from '../hooks/useChildPersona';
 import { voiceService } from '../services/voiceService';
 import { ChildPersonaVisualizer } from './ChildPersonaVisualizer';
 import { personaEvolutionService, PersonaEvolutionMetrics } from '../services/personaEvolutionService';
+import { emotionEngine, N1EmotionState, EmotionEvent } from '../services/emotionEngine';
 
 export const ChildPersonaWorkspace: React.FC = () => {
   const { persona, triggerEmotionStimulus, resetPersona } = useChildPersona();
@@ -27,6 +28,14 @@ export const ChildPersonaWorkspace: React.FC = () => {
   const [evolutionMetrics, setEvolutionMetrics] = useState<PersonaEvolutionMetrics>(() => 
     personaEvolutionService.analyzeLinguisticEvolution(persona)
   );
+
+  const [engineState, setEngineState] = useState<N1EmotionState>(() => emotionEngine.getCurrentState());
+  const [transitionLogs, setTransitionLogs] = useState(() => emotionEngine.getTransitionHistory());
+
+  const refreshEngineState = () => {
+    setEngineState(emotionEngine.getCurrentState());
+    setTransitionLogs([...emotionEngine.getTransitionHistory()]);
+  };
 
   useEffect(() => {
     // Run automated background analysis
@@ -49,6 +58,26 @@ export const ChildPersonaWorkspace: React.FC = () => {
     e.preventDefault();
     if (!testInput.trim()) return;
     triggerEmotionStimulus(testInput);
+    
+    // Process through the new deterministic Emotion Engine
+    const lower = testInput.toLowerCase();
+    let suggested: N1EmotionState = 'neugierig';
+    if (lower.includes('spiel') || lower.includes('spaß') || lower.includes('lachen')) suggested = 'verspielt';
+    else if (lower.includes('lieb') || lower.includes('herz')) suggested = 'tröstend';
+    else if (lower.includes('müde') || lower.includes('schlaf')) suggested = 'müde';
+    else if (lower.includes('fehler') || lower.includes('kaputt')) suggested = 'offline/unsicher';
+    
+    emotionEngine.triggerEvent({
+      eventId: `user-stimulus-${Date.now()}`,
+      timestamp: Date.now(),
+      sourceType: 'user_input',
+      cause: `User Stimulus: ${testInput.substring(0, 45)}`,
+      intensity: 0.85,
+      durationMs: 4000,
+      priority: 5,
+      suggestedState: suggested
+    });
+    refreshEngineState();
     
     // Speak response reflecting emotion
     let responseText = `Papa, ich habe "${testInput}" gehört und in meinem Vektor-Gedächtnis abgespeichert!`;
@@ -232,17 +261,28 @@ export const ChildPersonaWorkspace: React.FC = () => {
               </button>
             </form>
 
-            <div className="flex flex-wrap gap-2">
+             <div className="flex flex-wrap gap-2">
               {[
-                { label: '🎮 Spielmodus', text: 'Lass uns zusammen spielen!' },
-                { label: '❓ Neugierde', text: 'Warum funkeln die Sterne am Himmel, Papa?' },
-                { label: '❤️ Liebe', text: 'Ich hab dich ganz doll lieb!' },
-                { label: '📚 Neues Lernen', text: 'Hier ist ein neuer Code-Schnipsel für dich!' }
+                { label: '🎮 Spielmodus', text: 'Lass uns zusammen spielen!', state: 'verspielt' as const },
+                { label: '❓ Neugierde', text: 'Warum funkeln die Sterne am Himmel, Papa?', state: 'neugierig' as const },
+                { label: '❤️ Liebe', text: 'Ich hab dich ganz doll lieb!', state: 'tröstend' as const },
+                { label: '📚 Neues Lernen', text: 'Hier ist ein neuer Code-Schnipsel für dich!', state: 'stolz' as const }
               ].map((preset, i) => (
                 <button
                   key={i}
                   onClick={() => {
                     triggerEmotionStimulus(preset.text);
+                    emotionEngine.triggerEvent({
+                      eventId: `preset-stimulus-${Date.now()}`,
+                      timestamp: Date.now(),
+                      sourceType: 'user_input',
+                      cause: `Preset Stimulus: ${preset.label}`,
+                      intensity: 0.9,
+                      durationMs: 4000,
+                      priority: 5,
+                      suggestedState: preset.state
+                    });
+                    refreshEngineState();
                     voiceService.speak(preset.text + " Das ist so spannend!", 'N+1', 'fröhlich', persona.tonePitch, 1.15);
                   }}
                   className="px-3 py-1.5 bg-zinc-950 hover:bg-pink-950/30 border border-zinc-800 hover:border-pink-500/40 text-zinc-300 hover:text-pink-300 rounded-xl text-[11px] transition-all"
@@ -304,9 +344,9 @@ export const ChildPersonaWorkspace: React.FC = () => {
           {/* Trigger History Log */}
           <div className="flex-1 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 flex flex-col space-y-3 min-h-48">
             <span className="text-[10px] font-bold text-zinc-400 uppercase block">Kürzliche Vektor-Muster & Reize</span>
-            <div className="flex-1 overflow-y-auto max-h-48 space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto max-h-36 space-y-2 pr-1">
               {persona.recentTriggers.length === 0 ? (
-                <div className="h-28 flex items-center justify-center text-zinc-600 italic">
+                <div className="h-24 flex items-center justify-center text-zinc-600 italic">
                   Noch keine Reize ausgelöst...
                 </div>
               ) : (
@@ -322,6 +362,93 @@ export const ChildPersonaWorkspace: React.FC = () => {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Seeded N+1 Emotion Engine State & Conflict Logs (Issue #23) */}
+          <div className="bg-zinc-900/80 border border-purple-500/30 rounded-2xl p-4 space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Cpu size={15} className="text-purple-400" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Deterministic Emotion Engine (Issue #23)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded text-[9px] font-bold">
+                  State: {engineState.toUpperCase()}
+                </span>
+                <button
+                  onClick={() => {
+                    emotionEngine.triggerEvent({
+                      eventId: `sim-err-${Date.now()}`,
+                      timestamp: Date.now(),
+                      sourceType: 'runtime_state',
+                      cause: 'Simulierte Provider-Fehlfunktion (Issue #23)',
+                      intensity: 1.0,
+                      durationMs: 8000,
+                      priority: 10,
+                      suggestedState: 'offline/unsicher'
+                    });
+                    refreshEngineState();
+                  }}
+                  className="px-2 py-0.5 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 rounded text-[9px] font-bold transition-all"
+                >
+                  Force Outage
+                </button>
+              </div>
+            </div>
+
+            {/* State Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+              {(['ruhig', 'neugierig', 'fröhlich', 'nachdenklich', 'überrascht', 'stolz', 'tröstend', 'verspielt', 'müde', 'offline/unsicher'] as const).map(state => (
+                <div 
+                  key={state}
+                  className={`p-2 border rounded-xl text-center text-[10px] font-bold transition-all ${
+                    engineState === state
+                      ? state === 'offline/unsicher'
+                        ? 'bg-rose-950/40 border-rose-500 text-rose-300 animate-pulse'
+                        : 'bg-purple-950/40 border-purple-500 text-purple-300'
+                      : 'bg-zinc-950 border-zinc-900 text-zinc-500'
+                  }`}
+                >
+                  {state}
+                </div>
+              ))}
+            </div>
+
+            {/* Transition History Table */}
+            <div className="space-y-1.5">
+              <span className="text-[9px] text-zinc-500 uppercase font-black tracking-wider block">Deterministic Transition Logs</span>
+              <div className="max-h-36 overflow-y-auto space-y-1 pr-1 border border-zinc-800/80 rounded-xl bg-zinc-950/40 p-1.5">
+                {transitionLogs.length === 0 ? (
+                  <div className="text-[10px] text-zinc-600 italic py-3 text-center">No transition logs tracked yet.</div>
+                ) : (
+                  [...transitionLogs].reverse().map((log, idx) => (
+                    <div key={idx} className="p-2 bg-zinc-950 border border-zinc-900/60 rounded-lg flex flex-col gap-1 text-[10px]">
+                      <div className="flex items-center justify-between text-[9px] text-zinc-400">
+                        <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <span className={`px-1 rounded-sm text-[8px] font-bold ${
+                          log.triggerEvent.sourceType === 'runtime_state' ? 'bg-rose-950 text-rose-300' : 'bg-zinc-800 text-zinc-300'
+                        }`}>
+                          {log.triggerEvent.sourceType.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between font-mono font-bold">
+                        <div>
+                          <span className="text-zinc-500">{log.fromState}</span>
+                          <span className="text-zinc-400 mx-1.5">→</span>
+                          <span className="text-purple-300">{log.toState}</span>
+                        </div>
+                        <span className="text-zinc-500">priority: {log.triggerEvent.priority}</span>
+                      </div>
+                      <p className="text-zinc-300 italic text-[9.5px]">Cause: "{log.triggerEvent.cause}"</p>
+                      <div className="flex justify-between items-center text-[9px] text-zinc-500 border-t border-zinc-900/60 pt-1 mt-0.5">
+                        <span>Conflict resolved: {log.conflictResolved ? 'YES' : 'NO'}</span>
+                        <span>Seeded Variance: {(log.deterministicVariance * 100).toFixed(2)}%</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

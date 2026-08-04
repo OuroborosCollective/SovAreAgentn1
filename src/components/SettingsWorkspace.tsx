@@ -1,3 +1,4 @@
+import { VoiceFingerprintDashboard } from "./VoiceFingerprintDashboard";
 import React, { useState, useEffect } from 'react';
 import { 
   Fingerprint, 
@@ -19,7 +20,7 @@ import {
   Info,
   Key,
   Sparkles,
-  Gauge,
+  Gauge, Gamepad2, Moon,
   Heart, Download, FileArchive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,6 +48,24 @@ export const SettingsWorkspace: React.FC<{
   const [animatorSpeed, setAnimatorSpeed] = useState<'gentle' | 'normal' | 'kinetic' | 'hyper'>(() => {
     return (localStorage.getItem('n1_animator_speed') as any) || 'normal';
   });
+
+  const [idleEnabled, setIdleEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('n1_idle_enabled') !== 'false';
+  });
+
+  const [nightMode, setNightMode] = useState<boolean>(() => {
+    return localStorage.getItem('n1_night_mode') === 'true';
+  });
+
+  const handleIdleToggle = (enabled: boolean) => {
+    setIdleEnabled(enabled);
+    localStorage.setItem('n1_idle_enabled', String(enabled));
+  };
+
+  const handleNightModeToggle = (enabled: boolean) => {
+    setNightMode(enabled);
+    localStorage.setItem('n1_night_mode', String(enabled));
+  };
 
   const [securityState, setSecurityState] = useState<BiometricSecurityState>(() => {
     const saved = localStorage.getItem('n1_biometric_security_state');
@@ -491,6 +510,84 @@ export const SettingsWorkspace: React.FC<{
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      <VoiceFingerprintDashboard />
+
+      {/* Idle Behavior Settings */}
+      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-950/50 border border-amber-800 text-amber-400 rounded-xl">
+              <Gamepad2 size={20} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">N+1 Idle Play & Surprises</h2>
+              <p className="text-xs text-zinc-500">
+                Configure bounded idle-state behaviors (shapes, jumping, dozing) when nobody is interacting.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Idle Toggle */}
+          <div 
+            onClick={() => handleIdleToggle(!idleEnabled)}
+            className={`p-4 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
+              idleEnabled 
+                ? 'bg-amber-950/30 border-amber-800/50 text-white' 
+                : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Gamepad2 size={20} className={idleEnabled ? 'text-amber-400' : 'text-zinc-600'} />
+              <div>
+                <div className="text-sm font-bold">Idle Animations</div>
+                <div className="text-xs opacity-70">Allow playful visual motifs during silence</div>
+              </div>
+            </div>
+            <div className={`w-10 h-5 rounded-full p-0.5 transition-colors ${idleEnabled ? 'bg-amber-500' : 'bg-zinc-800'}`}>
+              <motion.div 
+                className="w-4 h-4 bg-white rounded-full shadow-sm"
+                animate={{ x: idleEnabled ? 20 : 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              />
+            </div>
+          </div>
+
+          {/* Night Mode Toggle */}
+          <div 
+            onClick={() => handleNightModeToggle(!nightMode)}
+            className={`p-4 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
+              nightMode 
+                ? 'bg-indigo-950/30 border-indigo-800/50 text-white' 
+                : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Moon size={20} className={nightMode ? 'text-indigo-400' : 'text-zinc-600'} />
+              <div>
+                <div className="text-sm font-bold">Night Mode</div>
+                <div className="text-xs opacity-70">Force 'dösen' (sleep) and reduce idle frequency</div>
+              </div>
+            </div>
+            <div className={`w-10 h-5 rounded-full p-0.5 transition-colors ${nightMode ? 'bg-indigo-500' : 'bg-zinc-800'}`}>
+              <motion.div 
+                className="w-4 h-4 bg-white rounded-full shadow-sm"
+                animate={{ x: nightMode ? 20 : 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex items-start gap-3">
+          <Info size={16} className="text-zinc-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Idle motifs (stars, clouds, bouncing, sleeping) are ephemeral UI states. They do <strong>not</strong> trigger backend LLM calls, do not alter N+1's persona memory, and respect battery boundaries. Any user voice input will instantly override the idle state.
+          </p>
         </div>
       </div>
 

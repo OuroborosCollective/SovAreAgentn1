@@ -5,22 +5,35 @@
  */
 
 export interface ModelRoute {
-  provider: 'gemini' | 'openrouter';
+  provider: 'gemini' | 'openrouter' | 'local';
   modelName: string;
   isFreeTier: boolean;
   priority: number;
+  healthScore?: number;
 }
 
 export const FREE_TIER_REVOLVER_ROUTES: ModelRoute[] = [
-  { provider: 'gemini', modelName: 'gemini-2.5-flash', isFreeTier: true, priority: 1 },
-  { provider: 'gemini', modelName: 'gemini-flash-latest', isFreeTier: true, priority: 2 },
-  { provider: 'gemini', modelName: 'gemini-2.0-flash', isFreeTier: true, priority: 3 },
-  { provider: 'gemini', modelName: 'gemini-1.5-flash', isFreeTier: true, priority: 4 },
-  { provider: 'openrouter', modelName: 'openrouter/auto', isFreeTier: true, priority: 5 },
-  { provider: 'openrouter', modelName: 'deepseek/deepseek-chat:free', isFreeTier: true, priority: 6 }
+  { provider: 'gemini', modelName: 'gemini-2.5-flash', isFreeTier: true, priority: 1, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-flash-latest', isFreeTier: true, priority: 2, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-2.0-flash', isFreeTier: true, priority: 3, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-1.5-flash', isFreeTier: true, priority: 4, healthScore: 100 },
+  { provider: 'openrouter', modelName: 'openrouter/auto', isFreeTier: true, priority: 5, healthScore: 100 },
+  { provider: 'openrouter', modelName: 'deepseek/deepseek-chat:free', isFreeTier: true, priority: 6, healthScore: 100 },
+  { provider: 'local', modelName: 'llama3-8b-local-fallback', isFreeTier: true, priority: 7, healthScore: 100 }
 ];
 
 let currentRouteIndex = 0;
+export const failoverHistory: Array<{ timestamp: number; fromModel: string; toModel: string; reason: string }> = [];
+const routeListeners: Set<() => void> = new Set();
+
+export function subscribeToRoutes(callback: () => void) {
+  routeListeners.add(callback);
+  return () => { routeListeners.delete(callback); };
+}
+
+function notifyRouteUpdate() {
+  routeListeners.forEach(cb => cb());
+}
 
 export function getNextFreeRoute(): ModelRoute {
   const route = FREE_TIER_REVOLVER_ROUTES[currentRouteIndex];
@@ -28,9 +41,35 @@ export function getNextFreeRoute(): ModelRoute {
   return route;
 }
 
-export function reportRouteFailure(modelName: string) {
+export function reportRouteFailure(modelName: string, reason: string = 'Unknown Failure') {
   console.warn(`[ModelRevolver] Route failure reported for ${modelName}. Rotating to next free-tier route immediately.`);
+  
+  const failedRoute = FREE_TIER_REVOLVER_ROUTES.find(r => r.modelName === modelName);
+  if (failedRoute) {
+    failedRoute.healthScore = Math.max(0, (failedRoute.healthScore || 100) - 25);
+  }
+
+  const nextRoute = FREE_TIER_REVOLVER_ROUTES[(currentRouteIndex + 1) % FREE_TIER_REVOLVER_ROUTES.length];
+  
+  failoverHistory.unshift({
+    timestamp: Date.now(),
+    fromModel: modelName,
+    toModel: nextRoute.modelName,
+    reason
+  });
+  
+  if (failoverHistory.length > 20) failoverHistory.pop();
+  
   currentRouteIndex = (currentRouteIndex + 1) % FREE_TIER_REVOLVER_ROUTES.length;
+  notifyRouteUpdate();
+}
+
+export function reportRouteSuccess(modelName: string) {
+  const route = FREE_TIER_REVOLVER_ROUTES.find(r => r.modelName === modelName);
+  if (route && (route.healthScore || 0) < 100) {
+    route.healthScore = Math.min(100, (route.healthScore || 0) + 5);
+    notifyRouteUpdate();
+  }
 }
 
 export async function executeWithModelRevolver(
@@ -44,6 +83,7 @@ export async function executeWithModelRevolver(
     try {
       console.log(`[ModelRevolver] Executing with route: ${route.provider}/${route.modelName} (attempt ${attempt + 1}/${maxAttempts})`);
       const result = await taskRunner(route);
+      reportRouteSuccess(route.modelName);
       return result;
     } catch (error: any) {
       lastError = error;
@@ -57,9 +97,10 @@ export async function executeWithModelRevolver(
 
       if (isRateLimit) {
         console.warn(`[ModelRevolver] Quota/Rate limit encountered on ${route.modelName}. Switching model route instantly with zero wait time.`);
-        reportRouteFailure(route.modelName);
+        reportRouteFailure(route.modelName, 'Rate Limit (429) / Quota Exceeded');
         continue;
       } else {
+        reportRouteFailure(route.modelName, error?.message || 'Unknown Failure');
         // For other errors, still try next route or throw if last attempt
         if (attempt === maxAttempts - 1) {
           throw error;

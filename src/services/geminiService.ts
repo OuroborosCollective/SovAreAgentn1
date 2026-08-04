@@ -53,6 +53,7 @@ export async function generateAgentAction(agent: any, worldState: any, userKeywo
 }
 
 import { dialogOrchestrator } from './dialogOrchestrator';
+import { emotionEngine } from './emotionEngine';
 
 export async function generateHiaVoiceResponse(userQuery: string, personaState?: any): Promise<string> {
   const queryLower = userQuery.toLowerCase();
@@ -104,7 +105,34 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
       input: userQuery
     });
     
-    // For now we just return the spoken output, in the future animation signals and learning can be used
+    // Trigger emotion state event based on explicit animation signals
+    if (dialogResponse.animationSignals && dialogResponse.animationSignals.length > 0) {
+      const signal = dialogResponse.animationSignals[0];
+      const targetState = emotionEngine.signalToState(signal);
+      emotionEngine.triggerEvent({
+        eventId: `dialog-${Date.now()}`,
+        timestamp: Date.now(),
+        sourceType: 'expression_signal',
+        cause: `Dialogue Signal: ${signal}`,
+        intensity: 0.85,
+        durationMs: 5000,
+        priority: 6,
+        suggestedState: targetState
+      });
+    } else {
+      // Default to curious or thoughtful on user prompt
+      emotionEngine.triggerEvent({
+        eventId: `dialog-idle-${Date.now()}`,
+        timestamp: Date.now(),
+        sourceType: 'dialog_intent',
+        cause: 'User Interaction Intent',
+        intensity: 0.5,
+        durationMs: 3000,
+        priority: 4,
+        suggestedState: 'neugierig'
+      });
+    }
+    
     return dialogResponse.spokenOutput;
   } catch (err) {
     console.warn("Dialog Orchestrator fallback:", err);

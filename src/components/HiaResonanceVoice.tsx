@@ -21,6 +21,8 @@ import {
   Brain,
   Gauge
 } from 'lucide-react';
+import { useAudioVisualizer } from "../hooks/useAudioVisualizer";
+import { AudioFrequencyVisualizer } from "./AudioFrequencyVisualizer";
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
 import { HiaFramedFacialAnimator } from './HiaFramedFacialAnimator';
@@ -72,6 +74,8 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [activeVoiceName, setActiveVoiceName] = useState<string>('N+1 (Google Live Voice - Papas kleines Mädchen)');
   const [autonomeToneBias, setAutonomeToneBias] = useState<number>(() => personaEvolutionService.getToneBias());
+  const { frequencyData: liveFrequencyData } = useAudioVisualizer(true, isListening, isPlayingVoice);
+
 
   const handleToneBiasChange = (newBias: number) => {
     setAutonomeToneBias(newBias);
@@ -170,9 +174,6 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       if (state.activeVoice) {
         setActiveVoiceName(state.activeVoice);
       }
-      if (state.isPlaying && state.volumeLevel > 0) {
-        setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(20, 100))));
-      }
     });
 
     const unsubscribeQuota = voiceService.onQuotaLimitReached(({ text, reason }) => {
@@ -208,7 +209,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     }
   ]);
 
-  const [frequencyData, setFrequencyData] = useState<number[]>([12, 45, 78, 90, 65, 34, 88, 54, 32, 95, 60, 40, 75, 85, 30]);
+  
   const recognitionRef = useRef<any>(null);
 
   // Initialize SpeechRecognition if available with proper unmount cleanup
@@ -260,21 +261,8 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     };
   }, []);
 
-  // Frequency wave generator effect
-  useEffect(() => {
-    if (!isListening) return;
-
-    const interval = setInterval(() => {
-      setFrequencyData(prev => prev.map((_, i) => Math.floor(generateDeterministicNumber(15, 100))));
-    }, 150);
-
-    return () => clearInterval(interval);
-  }, [isListening]);
-
-  const speakText = (text: string, moodOverride?: 'playful' | 'curious' | 'axiom-guard' | 'witty-joy') => {
-    setLastResponse(text);
+  const playSystemVoice = (text: string, moodOverride?: LittleGirlVoiceMood) => {
     if (!speechSynthEnabled) return;
-
     // Strict Validation Layer: Verify voice profile selection 'N+1'
     const validation = voiceService.validateVoiceSynthesisRequest('N+1');
     if (!validation.isValid) {
@@ -452,6 +440,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
               </h1>
               <p className="text-sm text-zinc-400 mt-1">
                 Natural language command execution, voice synthesis system status broadcasts, and real-time audio resonance frequency visualization.
+
               </p>
             </div>
           </div>
@@ -735,7 +724,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
           {/* Equalizer Bars */}
           <div className="flex items-end justify-center gap-2 h-32 py-2">
-            {frequencyData.map((val, idx) => (
+            {Array.from(liveFrequencyData).slice(0, 15).map((val, idx) => (
               <motion.div
                 key={idx}
                 animate={{ height: `${val}%` }}
