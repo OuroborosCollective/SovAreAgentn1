@@ -91,6 +91,8 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
       if (currentScore < baselineCoherence - 20) {
         setCoherenceDropDetected(true);
         sendCoherencePushAlert(currentScore, baselineCoherence);
+      } else {
+        setCoherenceDropDetected(false);
       }
     };
 
@@ -184,6 +186,7 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
       setFrequencyData(new Uint8Array(32));
       if (!isSimulatedDropRef.current) {
         setCoherenceScore(98.5);
+        setCoherenceDropDetected(false);
       }
     }
 

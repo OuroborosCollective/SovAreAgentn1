@@ -81,6 +81,13 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [activeVoiceName, setActiveVoiceName] = useState<string>('N+1 (Google Live Voice - Papas kleines Mädchen)');
   const [autonomeToneBias, setAutonomeToneBias] = useState<number>(() => personaEvolutionService.getToneBias());
+  const [offlineFallbackEnabled, setOfflineFallbackEnabled] = useState(voiceService.isLocalFallbackEnabled());
+
+  const handleToggleOfflineFallback = () => {
+    const newVal = !offlineFallbackEnabled;
+    setOfflineFallbackEnabled(newVal);
+    voiceService.setLocalFallbackEnabled(newVal);
+  };
   
   const { 
     frequencyData: liveFrequencyData,
@@ -91,14 +98,19 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     recalibrateBaseline
   } = useAudioVisualizer(true, isListening, isPlayingVoice);
 
-  // Trigger in-app notification when a voice frequency coherence drop is detected
+  // Trigger in-app notification when a voice frequency coherence drop is detected (throttled to once every 30 seconds)
+  const lastAlertTimestampRef = useRef<number>(0);
   useEffect(() => {
     if (coherenceDropDetected) {
-      addNotification(
-        `Diagnostic Alert: Voice frequency visualizer detected a sudden coherence drop (${coherenceScore}% vs Baseline ${baselineCoherence}%). Push notification broadcast sent.`,
-        'error',
-        'PUSH_COHERENCE_ALERT'
-      );
+      const now = Date.now();
+      if (now - lastAlertTimestampRef.current > 30000) {
+        addNotification(
+          `Diagnostic Alert: Voice frequency visualizer detected a sudden coherence drop (${coherenceScore}% vs Baseline ${baselineCoherence}%). Push notification broadcast sent.`,
+          'error',
+          'PUSH_COHERENCE_ALERT'
+        );
+        lastAlertTimestampRef.current = now;
+      }
     }
   }, [coherenceDropDetected, coherenceScore, baselineCoherence, addNotification]);
 
@@ -340,11 +352,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       setQuotaLimitTriggered(true);
       setQuotaReason(reason);
       console.warn('[Hia Auto Failover Utility] Google Cloud API rate limit detected:', reason);
-      // FreeLLM Route failover & stream buffering recovery with original N1 voice
-      setTimeout(() => {
-        voiceService.resumeFromRateLimit('FreeLLM Route Fallback (N1 Voice Profile)', ttsMoodTone);
-        voiceService.speak(text, 'N+1', ttsMoodTone as any, customPitch, customRate, false);
-      }, 600);
+      voiceService.resumeFromRateLimit('FreeLLM Route Fallback (N1 Voice Profile)', ttsMoodTone);
     });
 
     return () => {
@@ -970,7 +978,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-[11px] pt-1">
           <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
             <span className="text-zinc-500 text-[10px] uppercase font-bold block">Enforced Voice Model</span>
             <span className="text-white font-bold flex items-center gap-1.5">
@@ -1009,6 +1017,30 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
             </span>
             <span className="text-[10px] text-amber-300 block">
               {quotaReason ? `Limit Detected: ${quotaReason.slice(0, 32)}...` : '100% N1 Voice Continuity Guaranteed'}
+            </span>
+          </div>
+
+          <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1 relative">
+            <span className="text-zinc-500 text-[10px] uppercase font-bold block">Offline Fallback Routing</span>
+            <span className="text-white font-bold flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <Database size={14} className={offlineFallbackEnabled ? "text-amber-400" : "text-emerald-400"} /> 
+                {offlineFallbackEnabled ? "Local PCM Enabled" : "Direct Gemini/FreeLLM"}
+              </span>
+              <button
+                onClick={handleToggleOfflineFallback}
+                className={`px-2 py-0.5 rounded-lg text-[9px] font-bold transition-colors border ${
+                  offlineFallbackEnabled 
+                    ? "bg-amber-950 hover:bg-amber-900 text-amber-300 border-amber-700" 
+                    : "bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-700"
+                }`}
+                title="Bypass or reactivate the local sinusoidal beep-boop synthesis generator."
+              >
+                {offlineFallbackEnabled ? "Bypass" : "Enable"}
+              </button>
+            </span>
+            <span className="text-[10px] text-zinc-400 block">
+              {offlineFallbackEnabled ? 'Offline fallback: Sinusoid Beep-boop' : 'Deactivated: Directed over official Gemini'}
             </span>
           </div>
         </div>
