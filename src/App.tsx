@@ -35,12 +35,32 @@ import { FleetManagementWorkspace } from './components/FleetManagementWorkspace'
 import Integrations from './components/Integrations';
 import { AREKappaRuntimeWorkspace } from './components/AREKappaRuntimeWorkspace';
 import { PersistentVoiceAssistant } from './components/PersistentVoiceAssistant';
+import { NexusErrorBoundary } from './components/NexusErrorBoundary';
 
 import { useNotification } from './context/NotificationContext';
 
 export const App: React.FC = () => {
   const { addNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState<string>('voice');
+  const validTabIds = ['voice', 'inference', 'arekappa', 'sanctuary', 'vcs', 'diagnostics', 'calibrations'];
+
+  const [activeTab, setActiveTabState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('n1_active_tab');
+      if (saved && validTabIds.includes(saved)) {
+        return saved;
+      }
+    }
+    return 'voice';
+  });
+
+  const setActiveTab = (tabId: string) => {
+    const targetTab = validTabIds.includes(tabId) ? tabId : 'voice';
+    setActiveTabState(targetTab);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('n1_active_tab', targetTab);
+    }
+  };
+
   const [coherenceScore, setCoherenceScore] = useState<number>(100);
   const [cpuLoad, setCpuLoad] = useState<number>(24);
   const [activeConnections, setActiveConnections] = useState<number>(1);
@@ -187,8 +207,15 @@ export const App: React.FC = () => {
       if (response.ok) {
         addNotification('Push broadcast sent successfully through real server!', 'success');
       } else {
-        const errData = await response.json();
-        addNotification(`Failed to broadcast: ${errData.error || 'Server error'}`, 'error');
+        let errorMsg = `Server error (${response.status})`;
+        try {
+          const errData = await response.json();
+          errorMsg = errData.error || errData.message || errorMsg;
+        } catch {
+          const text = await response.text().catch(() => '');
+          if (text) errorMsg += `: ${text.slice(0, 100)}`;
+        }
+        addNotification(`Failed to broadcast: ${errorMsg}`, 'error');
       }
     } catch (e: any) {
       addNotification(`Failed to send test push: ${e.message}`, 'error');
@@ -210,46 +237,46 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none antialiased selection:bg-pink-500/30 selection:text-white">
       {/* Dynamic Status / Navigation Header */}
-      <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-pink-400 shadow-md">
-            <Brain size={24} className="animate-pulse" />
+      <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40 px-3 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-pink-400 shadow-md">
+            <Brain size={20} className="animate-pulse" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black tracking-tight uppercase text-white">N+1 System Control Center</h1>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-pink-950/80 text-pink-300 border border-pink-800 font-bold">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-base sm:text-lg font-black tracking-tight uppercase text-white">N+1 System Control Center</h1>
+              <span className="text-[9px] sm:text-[10px] font-mono px-2 py-0.5 rounded-full bg-pink-950/80 text-pink-300 border border-pink-800 font-bold">
                 Axiom-Consistent
               </span>
             </div>
-            <p className="text-xs text-zinc-500 font-medium">Sovereign Voice & LLM Routing Supervisor Engine</p>
+            <p className="text-[11px] sm:text-xs text-zinc-500 font-medium">Sovereign Voice & LLM Routing Supervisor Engine</p>
           </div>
         </div>
 
         {/* Live Telemetry Bar */}
-        <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
           {/* SSE Push Status Banner */}
-          <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 ${
+          <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-1.5 text-[11px] ${
             sseConnected 
               ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-400' 
               : 'bg-amber-950/30 border-amber-500/30 text-amber-400'
           }`}>
             <span className={`h-1.5 w-1.5 rounded-full ${sseConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
-            <span>SSE Push Stream: {sseConnected ? 'Connected' : 'Reconnecting'}</span>
+            <span>SSE Push: {sseConnected ? 'Connected' : 'Reconnecting'}</span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-2">
-            <Cpu size={14} className="text-pink-400" />
+          <div className="px-2.5 py-1 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-1.5 text-[11px]">
+            <Cpu size={12} className="text-pink-400" />
             <span>CPU: {cpuLoad}%</span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-2">
-            <Activity size={14} className="text-purple-400" />
+          <div className="px-2.5 py-1 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-1.5 text-[11px]">
+            <Activity size={12} className="text-purple-400" />
             <span>Coherence: {coherenceScore}%</span>
           </div>
 
-          <div className="px-3 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-2">
-            <Lock size={14} className={isCoreLocked ? "text-emerald-400" : "text-amber-400"} />
+          <div className="px-2.5 py-1 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-300 flex items-center gap-1.5 text-[11px]">
+            <Lock size={12} className={isCoreLocked ? "text-emerald-400" : "text-amber-400"} />
             <span>Core: {isCoreLocked ? "Locked" : "Decoupled"}</span>
           </div>
         </div>
@@ -257,10 +284,10 @@ export const App: React.FC = () => {
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col md:flex-row">
-        {/* Left Sidebar Navigation */}
-        <nav className="w-full md:w-64 border-r border-zinc-900 bg-zinc-950/50 p-4 space-y-2 flex flex-col justify-between shrink-0">
-          <div className="space-y-1.5">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
+        {/* Responsive Navigation Bar */}
+        <nav className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-900 bg-zinc-950/50 p-2 sm:p-4 flex flex-col justify-between shrink-0">
+          <div className="flex md:flex-col overflow-x-auto md:overflow-x-visible gap-1.5 pb-2 md:pb-0 scrollbar-thin">
+            <div className="hidden md:block px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               System Operations
             </div>
             {menuItems.map(item => {
@@ -270,17 +297,17 @@ export const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition-all ${
+                  className={`shrink-0 md:w-full min-h-[44px] flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
                     isActive
                       ? 'bg-pink-950/40 border-pink-500/30 text-pink-200 font-bold shadow-md'
-                      : 'bg-transparent border-transparent text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+                      : 'bg-zinc-900/40 md:bg-transparent border-zinc-800/40 md:border-transparent text-zinc-400 hover:text-white hover:bg-zinc-900/50'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     <Icon size={16} className={isActive ? 'text-pink-400' : 'text-zinc-500'} />
-                    <span>{item.label}</span>
+                    <span className="whitespace-nowrap">{item.label}</span>
                   </div>
-                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md ml-2 ${
                     isActive ? 'bg-pink-900/50 text-pink-300' : 'bg-zinc-900 text-zinc-500'
                   }`}>
                     {item.badge}
@@ -329,132 +356,146 @@ export const App: React.FC = () => {
         </nav>
 
         {/* Content Workspace Panel */}
-        <main className="flex-1 bg-zinc-950/10 p-6 overflow-y-auto">
+        <main className="flex-1 bg-zinc-950/10 p-3 sm:p-6 overflow-y-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="h-full space-y-8"
             >
               {activeTab === 'voice' && (
-                <div className="space-y-6">
-                  {/* Push Notifications Configuration Panel */}
-                  <div className="p-6 bg-zinc-950/80 border border-zinc-900 rounded-3xl space-y-4 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Bell size={18} className="text-pink-400" />
-                        <h2 className="text-sm font-bold text-white">Push System Dispatcher & Diagnostics</h2>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-500">
-                        Real-Time (SSE Stream)
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs leading-relaxed">
-                      <div className="space-y-2">
-                        <h3 className="font-bold text-zinc-300">Push System Mechanism</h3>
-                        <p className="text-zinc-500">
-                          The system registers the service worker <code>/sw.js</code> on startup. In parallel, it connects to a Server-Sent Events stream at <code>/api/push/stream</code>, providing immediate full-stack notifications.
-                        </p>
-                        <p className="text-zinc-500">
-                          When a reminder triggers on the server, a push event is broadcasted. If authorized, the service worker pushes a native desktop overlay even with the window closed.
-                        </p>
-                      </div>
-
-                      <div className="space-y-3 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
-                        <h4 className="font-bold text-white flex items-center gap-1.5">
-                          <Sliders size={14} className="text-purple-400" />
-                          <span>Custom Test Event</span>
-                        </h4>
-                        
-                        <div className="space-y-2 font-mono">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Title</label>
-                            <input
-                              type="text"
-                              value={testTitle}
-                              onChange={e => setTestTitle(e.target.value)}
-                              className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Message</label>
-                            <input
-                              type="text"
-                              value={testBody}
-                              onChange={e => setTestBody(e.target.value)}
-                              className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
-                            />
-                          </div>
+                <NexusErrorBoundary fallbackTitle="N+1 Voice Studio Exception">
+                  <div className="space-y-6">
+                    {/* Push Notifications Configuration Panel */}
+                    <div className="p-6 bg-zinc-950/80 border border-zinc-900 rounded-3xl space-y-4 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Bell size={18} className="text-pink-400" />
+                          <h2 className="text-sm font-bold text-white">Push System Dispatcher & Diagnostics</h2>
                         </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-500">
+                          Real-Time (SSE Stream)
+                        </span>
                       </div>
 
-                      <div className="flex flex-col justify-between p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs leading-relaxed">
                         <div className="space-y-2">
-                          <h4 className="font-bold text-white flex items-center gap-1.5">
-                            <Send size={14} className="text-pink-400" />
-                            <span>Dispatch Broadcast</span>
-                          </h4>
+                          <h3 className="font-bold text-zinc-300">Push System Mechanism</h3>
                           <p className="text-zinc-500">
-                            Broadcast this notification template to all active operators. If native permissions are granted, this will immediately fire a desktop alert.
+                            The system registers the service worker <code>/sw.js</code> on startup. In parallel, it connects to a Server-Sent Events stream at <code>/api/push/stream</code>, providing immediate full-stack notifications.
+                          </p>
+                          <p className="text-zinc-500">
+                            When a reminder triggers on the server, a push event is broadcasted. If authorized, the service worker pushes a native desktop overlay even with the window closed.
                           </p>
                         </div>
 
-                        <button
-                          onClick={handleTriggerTestPush}
-                          disabled={isSendingPush}
-                          className="mt-4 w-full py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
-                        >
-                          {isSendingPush ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
-                          <span>Trigger Server Push Alert</span>
-                        </button>
+                        <div className="space-y-3 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
+                          <h4 className="font-bold text-white flex items-center gap-1.5">
+                            <Sliders size={14} className="text-purple-400" />
+                            <span>Custom Test Event</span>
+                          </h4>
+                          
+                          <div className="space-y-2 font-mono">
+                            <div className="space-y-1">
+                              <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Title</label>
+                              <input
+                                type="text"
+                                value={testTitle}
+                                onChange={e => setTestTitle(e.target.value)}
+                                className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Message</label>
+                              <input
+                                type="text"
+                                value={testBody}
+                                onChange={e => setTestBody(e.target.value)}
+                                className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col justify-between p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
+                          <div className="space-y-2">
+                            <h4 className="font-bold text-white flex items-center gap-1.5">
+                              <Send size={14} className="text-pink-400" />
+                              <span>Dispatch Broadcast</span>
+                            </h4>
+                            <p className="text-zinc-500">
+                              Broadcast this notification template to all active operators. If native permissions are granted, this will immediately fire a desktop alert.
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={handleTriggerTestPush}
+                            disabled={isSendingPush}
+                            className="mt-4 w-full py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
+                          >
+                            {isSendingPush ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                            <span>Trigger Server Push Alert</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <HiaResonanceVoice />
-                </div>
+                    <HiaResonanceVoice onNavigateTab={setActiveTab} />
+                  </div>
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'inference' && (
-                <PredictiveRuntimeInference />
+                <NexusErrorBoundary fallbackTitle="LLM Revolver Exception">
+                  <PredictiveRuntimeInference />
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'arekappa' && (
-                <AREKappaRuntimeWorkspace />
+                <NexusErrorBoundary fallbackTitle="AREKappa Workspace Exception">
+                  <AREKappaRuntimeWorkspace />
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'sanctuary' && (
-                <CoreResonanceSanctuary />
+                <NexusErrorBoundary fallbackTitle="Axiom Sanctuary Exception">
+                  <CoreResonanceSanctuary />
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'vcs' && (
-                <NexusBridgeWithBoundary />
+                <NexusErrorBoundary fallbackTitle="VCS Sync Exception">
+                  <NexusBridgeWithBoundary />
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'diagnostics' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                  <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
-                  <SystemBugHunt />
-                </div>
+                <NexusErrorBoundary fallbackTitle="Diagnostics View Exception">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
+                    <SystemBugHunt />
+                  </div>
+                </NexusErrorBoundary>
               )}
 
               {activeTab === 'calibrations' && (
-                <div className="space-y-8">
-                  <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
-                  <FleetManagementWorkspace />
-                  <Integrations />
-                </div>
+                <NexusErrorBoundary fallbackTitle="Settings Workspace Exception">
+                  <div className="space-y-8">
+                    <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
+                    <FleetManagementWorkspace />
+                    <Integrations />
+                  </div>
+                </NexusErrorBoundary>
               )}
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
-      <PersistentVoiceAssistant />
+      <PersistentVoiceAssistant onNavigateTab={setActiveTab} />
     </div>
   );
 };

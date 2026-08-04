@@ -2339,7 +2339,7 @@ echo "Run: tsx server.ts or npm run dev"
 
   app.post('/api/agent-command/chat', async (req, res) => {
     const { agent, prompt } = req.body;
-    const freeTierModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-3.6-flash'];
+    const freeTierModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     try {
       const { GoogleGenAI } = await import("@google/genai");
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;

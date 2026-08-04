@@ -16,27 +16,42 @@ export function createTtsRouter() {
       }
 
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-live-preview",
-          contents: [{ parts: [{ text: `[Voice directive: ${mood || 'fröhlich'}] ${text}` }] }],
-          config: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: voiceName === "N+1" ? "Aoede" : "Aoede", // mapping to actual gemini voices
+      let response: any = null;
+      const ttsModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      let lastError: any = null;
+
+      for (const modelName of ttsModels) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: [{ parts: [{ text: text }] }],
+            config: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: (voiceName && voiceName !== "N+1") ? voiceName : "Puck",
+                  }
                 }
               }
             }
+          });
+          const audio = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (audio) {
+            return res.json({ status: "success", audio });
           }
-      });
-      
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-         return res.json({ status: "success", audio: base64Audio });
-      } else {
-         return res.status(500).json({ error: "No audio generated" });
+        } catch (e: any) {
+          const errMsg = e?.message || String(e);
+          if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+            console.warn(`[TTS API] Model ${modelName} rate limited (429).`);
+          } else {
+            console.warn(`[TTS API] Model ${modelName} unavailable:`, errMsg);
+          }
+          lastError = e;
+        }
       }
+
+      return res.status(500).json({ error: lastError?.message || "No audio generated from TTS models" });
     } catch (error: any) {
       console.error("[TTS API] Error generating audio:", error);
       return res.status(500).json({ error: error.message });

@@ -12,10 +12,10 @@ export interface ModelRoute {
 }
 
 export const FREE_TIER_REVOLVER_ROUTES: ModelRoute[] = [
-  { provider: 'gemini', modelName: 'gemini-3.5-flash', isFreeTier: true, priority: 1 },
+  { provider: 'gemini', modelName: 'gemini-2.5-flash', isFreeTier: true, priority: 1 },
   { provider: 'gemini', modelName: 'gemini-flash-latest', isFreeTier: true, priority: 2 },
-  { provider: 'gemini', modelName: 'gemini-3.1-flash-lite', isFreeTier: true, priority: 3 },
-  { provider: 'gemini', modelName: 'gemini-3.6-flash', isFreeTier: true, priority: 4 },
+  { provider: 'gemini', modelName: 'gemini-2.0-flash', isFreeTier: true, priority: 3 },
+  { provider: 'gemini', modelName: 'gemini-1.5-flash', isFreeTier: true, priority: 4 },
   { provider: 'openrouter', modelName: 'openrouter/auto', isFreeTier: true, priority: 5 },
   { provider: 'openrouter', modelName: 'deepseek/deepseek-chat:free', isFreeTier: true, priority: 6 }
 ];

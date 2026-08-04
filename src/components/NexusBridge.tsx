@@ -32,6 +32,7 @@ import { NexusAuth } from './NexusAuth';
 import { NexusErrorBoundary } from './NexusErrorBoundary';
 import { InputMutexWidget } from './InputMutexWidget';
 import { NexusHealthStatus } from './NexusHealthStatus';
+import { VcsFileSyncProgressMonitor } from './VcsFileSyncProgressMonitor';
 
 export interface SSHKeyConfig {
   algorithm: string;
@@ -60,7 +61,7 @@ export interface ErrorCommitCorrelation {
 }
 
 export const NexusBridge: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<'auth' | 'ssh' | 'correlation' | 'mutex' | 'history'>('auth');
+  const [activeSubTab, setActiveSubTab] = useState<'sync' | 'auth' | 'ssh' | 'correlation' | 'mutex' | 'history'>('sync');
 
   // Remote Auth & Repo State
   const [remoteUser, setRemoteUser] = useState<any>(null);
@@ -345,7 +346,19 @@ Handshake status: 200 OK (0.042s latency) - SECURE COMMITS ENABLED`);
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 bg-zinc-900/80 p-1.5 border border-zinc-800 rounded-2xl">
+        <div className="flex items-center gap-2 bg-zinc-900/80 p-1.5 border border-zinc-800 rounded-2xl flex-wrap">
+          <button
+            onClick={() => setActiveSubTab('sync')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeSubTab === 'sync' 
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30' 
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <RefreshCw size={14} className={activeSubTab === 'sync' ? 'animate-spin text-purple-200' : ''} />
+            <span>File Sync Monitor</span>
+          </button>
+
           <button
             onClick={() => setActiveSubTab('auth')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -401,7 +414,14 @@ Handshake status: 200 OK (0.042s latency) - SECURE COMMITS ENABLED`);
         <NexusHealthStatus />
       )}
 
-      {/* SUBTAB 0: NEXUS & GOOGLE OAUTH MANAGER */}
+      {/* SUBTAB 0: REAL-TIME FILE SYNCHRONIZATION PROGRESS MONITOR */}
+      {activeSubTab === 'sync' && (
+        <NexusErrorBoundary fallbackTitle="VCS File Synchronization Progress Exception">
+          <VcsFileSyncProgressMonitor />
+        </NexusErrorBoundary>
+      )}
+
+      {/* SUBTAB 1: NEXUS & GOOGLE OAUTH MANAGER */}
       {activeSubTab === 'auth' && (
         <NexusErrorBoundary fallbackTitle="Nexus OAuth Handshake Exception">
           <NexusAuth 

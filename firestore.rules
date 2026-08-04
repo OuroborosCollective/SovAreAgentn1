@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Connection testing
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // N+1 Child Persona states
+    match /n1_child_personas/{nodeId} {
+      allow read, write: if true;
+    }
+
+    // N+1 Persona Evolution snapshots
+    match /n1_persona_evolution/{snapshotId} {
+      allow read, write: if true;
+    }
+
+    // Default deny for unhandled collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

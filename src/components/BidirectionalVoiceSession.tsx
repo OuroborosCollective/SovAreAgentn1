@@ -62,11 +62,20 @@ export const BidirectionalVoiceSession: React.FC = () => {
 
   // Web Speech STT Ref
   const recognitionRef = useRef<any>(null);
-  const eventLogEndRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const userScrolledLogRef = useRef(false);
 
-  // Auto-scroll event logs
+  const handleLogScroll = () => {
+    if (!logContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
+    userScrolledLogRef.current = scrollHeight - scrollTop - clientHeight > 40;
+  };
+
+  // Auto-scroll event logs within container only
   useEffect(() => {
-    eventLogEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (logContainerRef.current && !userScrolledLogRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
   }, [events]);
 
   // Sync sessionState with VoiceService playback
@@ -655,7 +664,11 @@ export const BidirectionalVoiceSession: React.FC = () => {
             </div>
 
             {/* Event List Feed */}
-            <div className="flex-1 overflow-y-auto max-h-80 space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800">
+            <div 
+              ref={logContainerRef}
+              onScroll={handleLogScroll}
+              className="flex-1 overflow-y-auto max-h-80 space-y-2 pr-1 scrollbar-thin scrollbar-thumb-zinc-800"
+            >
               {filteredEvents.length === 0 ? (
                 <div className="h-40 flex items-center justify-center text-zinc-600 italic">
                   No logged contract events in filter scope... Click 'Session starten' to initialize.
@@ -686,7 +699,6 @@ export const BidirectionalVoiceSession: React.FC = () => {
                   </div>
                 ))
               )}
-              <div ref={eventLogEndRef} />
             </div>
           </div>
         </div>

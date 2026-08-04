@@ -62,8 +62,13 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   { pathPattern: "/api/auth/google/me", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 60, description: "Google me check" },
   { pathPattern: "/api/auth/google/logout", methods: ["POST"], role: "public", effect: "AUTH_HANDSHAKE", dataClassification: "PUBLIC", rateLimitPerMin: 30, description: "Google logout" },
 
-  // Public - Voice Dialogue Contract
+  // Public - Voice Dialogue Contract & TTS
   { pathPattern: "/api/agent-command/chat", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 60, description: "Public Voice Agent conversational dialogue contract" },
+  { pathPattern: "/api/tts", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Text To Speech voice synthesis API" },
+  { pathPattern: "/api/push/stream", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push SSE stream endpoint" },
+  { pathPattern: "/api/push/send", methods: ["POST"], role: "public", effect: "MUTATING", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push notification broadcast endpoint" },
+  { pathPattern: "/api/wolfram/solve", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Wolfram research sandbox execution" },
+  { pathPattern: "/api/github/continuous-ai/issues", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "GitHub continuous AI issues probe" },
 
   // Public - CLI / Info
   { pathPattern: "/install.sh", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 60, description: "Installer script" },

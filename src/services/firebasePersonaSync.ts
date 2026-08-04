@@ -63,12 +63,16 @@ export async function syncPersonaToCloud(nodeId: string, personaState: PersonaSt
       nodeId,
       persona: personaState,
       updatedAt: Date.now(),
-      hardwareNodeClient: navigator.userAgent.substring(0, 80),
+      hardwareNodeClient: typeof navigator !== 'undefined' ? navigator.userAgent.substring(0, 80) : 'node_server',
       userId: auth.currentUser?.uid || 'anonymous_node'
     }, { merge: true });
     return true;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    try {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } catch (e) {
+      // Caught log output
+    }
     return false;
   }
 }
@@ -84,7 +88,11 @@ export async function fetchPersonaFromCloud(nodeId: string): Promise<PersonaStat
     }
     return null;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, path);
+    try {
+      handleFirestoreError(error, OperationType.GET, path);
+    } catch (e) {
+      // Caught log output
+    }
     return null;
   }
 }

@@ -43,6 +43,7 @@ import { ChildPersonaWorkspace } from './ChildPersonaWorkspace';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
 import { runMemoryMigration } from '../utils/memoryMigration';
+import { generateHiaVoiceResponse } from '../services/geminiService';
 import { inputMutex } from '../utils/inputMutex';
 import { personaEvolutionService } from '../services/personaEvolutionService';
 
@@ -217,7 +218,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      recognition.lang = typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'de-DE';
 
       recognition.onresult = (event: any) => {
         let currentTranscript = '';
@@ -329,22 +330,43 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
         } else if (textLower.includes('navigate') || textLower.includes('open') || textLower.includes('go to') || textLower.includes('gehe zu') || textLower.includes('öffne')) {
           intent = 'NAVIGATION';
           detectedMood = 'playful';
-          if ((textLower.includes('dashboard') || textLower.includes('übersicht')) && onNavigateTab) {
-            onNavigateTab('dashboard');
-            responseText = 'Navigiere zur N+1 Hauptübersicht!';
-          } else if ((textLower.includes('knowledge') || textLower.includes('wissen')) && onNavigateTab) {
-            onNavigateTab('knowledge');
-            responseText = 'Navigiere zur Knowledge Base Musterbibliothek!';
-          } else if (textLower.includes('vector') && onNavigateTab) {
-            onNavigateTab('vectorizer');
-            responseText = 'Navigiere zum Knowledge Vectorizer Service!';
-          } else if (textLower.includes('health') && onNavigateTab) {
-            onNavigateTab('health-monitor');
-            responseText = 'Navigiere zum Agent Health Monitor!';
+          if ((textLower.includes('voice') || textLower.includes('studio') || textLower.includes('übersicht') || textLower.includes('haupt')) && onNavigateTab) {
+            onNavigateTab('voice');
+            responseText = 'Navigiere zum N+1 Voice Studio!';
+          } else if ((textLower.includes('revolver') || textLower.includes('inference') || textLower.includes('llm')) && onNavigateTab) {
+            onNavigateTab('inference');
+            responseText = 'Navigiere zum LLM Revolver Hub!';
+          } else if ((textLower.includes('arekappa') || textLower.includes('kappa')) && onNavigateTab) {
+            onNavigateTab('arekappa');
+            responseText = 'Navigiere zum AREKappa Workspace!';
+          } else if ((textLower.includes('sanctuary') || textLower.includes('axiom')) && onNavigateTab) {
+            onNavigateTab('sanctuary');
+            responseText = 'Navigiere zum Axiom Sanctuary!';
+          } else if ((textLower.includes('vcs') || textLower.includes('nexus') || textLower.includes('github')) && onNavigateTab) {
+            onNavigateTab('vcs');
+            responseText = 'Navigiere zum VCS Sync (Nexus)!';
+          } else if ((textLower.includes('diagnostics') || textLower.includes('bug') || textLower.includes('health') || textLower.includes('test')) && onNavigateTab) {
+            onNavigateTab('diagnostics');
+            responseText = 'Navigiere zu Diagnostics & Bug Hunt!';
+          } else if ((textLower.includes('settings') || textLower.includes('einstellung') || textLower.includes('calibration') || textLower.includes('workspace')) && onNavigateTab) {
+            onNavigateTab('calibrations');
+            responseText = 'Navigiere zu Settings & Workspace!';
+          } else {
+            responseText = 'Welches Menü möchtest du öffnen? Du kannst z.B. Einstellungen, Revolver Hub, AREKappa oder Voice Studio sagen.';
+          }
+        } else {
+          // Dynamic AI response generation in German for all other questions
+          intent = 'AI_QUERY';
+          detectedMood = 'curious';
+          try {
+            responseText = await generateHiaVoiceResponse(cmdText);
+          } catch (e) {
+            responseText = "Ich bin voll für dich da, Papa! Alle Systeme laufen einwandfrei.";
           }
         }
 
         setTtsMoodTone(detectedMood);
+        voiceService.unlockAudio();
         // Force stop previous audio then speak single voice
         voiceService.stopSpeaking();
         await voiceService.speak(responseText, 'N+1', detectedMood, customPitch, customRate, true);
@@ -370,6 +392,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   };
 
   const toggleListening = () => {
+    voiceService.unlockAudio();
     if (isListening) {
       setIsListening(false);
       if (recognitionRef.current) {
@@ -584,7 +607,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
             <span className="text-zinc-500 text-[10px] uppercase font-bold block">Enforced Voice Model</span>
             <span className="text-white font-bold flex items-center gap-1.5">
-              <Cpu size={14} className="text-pink-400" /> gemini-3.1-flash-live-preview
+              <Cpu size={14} className="text-pink-400" /> gemini-2.5-flash
             </span>
             <span className="text-[10px] text-emerald-400 block">Prebuilt Voice: N1 (24kHz PCM)</span>
           </div>

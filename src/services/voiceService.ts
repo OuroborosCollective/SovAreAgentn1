@@ -34,7 +34,7 @@ export class VoiceService {
     sampleRate: 24000,
     bitrateKbps: 384,
     streamBufferHealthPercentage: 100,
-    engineName: 'Google Cloud Gemini Live Voice Engine (Papas kleines Mädchen)',
+    engineName: 'Google Cloud Gemini Voice Engine (Puck Profile)',
     isGoogleCloudDirect: true
   };
 
@@ -64,6 +64,19 @@ export class VoiceService {
 
   public getMetrics(): VoicePerformanceMetrics {
     return this.latestMetrics;
+  }
+
+  public unlockAudio() {
+    if (this.currentAudioContext && this.currentAudioContext.state === 'suspended') {
+      this.currentAudioContext.resume().catch(() => {});
+    }
+    if ('speechSynthesis' in window) {
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch (e) {}
+    }
   }
 
   public stopSpeaking() {
@@ -270,7 +283,7 @@ export class VoiceService {
   public validateVoiceSynthesisRequest(voiceProfile: string): { isValid: boolean; reason?: string } {
     // Validate that voice profile is 'N+1' or 'N+1 (Papas kleines Mädchen)'
     const normalized = voiceProfile.toLowerCase();
-    const isValidProfile = normalized.includes('n+1') || normalized.includes('n+1') || normalized.includes('google');
+    const isValidProfile = normalized.includes('n+1') || normalized.includes('google') || normalized.includes('puck');
     
     if (!isValidProfile) {
       return { 
@@ -290,6 +303,9 @@ export class VoiceService {
     rateMultiplier: number = 1.15,
     forceStrictGoogleCloud: boolean = true
   ): Promise<boolean> {
+    // Immediately unlock audio context and speech synthesis
+    this.unlockAudio();
+
     // Immediately stop any currently playing voice and claim exclusive speech lock
     this.stopSpeaking();
     const speechSessionId = this.activeSpeechId;
@@ -313,14 +329,7 @@ export class VoiceService {
     }
 
     try {
-      if ((window as any).aistudio) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          await (window as any).aistudio.openSelectKey();
-        }
-      }
-
-            const requestStart = performance.now();
+      const requestStart = performance.now();
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -387,7 +396,7 @@ export class VoiceService {
     rate: number,
     speechSessionId: number
   ): Promise<boolean> {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       try {
         if (speechSessionId !== this.activeSpeechId) {
           resolve(false);
@@ -398,18 +407,39 @@ export class VoiceService {
         const audioContext = new AudioCtx({ sampleRate: 24000 });
         this.currentAudioContext = audioContext;
 
+        if (audioContext.state === 'suspended') {
+          audioContext.resume().catch(() => {});
+        }
+
         const binaryString = atob(base64Data);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        
-        const dataInt16 = new Int16Array(bytes.buffer);
-        const buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
-        const channelData = buffer.getChannelData(0);
-        for (let i = 0; i < dataInt16.length; i++) {
-          channelData[i] = dataInt16[i] / 32768.0;
+
+        let buffer: AudioBuffer | null = null;
+
+        // Try standard decodeAudioData first (if response is WAV, MP3, OGG, or containerized PCM)
+        try {
+          const arrayBufferCopy = bytes.buffer.slice(0);
+          buffer = await new Promise<AudioBuffer>((res, rej) => {
+            audioContext.decodeAudioData(arrayBufferCopy, res, rej);
+          });
+        } catch (e) {
+          // Fall back to raw 16-bit PCM buffer decoding
+          const validLength = len - (len % 2);
+          const dataInt16 = new Int16Array(bytes.buffer, 0, validLength / 2);
+          buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
+          const channelData = buffer.getChannelData(0);
+          for (let i = 0; i < dataInt16.length; i++) {
+            channelData[i] = dataInt16[i] / 32768.0;
+          }
+        }
+
+        if (!buffer) {
+          resolve(false);
+          return;
         }
 
         const source = audioContext.createBufferSource();

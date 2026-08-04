@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "TestConnection": {
+      "title": "TestConnection",
+      "description": "Test connection document",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "ChildPersona": {
+      "title": "ChildPersona",
+      "description": "Child Persona State and Node metadata",
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "type": "string"
+        },
+        "persona": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "number"
+        },
+        "hardwareNodeClient": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonaEvolutionSnapshot": {
+      "title": "PersonaEvolutionSnapshot",
+      "description": "Snapshot of linguistic persona evolution metrics",
+      "type": "object",
+      "properties": {
+        "metrics": {
+          "type": "object"
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "nodeId": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/test/{docId}": {
+      "schema": "TestConnection",
+      "description": "Firestore connection diagnostic test path"
+    },
+    "/n1_child_personas/{nodeId}": {
+      "schema": "ChildPersona",
+      "description": "N+1 Child Persona State node collection"
+    },
+    "/n1_persona_evolution/{snapshotId}": {
+      "schema": "PersonaEvolutionSnapshot",
+      "description": "N+1 Persona Evolution metric snapshots"
+    }
+  }
+}

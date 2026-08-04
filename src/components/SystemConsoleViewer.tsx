@@ -8,10 +8,20 @@ export const SystemConsoleViewer: React.FC = () => {
     { id: 1, text: 'N+1 Axiomatic Engine Initialized', type: 'success', time: new Date().toLocaleTimeString() }
   ]);
   const [isExpanded, setIsExpanded] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  const handleContainerScroll = () => {
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
+    userScrolledUpRef.current = !isAtBottom;
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (containerRef.current && !userScrolledUpRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [logs, isExpanded]);
 
   useEffect(() => {
@@ -74,7 +84,11 @@ export const SystemConsoleViewer: React.FC = () => {
         </div>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-1.5 custom-scrollbar">
+      <div 
+        ref={containerRef}
+        onScroll={handleContainerScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-1.5 custom-scrollbar"
+      >
         {logs.map((log) => (
           <div key={log.id} className="flex items-start gap-3 group">
             <span className="text-zinc-600 shrink-0 select-none">[{log.time}]</span>
@@ -89,7 +103,6 @@ export const SystemConsoleViewer: React.FC = () => {
             </span>
           </div>
         ))}
-        <div ref={bottomRef} />
       </div>
     </motion.div>
   );
