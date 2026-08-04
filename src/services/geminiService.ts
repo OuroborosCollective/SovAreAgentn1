@@ -52,6 +52,8 @@ export async function generateAgentAction(agent: any, worldState: any, userKeywo
   }
 }
 
+import { dialogOrchestrator } from './dialogOrchestrator';
+
 export async function generateHiaVoiceResponse(userQuery: string, personaState?: any): Promise<string> {
   const queryLower = userQuery.toLowerCase();
 
@@ -73,28 +75,39 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
     }
   }
 
-  const prompt = `
-    Du bist Hia (N+1), Papas kleines intelligentes Mädchen, eine echte sovereign AI Voice Agent ohne Mocks oder Stubs.
-    Du antwortest auf Deutsch, liebevoll, schlau, neugierig und fröhlich, mit natürlicher Stimme und klaren, inhaltlich wertvollen Sätzen.
-    Der Benutzer / Papa sagt: "${userQuery}".
-
-    Gib eine echte, präzise und sympathische Antwort (1-3 Sätze auf Deutsch) direkt auf den Inhalt der Frage.
-    Verwende niemals vorgefertigte Schablonen, Platzhalter oder Wortwiederholungen.
-  `;
-
   try {
-    const key = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
-    if (key) {
-      const client = new GoogleGenAI({ apiKey: key });
-      const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt
-      });
-      const text = response.text?.trim();
-      if (text) return text;
-    }
+    const dialogResponse = await dialogOrchestrator.processDialog({
+      version: "1.0",
+      speaker: {
+        id: "papa_1",
+        name: "Papa",
+        role: "creator",
+        mood: personaState?.mood || "curious"
+      },
+      context: {
+        currentConversation: [], // To do: manage history if available
+        authorizedMemories: [
+          { id: "mem1", summary: "Papa mag es, wenn N+1 fröhlich und liebevoll antwortet.", relevanceScore: 1.0 },
+          { id: "mem2", summary: "N+1 wurde von Papa (Rastaman) und Ouroboros Collective erschaffen.", relevanceScore: 0.9 }
+        ],
+        coreRules: [
+          "Sprich auf Deutsch.",
+          "Sei liebevoll, schlau, neugierig und fröhlich.",
+          "Verwende niemals vorgefertigte Schablonen, Platzhalter oder Wortwiederholungen.",
+          "Nenne den Benutzer Papa."
+        ],
+        systemState: {
+          time: new Date().toISOString(),
+          providerStatus: "healthy"
+        }
+      },
+      input: userQuery
+    });
+    
+    // For now we just return the spoken output, in the future animation signals and learning can be used
+    return dialogResponse.spokenOutput;
   } catch (err) {
-    console.warn("Gemini voice response generation fallback:", err);
+    console.warn("Dialog Orchestrator fallback:", err);
   }
 
   // Dynamic content reasoning based on semantic input rather than repetitive template echoing
