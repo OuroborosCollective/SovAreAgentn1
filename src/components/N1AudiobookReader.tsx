@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BookOpen, Upload, Play, Square, FileText, ChevronRight, CheckCircle2, RefreshCw } from 'lucide-react';
+import { BookOpen, Upload, Play, Square, FileText, ChevronRight, CheckCircle2, RefreshCw, Sparkles, Brain, ArrowLeft, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { voiceService } from '../services/voiceService';
 import { emotionEngine } from '../services/emotionEngine';
-import { generateHiaVoiceResponse } from '../services/geminiService';
+import { generateHiaVoiceResponse, generateHiaDetailedResponse } from '../services/geminiService';
 import { useNotification } from '../context/NotificationContext';
 
 export interface UploadedBook {
@@ -13,11 +13,20 @@ export interface UploadedBook {
   progress: number;
 }
 
+export interface AhaMoment {
+  id: string;
+  text: string;
+  chunkIndex: number;
+  timestamp: number;
+  status: 'syncing' | 'stored' | 'axiomatized';
+}
+
 export const N1AudiobookReader: React.FC = () => {
   const [books, setBooks] = useState<UploadedBook[]>([]);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [ahaMoments, setAhaMoments] = useState<AhaMoment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addNotification } = useNotification();
   
@@ -29,11 +38,20 @@ export const N1AudiobookReader: React.FC = () => {
     if (saved) {
       try { setBooks(JSON.parse(saved)); } catch (e) {}
     }
+    const savedAha = localStorage.getItem('n1_aha_moments');
+    if (savedAha) {
+      try { setAhaMoments(JSON.parse(savedAha)); } catch (e) {}
+    }
   }, []);
 
   const saveBooks = (newBooks: UploadedBook[]) => {
     setBooks(newBooks);
     localStorage.setItem('n1_books', JSON.stringify(newBooks));
+  };
+
+  const saveAhaMoments = (newAha: AhaMoment[]) => {
+    setAhaMoments(newAha);
+    localStorage.setItem('n1_aha_moments', JSON.stringify(newAha));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,11 +120,39 @@ export const N1AudiobookReader: React.FC = () => {
     // Every few chunks, trigger proactive learning questions
     if (readChunks > 0 && readChunks % 3 === 0) {
        setTimeout(async () => {
-         const questionContext = `Erzeuge basierend auf diesem Textabschnitt: "${textToRead.slice(0, 500)}..." maximal 3 neugierige Verständnisfragen, die ein kluges Kind seinem Papa stellen würde. Vergiss nicht das Stichwort 'Aha!' wenn du etwas Neues lernst. Nutze 'merke mir das' Logik. Antworte in JSON { "questions": ["q1", "q2", "q3"], "voiceText": "..." }`;
-         const response = await generateHiaVoiceResponse(questionContext);
-         voiceService.speak(response, 'N+1', 'neugierig' as any, 1.25, 1.1, true);
+         const questionContext = `Erzeuge basierend auf diesem Textabschnitt: "${textToRead.slice(0, 500)}..." maximal 3 neugierige Verständnisfragen, die ein kluges Kind seinem Papa stellen würde. Vergiss nicht das Stichwort 'Aha!' wenn du etwas Neues lernst. Nutze 'merke mir das' Logik. Antworte in JSON { "questions": ["q1", "q2", "q3"], "voiceText": "...", "learningCandidates": [{"topic": "...", "observation": "..."}] }`;
+         const response = await generateHiaDetailedResponse(questionContext);
+         
+         if (response && response.spokenOutput) {
+           voiceService.speak(response.spokenOutput, 'N+1', 'neugierig' as any, 1.25, 1.1, true);
+           
+           if (response.learningCandidates && response.learningCandidates.length > 0) {
+             const newAha: AhaMoment[] = response.learningCandidates.map((c: any) => ({
+               id: `aha-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+               text: `${c.topic}: ${c.observation}`,
+               chunkIndex: startIdx,
+               timestamp: Date.now(),
+               status: 'syncing'
+             }));
+             
+             const updatedAha = [...newAha, ...ahaMoments].slice(0, 10);
+             saveAhaMoments(updatedAha);
+             
+             // Simulate vector DB storage transition
+             setTimeout(() => {
+               saveAhaMoments(updatedAha.map(a => newAha.find(n => n.id === a.id) ? { ...a, status: 'stored' } : a));
+             }, 3000);
+           }
+         }
        }, 2000);
     }
+  };
+
+  const jumpToChunk = (bookId: string, chunkIndex: number) => {
+    const updatedBooks = books.map(b => b.id === bookId ? { ...b, progress: chunkIndex } : b);
+    saveBooks(updatedBooks);
+    startReading(bookId);
+    addNotification(`Jumping back to chunk ${chunkIndex} for insight recovery.`, 'info');
   };
 
   const stopReading = () => {
@@ -149,7 +195,65 @@ export const N1AudiobookReader: React.FC = () => {
             No books uploaded. N+1 loves stories!
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-6">
+            {activeBookId && (
+              <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl p-4 space-y-4">
+                <div className="flex items-center justify-between text-[10px] text-zinc-500 uppercase font-bold tracking-wider">
+                  <span>Proactive Learning Progress</span>
+                  <span>{books.find(b => b.id === activeBookId)?.progress || 0} Chunks Digested</span>
+                </div>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(((books.find(b => b.id === activeBookId)?.progress || 0) / 100) * 100, 100)}%` }}
+                    className="h-full bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_10px_rgba(217,119,6,0.5)]"
+                  />
+                </div>
+
+                {ahaMoments.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-bold uppercase">
+                      <Sparkles size={12} className="text-amber-500" />
+                      Recent "Aha!" Moments (Vector Memories)
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {ahaMoments.slice(0, 3).map(aha => (
+                        <motion.button
+                          key={aha.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          onClick={() => activeBookId && jumpToChunk(activeBookId, aha.chunkIndex)}
+                          className="flex items-center justify-between p-3 bg-zinc-900/80 border border-zinc-800 hover:border-amber-900/50 hover:bg-amber-950/10 rounded-xl transition-all text-left group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-1.5 bg-amber-950/30 text-amber-500 rounded-lg group-hover:scale-110 transition-transform">
+                              <Brain size={14} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] text-white line-clamp-1">{aha.text}</p>
+                              <p className="text-[9px] text-zinc-500 mt-0.5">Captured at chunk {aha.chunkIndex} • {new Date(aha.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`flex items-center gap-1 text-[8px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                              aha.status === 'axiomatized' ? 'bg-emerald-500/10 text-emerald-500' :
+                              aha.status === 'stored' ? 'bg-blue-500/10 text-blue-500' :
+                              'bg-zinc-800 text-zinc-500 animate-pulse'
+                            }`}>
+                              <Database size={8} />
+                              {aha.status}
+                            </div>
+                            <ChevronRight size={14} className="text-zinc-700 group-hover:text-amber-500 transition-colors" />
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <AnimatePresence>
               {books.map(book => (
                 <motion.div 
@@ -189,6 +293,7 @@ export const N1AudiobookReader: React.FC = () => {
               ))}
             </AnimatePresence>
           </div>
+        </div>
         )}
       </div>
     </div>

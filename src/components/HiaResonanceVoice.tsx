@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Mic, 
   MicOff, 
@@ -19,7 +19,10 @@ import {
   Lock,
   Heart,
   Brain,
-  Gauge
+  Gauge,
+  Database,
+  Layers,
+  HardDrive
 } from 'lucide-react';
 import { useAudioVisualizer } from "../hooks/useAudioVisualizer";
 import { useNotification } from '../context/NotificationContext';
@@ -46,6 +49,7 @@ import { ChildPersonaWorkspace } from './ChildPersonaWorkspace';
 import { EmotionalProfileVisualization } from './EmotionalProfileVisualization';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
+import { areSqliteStorageService } from '../services/areSqliteStorageService';
 import { runMemoryMigration } from '../utils/memoryMigration';
 import { generateHiaVoiceResponse } from '../services/geminiService';
 import { inputMutex } from '../utils/inputMutex';
@@ -172,9 +176,13 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     glowRing: 'from-pink-500/30 via-amber-500/15 to-transparent'
   };
 
-  // Subscribe to voiceService playback state
+  // Subscribe to voiceService playback state & SQLite Event Stream Binding
   const [quotaLimitTriggered, setQuotaLimitTriggered] = useState(false);
   const [quotaReason, setQuotaReason] = useState<string | null>(null);
+  const [voiceDataSource, setVoiceDataSource] = useState<'REALTIME_STREAM' | 'CACHED_SQLITE'>('REALTIME_STREAM');
+  const [sqliteEvents, setSqliteEvents] = useState<any[]>([]);
+  const [isProcessingSqliteCache, setIsProcessingSqliteCache] = useState(false);
+
   const [bufferStatus, setBufferStatus] = useState({
     bufferSizeKb: 128,
     offsetMs: 0,
@@ -182,6 +190,124 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     isPaused: false,
     ttlExpiredCount: 0
   });
+
+  const loadSqliteEvents = useCallback(async () => {
+    try {
+      const events = await areSqliteStorageService.getSseEvents();
+      setSqliteEvents(events || []);
+    } catch (err) {
+      console.warn('[Hia Voice] Error loading SQLite SSE events:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSqliteEvents();
+    const interval = setInterval(loadSqliteEvents, 3000);
+    return () => clearInterval(interval);
+  }, [loadSqliteEvents]);
+
+  // Generate 24kHz PCM WAV base64 audio sample for offline SQLite AudioContext playback testing
+  const generateSampleAudioBase64 = (): string => {
+    const sampleRate = 24000;
+    const durationSec = 1.2;
+    const numSamples = Math.floor(sampleRate * durationSec);
+    const dataInt16 = new Int16Array(numSamples);
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const freq = t < 0.4 ? 440 : t < 0.8 ? 523.25 : 659.25;
+      const sample = Math.sin(2 * Math.PI * freq * t) * 0.4 * Math.exp(-t * 0.5);
+      dataInt16[i] = Math.max(-32768, Math.min(32767, Math.floor(sample * 32767)));
+    }
+
+    const wavBuffer = new ArrayBuffer(44 + dataInt16.length * 2);
+    const view = new DataView(wavBuffer);
+
+    view.setUint32(0, 0x52494646, false); // RIFF
+    view.setUint32(4, 36 + dataInt16.length * 2, true);
+    view.setUint32(8, 0x57415645, false); // WAVE
+    view.setUint32(12, 0x666d7420, false); // fmt 
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    view.setUint32(36, 0x64617461, false); // data
+    view.setUint32(40, dataInt16.length * 2, true);
+
+    const bytes = new Uint8Array(wavBuffer);
+    bytes.set(new Uint8Array(dataInt16.buffer), 44);
+
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  };
+
+  const handleSeedSqliteAudioEvent = async () => {
+    try {
+      const base64Audio = generateSampleAudioBase64();
+      const eventData = {
+        id: `sse_voice_chunk_${Date.now()}`,
+        title: 'Cached SQLite Voice Stream Event',
+        body: 'Ouroboros offline AudioContext buffer tick from local WASM SQLite database.',
+        audio: base64Audio,
+        audioContentType: 'audio/wav',
+        timestamp: Date.now()
+      };
+
+      await areSqliteStorageService.persistSseEvent(eventData);
+      await loadSqliteEvents();
+      addNotification('Persisted new audio stream event into local SQLite database.', 'info', 'SQLITE_SYNC');
+    } catch (err) {
+      console.error('Failed to seed SQLite audio event:', err);
+    }
+  };
+
+  const handlePlayCachedSqliteStream = async () => {
+    setIsProcessingSqliteCache(true);
+    setVoiceDataSource('CACHED_SQLITE');
+
+    try {
+      let events = await areSqliteStorageService.getSseEvents();
+      let audioEvent = events.find(e => e.payload && (e.payload.audio || e.payload.base64Audio || (e.payload.payload && (e.payload.payload.audio || e.payload.payload.base64Audio))));
+
+      let base64Audio = '';
+      let contentType = 'audio/wav';
+
+      if (audioEvent) {
+        base64Audio = audioEvent.payload.audio || audioEvent.payload.base64Audio || (audioEvent.payload.payload && (audioEvent.payload.payload.audio || audioEvent.payload.payload.base64Audio));
+        contentType = audioEvent.payload.audioContentType || audioEvent.payload.contentType || 'audio/wav';
+      } else {
+        base64Audio = generateSampleAudioBase64();
+        await areSqliteStorageService.persistSseEvent({
+          id: `sse_voice_chunk_${Date.now()}`,
+          title: 'Auto-seeded SQLite Audio Event',
+          body: 'Ouroboros AudioContext cached stream buffer',
+          audio: base64Audio,
+          audioContentType: 'audio/wav',
+          timestamp: Date.now()
+        });
+        await loadSqliteEvents();
+      }
+
+      console.log(`[Hia Resonance Voice] Binding AudioContext visualizer to local SQLite stream buffer (${base64Audio.length} chars, CACHED_SQLITE)...`);
+      await voiceService.playAudioChunk(
+        base64Audio,
+        contentType,
+        'N+1 (SQLite Event Stream Buffer)',
+        ttsMoodTone,
+        'CACHED_SQLITE'
+      );
+    } catch (err) {
+      console.error('Error replaying cached SQLite event audio:', err);
+    } finally {
+      setIsProcessingSqliteCache(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -195,6 +321,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       setIsPlayingVoice(state.isPlaying);
       if (state.activeVoice) {
         setActiveVoiceName(state.activeVoice);
+      }
+      if (state.dataSource) {
+        setVoiceDataSource(state.dataSource);
       }
     });
 
@@ -736,35 +865,110 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       {/* AUDIO WAVEFORM VISUALIZER, N1 EGO ANIMATOR & COMMAND CONSOLE */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Resonance Visualizer */}
-        <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-3xl flex flex-col justify-between space-y-6 shadow-xl relative overflow-hidden">
+        <div className={`p-6 bg-zinc-950 border rounded-3xl flex flex-col justify-between space-y-6 shadow-xl relative overflow-hidden transition-all duration-500 ${
+          voiceDataSource === 'CACHED_SQLITE'
+            ? 'border-cyan-500/50 shadow-cyan-950/40 ring-1 ring-cyan-500/30'
+            : 'border-zinc-800'
+        }`}>
           <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
             <div className="flex items-center gap-2">
-              <Radio size={18} className="text-pink-400" />
+              <Radio size={18} className={voiceDataSource === 'CACHED_SQLITE' ? 'text-cyan-400' : 'text-pink-400'} />
               <h2 className="text-sm font-bold text-white">Resonance Frequency Waveform</h2>
             </div>
-            <span className="text-[10px] font-mono text-zinc-500">
-              {isListening ? 'MICROPHONE LIVE' : 'STANDBY'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase border flex items-center gap-1 ${
+                voiceDataSource === 'CACHED_SQLITE'
+                  ? 'bg-cyan-950 text-cyan-300 border-cyan-700 animate-pulse'
+                  : 'bg-pink-950 text-pink-300 border-pink-800'
+              }`}>
+                {voiceDataSource === 'CACHED_SQLITE' ? (
+                  <>
+                    <Database size={10} className="text-cyan-400" />
+                    DATA: SQLITE CACHE
+                  </>
+                ) : (
+                  <>
+                    <Radio size={10} className="text-pink-400" />
+                    DATA: REALTIME STREAM
+                  </>
+                )}
+              </span>
+              <span className="text-[10px] font-mono text-zinc-500">
+                {isListening ? 'MICROPHONE LIVE' : 'STANDBY'}
+              </span>
+            </div>
           </div>
 
-          {/* Equalizer Bars */}
-          <div className="flex items-end justify-center gap-2 h-32 py-2">
+          {/* Equalizer Bars with Cached SQLite vs Realtime Animation Modes */}
+          <div className="relative flex items-end justify-center gap-2 h-32 py-2 overflow-hidden rounded-2xl bg-zinc-900/40 border border-zinc-800/60 p-3">
+            {/* Ambient matrix scanlines overlay when processing cached SQLite stream data */}
+            {voiceDataSource === 'CACHED_SQLITE' && (
+              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-teal-500/10 pointer-events-none animate-pulse z-0" />
+            )}
+
             {Array.from(liveFrequencyData).slice(0, 15).map((val, idx) => (
               <motion.div
                 key={idx}
                 animate={{ height: `${val}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`w-3.5 rounded-t-lg ${
+                className={`w-3.5 rounded-t-lg z-10 transition-colors duration-300 ${
                   coherenceDropDetected
                     ? 'bg-gradient-to-t from-red-600 to-amber-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                    : isPlayingVoice && voiceDataSource === 'CACHED_SQLITE'
+                    ? 'bg-gradient-to-t from-cyan-500 via-teal-400 to-indigo-400 animate-pulse shadow-[0_0_14px_rgba(6,182,212,0.9)]'
                     : isPlayingVoice
                     ? 'bg-gradient-to-t from-pink-500 via-amber-400 to-sky-300 animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.8)]'
                     : isListening 
                     ? 'bg-gradient-to-t from-pink-600 to-purple-400' 
+                    : voiceDataSource === 'CACHED_SQLITE'
+                    ? 'bg-cyan-950/80 border border-cyan-800/60'
                     : 'bg-zinc-800'
                 }`}
               />
             ))}
+          </div>
+
+          {/* Explicit SQLite Event Stream Audio & AudioContext Binding Control */}
+          <div className="p-3.5 bg-gradient-to-br from-zinc-900 via-cyan-950/20 to-zinc-900 border border-cyan-500/30 rounded-2xl font-mono text-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <Database size={13} className="text-cyan-400" />
+                SQLite AudioContext Stream Binding
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase border ${
+                voiceDataSource === 'CACHED_SQLITE' 
+                  ? 'bg-cyan-950 text-cyan-300 border-cyan-600 animate-pulse'
+                  : 'bg-zinc-950 text-zinc-400 border-zinc-800'
+              }`}>
+                {voiceDataSource === 'CACHED_SQLITE' ? 'ACTIVE: SQLITE CACHE' : 'REALTIME STANDBY'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-zinc-300">
+              <span>Cached SQLite Stream Records:</span>
+              <span className="font-bold text-cyan-300">{sqliteEvents.length} events</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={handlePlayCachedSqliteStream}
+                disabled={isProcessingSqliteCache}
+                className="py-1.5 px-2 bg-cyan-950 hover:bg-cyan-900 border border-cyan-700/80 hover:border-cyan-500 text-cyan-200 rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                title="Process and play cached event stream audio buffers directly via AudioContext visualizer"
+              >
+                <Play size={11} className="text-cyan-400" />
+                <span>{isProcessingSqliteCache ? 'Decoding...' : 'Replay SQLite Cache'}</span>
+              </button>
+
+              <button
+                onClick={handleSeedSqliteAudioEvent}
+                className="py-1.5 px-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5"
+                title="Seed new sample PCM AudioContext event tick into local SQLite WASM database"
+              >
+                <Zap size={11} className="text-amber-400" />
+                <span>Seed SQLite Event</span>
+              </button>
+            </div>
           </div>
 
           {/* Diagnostic Voice Coherence Telemetry & Push Trigger Shield */}

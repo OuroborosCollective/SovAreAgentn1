@@ -22,19 +22,10 @@ export default defineConfig(({ mode }) => {
       build: {
         target: 'es2022',
         minify: 'esbuild',
-        sourcemap: true,
-        rollupOptions: {
-          output: {
-            manualChunks: {
-              'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-              'vendor-ui': ['lucide-react', 'motion', 'framer-motion'],
-              'vendor-data': ['d3', 'recharts']
-            }
-          }
-        }
+        sourcemap: true
       },
       optimizeDeps: {
-        include: ['react', 'react-dom', 'lucide-react', 'framer-motion', 'd3', 'recharts']
+        include: ['react', 'react-dom', 'lucide-react', 'framer-motion', 'motion', 'd3', 'recharts']
       }
     };
 });

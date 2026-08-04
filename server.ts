@@ -196,21 +196,29 @@ async function startServer() {
     });
 
     app.post("/api/push/send", (req, res) => {
-      const { title, body, url } = req.body;
-      if (!body) {
-        return res.status(400).json({ error: "Notification body is required" });
+      const { title, body, url, audio, base64Audio, audioContentType, type } = req.body;
+      const audioData = audio || base64Audio;
+      if (!body && !audioData) {
+        return res.status(400).json({ error: "Notification body or audio payload is required" });
       }
 
+      const isAudioChunk = Boolean(audioData) || type === 'tts.chunk';
       const payload = {
+        id: req.body.id || `sse_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title: title || "N+1 Alert",
-        body,
+        body: body || "",
         url: url || "/",
+        type: isAudioChunk ? "tts.chunk" : "notification",
+        audio: audioData || null,
+        audioContentType: audioContentType || "audio/wav",
         timestamp: Date.now()
       };
 
+      const eventName = isAudioChunk ? "audio_chunk" : "notification";
+
       sseClients.forEach(client => {
         try {
-          client.write(`event: notification\ndata: ${JSON.stringify(payload)}\n\n`);
+          client.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`);
           if (typeof (client as any).flush === 'function') {
             (client as any).flush();
           }
@@ -219,7 +227,7 @@ async function startServer() {
         }
       });
 
-      res.json({ status: "success", deliveredCount: sseClients.length });
+      res.json({ status: "success", deliveredCount: sseClients.length, isAudioChunk, contentType: payload.audioContentType });
     });
 
   function getPool() {
@@ -2550,6 +2558,34 @@ echo "Run: tsx server.ts or npm run dev"
     } catch (err: any) {
       res.status(500).json({ status: "error", message: err.message || "Failed to clear ledger" });
     }
+  });
+
+  // Dedicated WASM endpoint & static header middleware for WebAssembly assets
+  app.use((req, res, next) => {
+    if (req.path.endsWith('.wasm')) {
+      res.setHeader('Content-Type', 'application/wasm');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+    next();
+  });
+
+  app.get(['/sql-wasm.wasm', '/assets/sql-wasm.wasm'], (req, res) => {
+    const localWasmPaths = [
+      path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+      path.join(process.cwd(), 'dist', 'sql-wasm.wasm'),
+      path.join(process.cwd(), 'public', 'sql-wasm.wasm')
+    ];
+
+    for (const wasmPath of localWasmPaths) {
+      if (fs.existsSync(wasmPath)) {
+        res.setHeader('Content-Type', 'application/wasm');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        return res.sendFile(wasmPath);
+      }
+    }
+
+    res.status(404).send('WASM module not found locally; client will use CDN fallback.');
   });
 
   // Vite middleware for development or static file serving for production

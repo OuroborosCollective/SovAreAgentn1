@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { areSqliteStorageService } from './services/areSqliteStorageService';
+import { voiceService } from './services/voiceService';
+
 // Import subcomponents
 import HiaResonanceVoice from './components/HiaResonanceVoice';
 import PredictiveRuntimeInference from './components/PredictiveRuntimeInference';
@@ -31,6 +34,7 @@ import NexusBridgeWithBoundary from './components/NexusBridge';
 import { SystemValidationTestbed } from './components/SystemValidationTestbed';
 import { SystemBugHunt } from './components/SystemBugHunt';
 import { FailoverDiagnostics } from './components/FailoverDiagnostics';
+import { IntegrityDiagnostics } from './components/IntegrityDiagnostics';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
 import Integrations from './components/Integrations';
@@ -119,16 +123,34 @@ export const App: React.FC = () => {
         }, 5000);
       };
 
-      eventSource.addEventListener('notification', (event: any) => {
+      const handleSseMessage = (event: any) => {
         try {
           const data = JSON.parse(event.data);
           console.log('[Push System] Received real-time push event:', data);
 
+          // Ouroboros Protocol: Automatically persist critical incoming SSE event into local SQLite store
+          areSqliteStorageService.persistSseEvent(data).catch(err => {
+            console.warn('[Push System] Failed to persist SSE event to SQLite:', err);
+          });
+
+          // Process incoming SSE stream audio chunk if present
+          const base64Audio = data.audio || data.base64Audio || (data.payload && (data.payload.audio || data.payload.base64Audio));
+          const contentType = data.audioContentType || data.contentType || 'audio/wav';
+
+          if (base64Audio && typeof base64Audio === 'string' && base64Audio.trim().length > 10) {
+            console.log(`[Push System] Validated SSE stream audio buffer (${base64Audio.length} chars, ${contentType}), mapping to AudioContext visualizer.`);
+            voiceService.playAudioChunk(base64Audio, contentType, 'N+1 (SSE Voice Stream)', 'fröhlich').catch(err => {
+              console.warn('[Push System] Error mapping audio chunk to AudioContext:', err);
+            });
+          }
+
           // 1. Play native sound/trigger in-app notification context
-          addNotification(data.body || 'New system event.', 'info', 'PUSH_ALERT');
+          if (data.body) {
+            addNotification(data.body, 'info', 'PUSH_ALERT');
+          }
 
           // 2. Show native OS notification if permission is granted
-          if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+          if (Notification.permission === 'granted' && 'serviceWorker' in navigator && data.body) {
             navigator.serviceWorker.ready.then(reg => {
               reg.showNotification(data.title || 'N+1', {
                 body: data.body || 'A system event requires attention.',
@@ -144,7 +166,11 @@ export const App: React.FC = () => {
         } catch (e) {
           console.error('[Push System] Failed to parse stream payload:', e);
         }
-      });
+      };
+
+      eventSource.addEventListener('notification', handleSseMessage);
+      eventSource.addEventListener('audio_chunk', handleSseMessage);
+      eventSource.onmessage = handleSseMessage;
     };
 
     connectSse();
@@ -484,6 +510,7 @@ export const App: React.FC = () => {
                       <SystemBugHunt />
                     </div>
                     <FailoverDiagnostics />
+                    <IntegrityDiagnostics />
                   </div>
                 </NexusErrorBoundary>
               )}

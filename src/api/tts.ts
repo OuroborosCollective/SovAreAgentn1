@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 export function createTtsRouter() {
   const router = Router();
   router.post("/", async (req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     try {
       const { text, voiceName, mood } = req.body;
       if (!text) {
@@ -12,7 +13,7 @@ export function createTtsRouter() {
 
       const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-         return res.status(200).json({ status: "fallback", audio: null, message: "TTS API key not configured on server." });
+         return res.status(200).json({ status: "fallback", audio: null, contentType: "audio/wav", message: "TTS API key not configured on server." });
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -36,8 +37,9 @@ export function createTtsRouter() {
             }
           });
           const audio = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          const mimeType = response?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType || "audio/wav";
           if (audio) {
-            return res.json({ status: "success", audio });
+            return res.json({ status: "success", audio, contentType: mimeType });
           }
         } catch (e: any) {
           const errMsg = e?.message || String(e);
@@ -50,10 +52,10 @@ export function createTtsRouter() {
       }
 
       // Return 200 with fallback audio: null so client voiceService transitions seamlessly to Web Speech API
-      return res.status(200).json({ status: "fallback", audio: null, message: "Server audio generation unavailable; using client speech synthesis fallback." });
+      return res.status(200).json({ status: "fallback", audio: null, contentType: "audio/wav", message: "Server audio generation unavailable; using client speech synthesis fallback." });
     } catch (error: any) {
       console.error("[TTS API] Error in TTS endpoint:", error);
-      return res.status(200).json({ status: "fallback", audio: null, message: error.message });
+      return res.status(200).json({ status: "fallback", audio: null, contentType: "audio/wav", message: error.message });
     }
   });
   return router;

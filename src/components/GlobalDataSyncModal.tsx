@@ -41,7 +41,8 @@ export const GlobalDataSyncModal: React.FC<GlobalDataSyncModalProps> = ({ isOpen
 
       addLog(`Retrieved ${agentsList.length} agent records. Generating ZIP bundle...`);
 
-      const zip = new JSZip();
+      const ZipClass = typeof JSZip === 'function' ? JSZip : (JSZip as any).default;
+      const zip = new ZipClass();
 
       // Package manifest
       zip.file('manifest.json', JSON.stringify({
@@ -96,7 +97,8 @@ export const GlobalDataSyncModal: React.FC<GlobalDataSyncModalProps> = ({ isOpen
 
     try {
       if (file.name.endsWith('.zip')) {
-        const zip = new JSZip();
+        const ZipClass = typeof JSZip === 'function' ? JSZip : (JSZip as any).default;
+        const zip = new ZipClass();
         const zipContents = await zip.loadAsync(file);
 
         addLog('ZIP package loaded. Unpacking configuration files...');

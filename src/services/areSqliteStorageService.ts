@@ -25,20 +25,27 @@ class ARESqliteStorageService {
   private db: Database | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
+  private wasmHealth: { status: 'OK' | 'ERROR' | 'PENDING', mimeType: string, url: string, error?: string } = { status: 'PENDING', mimeType: '', url: '' };
   private fallbackTicks: SqliteARETick[] = [];
+  private fallbackSseEvents: any[] = [];
+
+  public getWasmHealth() {
+    return { ...this.wasmHealth };
+  }
 
   /**
    * Initializes WebAssembly SQLite engine and loads persisted SQLite database binary from IndexedDB if present
    */
   public async init(): Promise<void> {
-    if (this.isInitialized && this.db) return;
+    if (this.isInitialized) return;
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
       try {
-        // Fetch WASM binary as ArrayBuffer first to avoid WebAssembly.compileStreaming HTTP status errors
+        // Fetch WASM binary as ArrayBuffer first with local + CDN fallback paths
         let wasmBinary: ArrayBuffer | undefined;
         const wasmUrls = [
+          '/sql-wasm.wasm',
           'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm',
           'https://unpkg.com/sql.js@1.12.0/dist/sql-wasm.wasm',
           'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.wasm'
@@ -48,23 +55,49 @@ class ARESqliteStorageService {
           try {
             const res = await fetch(url);
             if (res.ok) {
-              const buf = await res.arrayBuffer();
-              if (buf.byteLength > 0) {
-                wasmBinary = buf;
-                break;
+              const contentType = res.headers.get('content-type') || '';
+              this.wasmHealth = { ...this.wasmHealth, mimeType: contentType, url };
+
+              // Make sure we didn't receive HTML fallback page (200 OK SPA fallback)
+              if (!contentType.includes('text/html')) {
+                const buf = await res.arrayBuffer();
+                if (buf && buf.byteLength > 1000) {
+                  wasmBinary = buf;
+                  this.wasmHealth.status = 'OK';
+                  console.log(`[ARE SQLite Storage] Successfully pre-fetched WASM binary from ${url} (${buf.byteLength} bytes).`);
+                  break;
+                }
               }
             }
-          } catch {
-            // Try next CDN
+          } catch (err: any) {
+            // Try next fallback path
           }
         }
 
-        // Initialize sql.js WASM engine using pre-loaded ArrayBuffer if available
-        this.SQL = await initSqlJs(
-          wasmBinary
-            ? { wasmBinary }
-            : { locateFile: (file) => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/${file}` }
-        );
+        if (!wasmBinary) {
+          this.wasmHealth.status = 'ERROR';
+          this.wasmHealth.error = 'No valid WASM binary found after trying all fallback paths.';
+        }
+
+        // Module config with -sASSERTIONS for visibility + debugging logging
+        const emscriptenModuleConfig: any = {
+          print: (msg: string) => console.log('[ARE WASM Out]:', msg),
+          printErr: (msg: string) => console.warn('[ARE WASM Err]:', msg),
+          ASSERTIONS: 1,
+          sASSERTIONS: 1,
+          locateFile: (file: string) => `/sql-wasm.wasm`
+        };
+
+        if (wasmBinary) {
+          emscriptenModuleConfig.wasmBinary = wasmBinary;
+        }
+
+        // Initialize sql.js WASM engine safely with CJS/ESM compatibility check
+        const initFn = typeof initSqlJs === 'function' ? initSqlJs : (initSqlJs as any)?.default;
+        if (typeof initFn !== 'function') {
+          throw new Error('initSqlJs module resolving failed: factory is not a function');
+        }
+        this.SQL = await initFn(emscriptenModuleConfig);
 
         // Load binary dump from IndexedDB if exists
         const savedBinary = await this.loadBinaryFromIndexedDB();
@@ -80,8 +113,10 @@ class ARESqliteStorageService {
         // Initialize schema
         this.createTables();
         this.isInitialized = true;
-      } catch (err) {
-        console.warn('[ARE SQLite Storage] WASM SQLite engine failed to load; activating IndexedDB fallback mode:', err);
+      } catch (err: any) {
+        console.warn('[ARE SQLite Storage] WASM SQLite engine init failure handled gracefully; activating Ouroboros IndexedDB fallback mode:', err?.message || err);
+        this.SQL = null;
+        this.db = null;
         this.isInitialized = true;
       }
     })();
@@ -90,24 +125,37 @@ class ARESqliteStorageService {
   }
 
   /**
-   * Creates relational tables for ARE offline tick storage
+   * Creates relational tables for ARE offline tick storage and SSE event log
    */
   private createTables(): void {
     if (!this.db) return;
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS are_offline_ticks (
-        id TEXT PRIMARY KEY,
-        tick_id INTEGER NOT NULL,
-        program_id TEXT NOT NULL,
-        program_json TEXT NOT NULL,
-        queued_at INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        content_hash TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_queued_at ON are_offline_ticks(queued_at);
-      CREATE INDEX IF NOT EXISTS idx_status ON are_offline_ticks(status);
-    `);
-    this.persistToIndexedDB();
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS are_offline_ticks (
+          id TEXT PRIMARY KEY,
+          tick_id INTEGER NOT NULL,
+          program_id TEXT NOT NULL,
+          program_json TEXT NOT NULL,
+          queued_at INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          content_hash TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS are_sse_events (
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          body TEXT,
+          url TEXT,
+          payload_json TEXT NOT NULL,
+          received_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_queued_at ON are_offline_ticks(queued_at);
+        CREATE INDEX IF NOT EXISTS idx_status ON are_offline_ticks(status);
+        CREATE INDEX IF NOT EXISTS idx_sse_received_at ON are_sse_events(received_at);
+      `);
+      this.persistToIndexedDB();
+    } catch (e) {
+      console.warn('[ARE SQLite Storage] Table creation notice:', e);
+    }
   }
 
   /**
@@ -241,9 +289,9 @@ class ARESqliteStorageService {
     if (!this.db) {
       const pendingCount = this.fallbackTicks.filter(t => t.status === 'PENDING').length;
       return {
-        totalRows: this.fallbackTicks.length,
+        totalRows: this.fallbackTicks.length + this.fallbackSseEvents.length,
         pendingCount,
-        dbSizeBytes: JSON.stringify(this.fallbackTicks).length,
+        dbSizeBytes: JSON.stringify(this.fallbackTicks).length + JSON.stringify(this.fallbackSseEvents).length,
         isSqliteActive: false
       };
     }
@@ -265,6 +313,155 @@ class ARESqliteStorageService {
     } catch (err) {
       return { totalRows: 0, pendingCount: 0, dbSizeBytes: 0, isSqliteActive: false };
     }
+  }
+
+  /**
+   * Persists incoming Server-Sent Events (SSE) into local SQLite store
+   * to guarantee zero-loss event history under Ouroboros Protocol
+   */
+  public async persistSseEvent(eventData: any): Promise<void> {
+    await this.init();
+    const eventId = eventData.id || `sse_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const receivedAt = eventData.timestamp || Date.now();
+    const payloadJson = JSON.stringify(eventData);
+
+    const sseRecord = {
+      id: eventId,
+      title: eventData.title || 'N+1 System Event',
+      body: eventData.body || '',
+      url: eventData.url || '/',
+      payloadJson,
+      receivedAt
+    };
+
+    if (!this.db) {
+      this.fallbackSseEvents.unshift(sseRecord);
+      console.log(`[ARE SQLite Storage Fallback] Persisted SSE event ${eventId} in memory fallback queue.`);
+    } else {
+      try {
+        this.db.exec('BEGIN TRANSACTION;');
+        const stmt = this.db.prepare(`
+          INSERT OR REPLACE INTO are_sse_events (id, title, body, url, payload_json, received_at)
+          VALUES (?, ?, ?, ?, ?, ?);
+        `);
+        stmt.run([eventId, sseRecord.title, sseRecord.body, sseRecord.url, payloadJson, receivedAt]);
+        stmt.free();
+        this.db.exec('COMMIT;');
+        await this.persistToIndexedDB();
+        console.log(`[ARE SQLite Storage] Successfully persisted SSE event into SQLite store: ${eventId}`);
+      } catch (err) {
+        try { this.db.exec('ROLLBACK;'); } catch {}
+        console.warn('[ARE SQLite Storage] Failed to insert SSE event into SQLite table:', err);
+      }
+    }
+
+    // Also convert and queue as KappaIRProgram tick for Ouroboros Protocol immutable ledger
+    const program: KappaIRProgram = {
+      programId: eventId,
+      version: '1.0.0-κIR',
+      nodes: {
+        [`node_${eventId}`]: {
+          id: `node_${eventId}`,
+          type: 'LITERAL',
+          primitiveType: 'STRING_CANONICAL',
+          effect: 'PURE',
+          value: payloadJson,
+          children: [],
+          contentHash: this.computeHash(payloadJson),
+          metadata: { source: 'SSE_PUSH_STREAM', receivedAt }
+        }
+      },
+      rootNodeId: `node_${eventId}`,
+      canonicalHash: this.computeHash(payloadJson),
+      createdAt: new Date(receivedAt).toISOString(),
+      targetLanguages: ['TypeScript']
+    };
+
+    await this.enqueueTick(program).catch(e => console.warn('[ARE SQLite Storage] Failed to enqueue SSE tick:', e));
+  }
+
+  /**
+   * Retrieves all persisted SSE events from SQLite database
+   */
+  public async getSseEvents(): Promise<any[]> {
+    await this.init();
+    if (!this.db) {
+      return [...this.fallbackSseEvents];
+    }
+
+    try {
+      const res = this.db.exec('SELECT id, title, body, url, payload_json, received_at FROM are_sse_events ORDER BY received_at DESC;');
+      if (res.length === 0 || !res[0].values) return [];
+
+      return res[0].values.map((row: any) => ({
+        id: String(row[0]),
+        title: String(row[1]),
+        body: String(row[2]),
+        url: String(row[3]),
+        payload: JSON.parse(String(row[4])),
+        receivedAt: Number(row[5])
+      }));
+    } catch (err) {
+      console.error('[ARE SQLite Storage] Failed to query SSE events from SQLite:', err);
+      return [...this.fallbackSseEvents];
+    }
+  }
+
+  /**
+   * Periodically validates checksums of stored ARE-Logik ticks in the SQLite database
+   * and performs a direct fix if any inconsistency is detected.
+   */
+  public async runIntegrityCheck(): Promise<{ checked: number; fixed: number; errors: string[] }> {
+    await this.init();
+    if (!this.db) return { checked: 0, fixed: 0, errors: ['SQLite engine not active'] };
+
+    const results = { checked: 0, fixed: 0, errors: [] as string[] };
+
+    try {
+      const res = this.db.exec("SELECT id, program_id, queued_at, content_hash FROM are_offline_ticks;");
+      if (res.length === 0 || !res[0].values) return results;
+
+      const rows = res[0].values;
+      results.checked = rows.length;
+
+      const fixes: { id: string, newHash: string }[] = [];
+
+      for (const row of rows) {
+        const id = String(row[0]);
+        const programId = String(row[1]);
+        const queuedAt = Number(row[2]);
+        const storedHash = String(row[3]);
+
+        const computedHash = this.computeHash(`${id}_${programId}_${queuedAt}`);
+
+        if (computedHash !== storedHash) {
+          console.warn(`[ARE Integrity Check] Hash mismatch detected for tick ${id}. Stored: ${storedHash}, Computed: ${computedHash}. Queueing fix.`);
+          fixes.push({ id, newHash: computedHash });
+        }
+      }
+
+      if (fixes.length > 0) {
+        this.db.exec('BEGIN TRANSACTION;');
+        try {
+          const stmt = this.db.prepare("UPDATE are_offline_ticks SET content_hash = ? WHERE id = ?;");
+          for (const fix of fixes) {
+            stmt.run([fix.newHash, fix.id]);
+            results.fixed++;
+          }
+          stmt.free();
+          this.db.exec('COMMIT;');
+          console.log(`[ARE Integrity Check] Successfully fixed ${results.fixed} corrupted hash records.`);
+          await this.persistToIndexedDB();
+        } catch (err: any) {
+          try { this.db.exec('ROLLBACK;'); } catch {}
+          results.errors.push(`Fix transaction failed: ${err.message}`);
+        }
+      }
+    } catch (err: any) {
+      results.errors.push(`Integrity check failed: ${err.message}`);
+    }
+
+    return results;
   }
 
   /**

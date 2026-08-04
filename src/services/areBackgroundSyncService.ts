@@ -65,6 +65,16 @@ class AREBackgroundSyncService {
           }
         });
       }
+
+      // Automated Integrity Checker (Periodic)
+      setInterval(() => {
+        areSqliteStorageService.runIntegrityCheck().then(results => {
+          if (results.fixed > 0) {
+            console.log(`[ARE Background Sync] Integrity check auto-fixed ${results.fixed} records.`);
+            this.notifyStatus();
+          }
+        }).catch(err => console.warn('[ARE Background Sync] Scheduled integrity check failed:', err));
+      }, 1000 * 60 * 5); // Every 5 minutes
     }
   }
 

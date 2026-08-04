@@ -20,6 +20,7 @@ export interface VoicePlaybackState {
   volumeLevel: number;
   metrics: VoicePerformanceMetrics;
   isPausedForRateLimit?: boolean;
+  dataSource?: 'REALTIME_STREAM' | 'CACHED_SQLITE';
 }
 
 type PlaybackCallback = (state: VoicePlaybackState) => void;
@@ -59,7 +60,8 @@ export class VoiceService {
       activeVoice: state.activeVoice ?? 'N+1 (Papas kleines Mädchen)',
       mood: state.mood ?? 'fröhlich',
       volumeLevel: state.volumeLevel ?? 0,
-      metrics: state.metrics ?? this.latestMetrics
+      metrics: state.metrics ?? this.latestMetrics,
+      dataSource: state.dataSource ?? 'REALTIME_STREAM'
     };
     this.listeners.forEach(cb => cb(fullState));
   }
@@ -407,13 +409,41 @@ export class VoiceService {
     return this.fallbackGoogleVoice(text, mood, pitchMultiplier, rateMultiplier, speechSessionId);
   }
 
+  /**
+   * Validates incoming base64 audio stream chunk buffer and maps it directly
+   * to the browser's AudioContext for active playback and visualizer resonance.
+   */
+  public async playAudioChunk(
+    base64Audio: string,
+    contentType: string = 'audio/wav',
+    voiceName: string = 'N+1 (SSE Stream Audio)',
+    mood: LittleGirlVoiceMood = 'fröhlich',
+    dataSource: 'REALTIME_STREAM' | 'CACHED_SQLITE' = 'REALTIME_STREAM'
+  ): Promise<boolean> {
+    if (!base64Audio || typeof base64Audio !== 'string' || base64Audio.trim().length === 0) {
+      console.warn('[Voice Service] Audio chunk validation failed: Empty or invalid buffer.');
+      return false;
+    }
+
+    // Incremental speech session lock
+    const sessionId = ++this.activeSpeechId;
+    this.latestMetrics = {
+      ...this.latestMetrics,
+      streamBufferHealthPercentage: 100,
+      engineName: `${dataSource === 'CACHED_SQLITE' ? 'SQLite Offline Event Stream' : 'SSE Stream Audio Decoder'} (${contentType})`
+    };
+
+    return this.playPcm(base64Audio, voiceName, mood, 1.0, 1.0, sessionId, dataSource);
+  }
+
   private async playPcm(
     base64Data: string, 
     voiceName: string, 
     mood: LittleGirlVoiceMood, 
     pitch: number, 
     rate: number,
-    speechSessionId: number
+    speechSessionId: number,
+    dataSource: 'REALTIME_STREAM' | 'CACHED_SQLITE' = 'REALTIME_STREAM'
   ): Promise<boolean> {
     return new Promise(async (resolve) => {
       try {
@@ -499,7 +529,8 @@ export class VoiceService {
           activeVoice: voiceName, 
           mood, 
           volumeLevel: 0.85,
-          metrics: this.latestMetrics
+          metrics: this.latestMetrics,
+          dataSource
         });
 
         if (this.activeVolumeInterval) clearInterval(this.activeVolumeInterval);
@@ -518,7 +549,8 @@ export class VoiceService {
             metrics: {
               ...this.latestMetrics,
               streamBufferHealthPercentage: Math.min(100, 95 + Math.floor(Math.random() * 5))
-            }
+            },
+            dataSource
           });
         }, 100);
 
@@ -528,7 +560,7 @@ export class VoiceService {
             this.activeVolumeInterval = null;
           }
           if (speechSessionId === this.activeSpeechId) {
-            this.notify({ isPlaying: false, activeVoice: voiceName, mood, volumeLevel: 0, metrics: this.latestMetrics });
+            this.notify({ isPlaying: false, activeVoice: voiceName, mood, volumeLevel: 0, metrics: this.latestMetrics, dataSource: 'REALTIME_STREAM' });
           }
           try { audioContext.close(); } catch (e) {}
           this.currentAudioContext = null;

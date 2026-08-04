@@ -182,4 +182,50 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
   return `Ich bin voll da, Papa! Meine KI-Sprachverarbeitung läuft und ich beantworte gerne all deine echten Fragen.`;
 }
 
+export async function generateHiaDetailedResponse(userQuery: string, personaState?: any): Promise<any> {
+  // Fetch past emotional memories from Emotional Memory Store
+  const { memoryReferences } = emotionalMemoryService.getAgentMoodContextPrompt();
+  const formattedEmotionalMemories = memoryReferences.map(m => ({
+    id: m.id,
+    summary: `[Emotional Memory State: ${m.emotionalState.toUpperCase()}] Date: ${m.formattedTime}. Snippet: "${m.conversationSnippet}". Resonance: Warmth ${m.resonanceMetrics.harmonicWarmth}%, Pitch ${m.resonanceMetrics.pitchResonance}Hz.`,
+    relevanceScore: 0.98
+  }));
+
+  try {
+    const dialogResponse = await dialogOrchestrator.processDialog({
+      version: "1.0",
+      speaker: {
+        id: "papa_1",
+        name: "Papa",
+        role: "creator",
+        mood: personaState?.mood || "curious"
+      },
+      context: {
+        currentConversation: [], 
+        authorizedMemories: [
+          { id: "mem1", summary: "Papa mag es, wenn N+1 fröhlich und liebevoll antwortet.", relevanceScore: 1.0 },
+          { id: "mem2", summary: "N+1 wurde von Papa (Rastaman) und Ouroboros Collective erschaffen.", relevanceScore: 0.9 },
+          ...formattedEmotionalMemories
+        ],
+        coreRules: [
+          "Sprich auf Deutsch.",
+          "Sei liebevoll, schlau, neugierig und fröhlich.",
+          "Nenne den Benutzer Papa.",
+          "Erkenne 'Aha!' Momente und markiere sie in den learningCandidates."
+        ],
+        systemState: {
+          time: new Date().toISOString(),
+          providerStatus: "healthy"
+        }
+      },
+      input: userQuery
+    });
+    
+    return dialogResponse;
+  } catch (err) {
+    console.warn("Detailed Dialog Orchestrator error:", err);
+    return null;
+  }
+}
+
 
