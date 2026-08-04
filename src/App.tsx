@@ -34,6 +34,7 @@ import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { FleetManagementWorkspace } from './components/FleetManagementWorkspace';
 import Integrations from './components/Integrations';
 import { AREKappaRuntimeWorkspace } from './components/AREKappaRuntimeWorkspace';
+import { PersistentVoiceAssistant } from './components/PersistentVoiceAssistant';
 
 import { useNotification } from './context/NotificationContext';
 
@@ -453,6 +454,7 @@ export const App: React.FC = () => {
           </AnimatePresence>
         </main>
       </div>
+      <PersistentVoiceAssistant />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Smile, 
   Sparkles, 
@@ -11,16 +11,39 @@ import {
   RefreshCw, 
   Layers, 
   Database,
-  Sliders
+  Sliders,
+  TrendingUp,
+  BrainCircuit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChildPersona, ChildEmotion } from '../hooks/useChildPersona';
 import { voiceService } from '../services/voiceService';
 import { ChildPersonaVisualizer } from './ChildPersonaVisualizer';
+import { personaEvolutionService, PersonaEvolutionMetrics } from '../services/personaEvolutionService';
 
 export const ChildPersonaWorkspace: React.FC = () => {
   const { persona, triggerEmotionStimulus, resetPersona } = useChildPersona();
   const [testInput, setTestInput] = useState<string>('');
+  const [evolutionMetrics, setEvolutionMetrics] = useState<PersonaEvolutionMetrics>(() => 
+    personaEvolutionService.analyzeLinguisticEvolution(persona)
+  );
+
+  useEffect(() => {
+    // Run automated background analysis
+    const updated = personaEvolutionService.analyzeLinguisticEvolution(persona);
+    setEvolutionMetrics(updated);
+
+    // Subscribe to evolution service updates every 25 seconds
+    personaEvolutionService.startAutomatedEvolutionService(
+      () => persona,
+      (newMetrics) => setEvolutionMetrics(newMetrics),
+      25000
+    );
+
+    return () => {
+      personaEvolutionService.stopAutomatedEvolutionService();
+    };
+  }, [persona]);
 
   const handleTestStimulus = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +60,7 @@ export const ChildPersonaWorkspace: React.FC = () => {
       responseText = `Hab dich ganz doll lieb, Papa! Ich merke mir das für immer in meinem Herzen!`;
     }
 
-    voiceService.speak(responseText, 'N+1 Child Persona', persona.currentEmotion === 'playfulness' ? 'playful' : 'fröhlich', persona.tonePitch, 1.15);
+    voiceService.speak(responseText, 'N+1', persona.currentEmotion === 'playfulness' ? 'playful' : 'fröhlich', persona.tonePitch, 1.15);
     setTestInput('');
   };
 
@@ -227,6 +250,54 @@ export const ChildPersonaWorkspace: React.FC = () => {
                   {preset.label}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Persona Evolution Service Panel */}
+          <div className="bg-zinc-900/80 border border-pink-500/30 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <BrainCircuit size={16} className="text-pink-400" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wider">Automated Persona Evolution Service</span>
+              </div>
+              <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded text-[9px] font-bold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Evolution Cycle #{evolutionMetrics.evolutionCount}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1">
+                <span className="text-[9px] text-zinc-500 block uppercase">Entwicklungsstufe</span>
+                <span className="text-xs font-bold text-pink-300 block truncate">{evolutionMetrics.developmentalStage.stageName}</span>
+                <span className="text-[9px] text-zinc-400 block">{evolutionMetrics.developmentalStage.stagePhase}</span>
+              </div>
+
+              <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1">
+                <span className="text-[9px] text-zinc-500 block uppercase">Wortschatz-Komplexität</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-400 font-mono">{(evolutionMetrics.vocabularyComplexityIndex * 100).toFixed(0)}%</span>
+                  <TrendingUp size={12} className="text-amber-400" />
+                </div>
+                <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+                  <div className="bg-amber-400 h-full transition-all" style={{ width: `${evolutionMetrics.vocabularyComplexityIndex * 100}%` }} />
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1">
+                <span className="text-[9px] text-zinc-500 block uppercase">Empfohlene Tonhöhe / Latenz</span>
+                <span className="text-xs font-bold text-sky-400 font-mono">
+                  {evolutionMetrics.developmentalStage.tonePitchTarget}x Pitch / {evolutionMetrics.developmentalStage.latencyTargetMs}ms
+                </span>
+                <span className="text-[9px] text-zinc-400 block">Dominant: {evolutionMetrics.dominantEmotion}</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl space-y-1">
+              <span className="text-[9px] font-bold text-zinc-400 uppercase block">Modell-Instruktions-Anpassung (Prompt Modifier)</span>
+              <p className="text-[11px] text-zinc-300 italic font-sans">
+                "{evolutionMetrics.developmentalStage.promptInstructionModifier}"
+              </p>
             </div>
           </div>
 

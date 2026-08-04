@@ -5,11 +5,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy full repository so workspace "file:" packages are present for install and sbom
-COPY . .
+# Copy package manifests
+COPY package.json package-lock.json ./
 
 # Install all dependencies using ci for reproducible builds
 RUN npm ci
+
+# Copy source code and assets
+COPY . .
 
 # Build Vite SPA assets & bundle server.ts with esbuild to dist/server.cjs
 RUN npm run build

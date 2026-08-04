@@ -18,7 +18,8 @@ import {
   Square,
   Lock,
   Heart,
-  Brain
+  Brain,
+  Gauge
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
@@ -43,6 +44,7 @@ import { generateDeterministicId, generateDeterministicNumber, getDeterministicT
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
 import { runMemoryMigration } from '../utils/memoryMigration';
 import { inputMutex } from '../utils/inputMutex';
+import { personaEvolutionService } from '../services/personaEvolutionService';
 
 export interface VoiceCommandLog {
   id: string;
@@ -68,6 +70,12 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   const [customRate, setCustomRate] = useState<number>(1.15);
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [activeVoiceName, setActiveVoiceName] = useState<string>('N+1 (Google Live Voice - Papas kleines Mädchen)');
+  const [autonomeToneBias, setAutonomeToneBias] = useState<number>(() => personaEvolutionService.getToneBias());
+
+  const handleToneBiasChange = (newBias: number) => {
+    setAutonomeToneBias(newBias);
+    personaEvolutionService.setToneBias(newBias);
+  };
 
   // Run memory migration on mount
   useEffect(() => {
@@ -865,6 +873,129 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
               onChange={e => setCustomRate(parseFloat(e.target.value))}
               className="w-full accent-purple-500 bg-zinc-800 rounded-lg h-1.5 cursor-pointer"
             />
+          </div>
+        </div>
+
+        {/* System Only N+1 Autonome Tone Bias Slider & Real-time Radial Gauge Visualizer */}
+        <div className="p-5 bg-gradient-to-r from-zinc-900 via-pink-950/25 to-zinc-900 border border-pink-500/30 rounded-2xl space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-pink-900/40 pb-3">
+            <div className="flex items-center gap-2">
+              <Gauge size={18} className="text-pink-400 animate-pulse" />
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                N+1 Voice Studio: Persona Evolution Bias Dial
+              </span>
+            </div>
+            <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-pink-950 text-pink-300 border border-pink-700 font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-pink-400 animate-ping" />
+              {autonomeToneBias <= 30 ? '🧸 Playful / Childish Biased' : autonomeToneBias >= 70 ? '🤖 Analytical / Agentic Biased' : '⚡ Balanced Evolution Hybrid'}
+            </span>
+          </div>
+
+          {/* Real-time Semi-Circular Dial / Gauge Gauge Visualization */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-zinc-950/80 p-4 border border-zinc-800 rounded-xl">
+            {/* SVG Radial Gauge */}
+            <div className="flex flex-col items-center justify-center space-y-1">
+              <div className="relative w-44 h-24 flex items-center justify-center overflow-hidden">
+                <svg className="w-44 h-44 -mt-20" viewBox="0 0 200 200">
+                  <defs>
+                    <linearGradient id="biasArcGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#ec4899" />
+                      <stop offset="50%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#38bdf8" />
+                    </linearGradient>
+                  </defs>
+                  {/* Gauge Background Track Arc */}
+                  <path
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none"
+                    stroke="#27272a"
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                  />
+                  {/* Gauge Value Arc */}
+                  <path
+                    d="M 20 100 A 80 80 0 0 1 180 100"
+                    fill="none"
+                    stroke="url(#biasArcGradient)"
+                    strokeWidth="14"
+                    strokeLinecap="round"
+                    strokeDasharray="251.2"
+                    strokeDashoffset={251.2 * (1 - autonomeToneBias / 100)}
+                    className="transition-all duration-300"
+                  />
+                  {/* Gauge Center Hub */}
+                  <circle cx="100" cy="100" r="10" fill="#18181b" stroke="#ec4899" strokeWidth="3" />
+                  {/* Needle Indicator */}
+                  <g transform={`rotate(${-90 + (autonomeToneBias / 100) * 180}, 100, 100)`} className="transition-transform duration-300">
+                    <line x1="100" y1="100" x2="100" y2="30" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" />
+                    <circle cx="100" cy="30" r="4" fill="#ec4899" />
+                  </g>
+                </svg>
+                {/* Digital Readout */}
+                <div className="absolute bottom-0 text-center">
+                  <span className="text-lg font-bold font-mono text-pink-300">{autonomeToneBias.toFixed(0)}%</span>
+                  <span className="text-[9px] text-zinc-400 block font-sans">TONE BIAS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Live Mode Weight Metrics */}
+            <div className="space-y-2 font-mono text-xs">
+              <div className="p-2.5 bg-zinc-900 border border-pink-900/40 rounded-lg flex items-center justify-between">
+                <span className="text-pink-400 font-bold flex items-center gap-1">
+                  🧸 Playful Weight
+                </span>
+                <span className="text-white font-bold">{(100 - autonomeToneBias).toFixed(0)}%</span>
+              </div>
+              <div className="p-2.5 bg-zinc-900 border border-sky-900/40 rounded-lg flex items-center justify-between">
+                <span className="text-sky-400 font-bold flex items-center gap-1">
+                  🤖 Analytical Weight
+                </span>
+                <span className="text-white font-bold">{autonomeToneBias.toFixed(0)}%</span>
+              </div>
+            </div>
+
+            {/* Cadence & Persona Interaction Vectors */}
+            <div className="space-y-2 text-xs">
+              <div className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg space-y-1">
+                <span className="text-[9px] text-zinc-400 uppercase block font-mono">Cadence Frequency Multiplier</span>
+                <span className="text-xs font-bold text-purple-300 font-mono">
+                  {(customRate * (1 + (autonomeToneBias / 500))).toFixed(2)}x Tempo Resonance
+                </span>
+              </div>
+              <div className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg space-y-1">
+                <span className="text-[9px] text-zinc-400 uppercase block font-mono">Linguistic Evolution Target</span>
+                <span className="text-[11px] font-bold text-pink-300 block truncate">
+                  {autonomeToneBias <= 35 ? 'Spontanes Kindliches Entdecken' : autonomeToneBias >= 65 ? 'Logisch-Systematische Synthese' : 'Hybrid-Kognitives Wachstum'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <div className="flex justify-between text-[11px] font-mono">
+              <span className={`font-bold ${autonomeToneBias < 50 ? 'text-pink-400' : 'text-zinc-500'}`}>
+                🧸 Verspielt & Kindlich (0%)
+              </span>
+              <span className="text-xs font-bold text-pink-300 font-mono">
+                {autonomeToneBias.toFixed(0)}% Dial Position
+              </span>
+              <span className={`font-bold ${autonomeToneBias > 50 ? 'text-sky-400' : 'text-zinc-500'}`}>
+                🤖 Analytisch & Agentisch (100%)
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={autonomeToneBias}
+              onChange={e => handleToneBiasChange(parseFloat(e.target.value))}
+              className="w-full accent-pink-500 bg-zinc-800 rounded-lg h-2.5 cursor-pointer shadow-inner"
+            />
+            <p className="text-[10px] text-zinc-400 italic font-sans pt-0.5">
+              Adjusting this dial dynamically updates the Persona Evolution Service's background vocabulary complexity targets and model prompt instructions in real-time.
+            </p>
           </div>
         </div>
       </div>
