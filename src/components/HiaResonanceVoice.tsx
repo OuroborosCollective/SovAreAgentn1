@@ -36,6 +36,9 @@ import { ProactiveLearningEngine } from './ProactiveLearningEngine';
 import { PrivacySettings } from './PrivacySettings';
 import { ProtectedPersonalityMemory } from './ProtectedPersonalityMemory';
 import { VoicePerformanceMonitor } from './VoicePerformanceMonitor';
+import { BidirectionalVoiceSession } from './BidirectionalVoiceSession';
+import { FamilyVoiceVerification } from './FamilyVoiceVerification';
+import { ChildPersonaWorkspace } from './ChildPersonaWorkspace';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
 import { runMemoryMigration } from '../utils/memoryMigration';
@@ -519,6 +522,15 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
       {/* VOICE PERFORMANCE MONITORING LAYER */}
       <VoicePerformanceMonitor />
+
+      {/* BIDIRECTIONAL VOICING & EVENT CONTRACT MONITORING WORKSPACE */}
+      <BidirectionalVoiceSession />
+
+      {/* FAMILY VOICE VERIFICATION WORKSPACE (PAPA & MAMA) */}
+      <FamilyVoiceVerification />
+
+      {/* CHILD PERSONA HOOK & VECTOR EMOTIONAL WORKSPACE */}
+      <ChildPersonaWorkspace />
 
       {/* N+1 PROACTIVE LEARNING & CURIOSITY ENGINE */}
       <ProactiveLearningEngine />

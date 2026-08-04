@@ -12,8 +12,8 @@ async function main() {
     const owner = "OuroborosCollective";
     const repo = "SovAreAgentn1";
     
-    // Close issues 4 to 19
-    for (let i = 4; i <= 19; i++) {
+    // Close issues 4 to 21
+    for (let i = 4; i <= 21; i++) {
         try {
             await octokit.rest.issues.update({
                 owner,
