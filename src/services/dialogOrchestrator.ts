@@ -99,7 +99,7 @@ You MUST respond strictly with a valid JSON object matching this schema:
     const prompt = `Conversation History:\n${conversationHistory}\n\nUser: ${request.input}\n\nReturn JSON response matching DialogResponseV1 schema.`;
     
     const params: GenerateContentParameters = {
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         systemInstruction: systemPrompt,

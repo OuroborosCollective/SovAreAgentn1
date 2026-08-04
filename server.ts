@@ -2473,6 +2473,54 @@ echo "Run: tsx server.ts or npm run dev"
     }
   });
 
+  // Background Sync Batch Endpoint for Offline Queued ARE-Logik Ticks
+  app.post('/api/arekappa/ledger/sync-ticks', async (req, res) => {
+    const { batchId, ticks } = req.body;
+    if (!Array.isArray(ticks) || ticks.length === 0) {
+      return res.status(400).json({ status: "error", message: "Array of ticks is required" });
+    }
+
+    try {
+      const syncedIds: string[] = [];
+      const results: any[] = [];
+
+      // Sort ticks by queuedAt to ensure strict chronological execution order (Immutable Information Axiom)
+      const sortedTicks = [...ticks].sort((a, b) => (a.queuedAt || 0) - (b.queuedAt || 0));
+
+      // Atomic Batch Execution
+      for (const item of sortedTicks) {
+        if (item.program) {
+          const result = await AREKappaLedgerService.appendExecution(item.program);
+          syncedIds.push(item.id);
+          results.push({
+            id: item.id,
+            receiptId: result.evidenceReceipt.receiptId,
+            chainHash: result.evidenceReceipt.chainHash,
+            status: "appended"
+          });
+        }
+      }
+
+      // Verify overall ledger integrity after atomic batch append
+      const verification = await AREKappaLedgerService.verifyLedger();
+
+      console.log(`[ARE Ledger Sync] Flushed atomic batch ${batchId || 'default'} with ${syncedIds.length} ARE ticks. Chain Valid: ${verification.isChainValid}`);
+
+      res.json({
+        status: "success",
+        batchId,
+        syncedCount: syncedIds.length,
+        syncedIds,
+        results,
+        isChainValid: verification.isChainValid,
+        totalLedgerReceipts: verification.totalReceipts
+      });
+    } catch (err: any) {
+      console.error("[ARE Ledger Sync] Error syncing offline ARE ticks:", err);
+      res.status(500).json({ status: "error", message: err.message || "Failed to sync offline ticks" });
+    }
+  });
+
   app.get('/api/arekappa/ledger/verify', async (req, res) => {
     try {
       const report = await AREKappaLedgerService.verifyLedger();

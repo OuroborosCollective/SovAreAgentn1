@@ -22,6 +22,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { useAudioVisualizer } from "../hooks/useAudioVisualizer";
+import { useNotification } from '../context/NotificationContext';
 import { AudioFrequencyVisualizer } from "./AudioFrequencyVisualizer";
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
@@ -42,6 +43,7 @@ import { VoicePerformanceMonitor } from './VoicePerformanceMonitor';
 import { BidirectionalVoiceSession } from './BidirectionalVoiceSession';
 import { FamilyVoiceVerification } from './FamilyVoiceVerification';
 import { ChildPersonaWorkspace } from './ChildPersonaWorkspace';
+import { EmotionalProfileVisualization } from './EmotionalProfileVisualization';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
 import { voiceService, LittleGirlVoiceMood } from '../services/voiceService';
 import { runMemoryMigration } from '../utils/memoryMigration';
@@ -67,6 +69,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   const isListeningRef = useRef(isListening);
   isListeningRef.current = isListening;
 
+  const { addNotification } = useNotification();
   const [speechSynthEnabled, setSpeechSynthEnabled] = useState(true);
   const [ttsMoodTone, setTtsMoodTone] = useState<LittleGirlVoiceMood>('fröhlich');
   const [customPitch, setCustomPitch] = useState<number>(1.30);
@@ -74,7 +77,26 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
   const [isPlayingVoice, setIsPlayingVoice] = useState(false);
   const [activeVoiceName, setActiveVoiceName] = useState<string>('N+1 (Google Live Voice - Papas kleines Mädchen)');
   const [autonomeToneBias, setAutonomeToneBias] = useState<number>(() => personaEvolutionService.getToneBias());
-  const { frequencyData: liveFrequencyData } = useAudioVisualizer(true, isListening, isPlayingVoice);
+  
+  const { 
+    frequencyData: liveFrequencyData,
+    coherenceScore,
+    baselineCoherence,
+    coherenceDropDetected,
+    triggerSimulatedCoherenceDrop,
+    recalibrateBaseline
+  } = useAudioVisualizer(true, isListening, isPlayingVoice);
+
+  // Trigger in-app notification when a voice frequency coherence drop is detected
+  useEffect(() => {
+    if (coherenceDropDetected) {
+      addNotification(
+        `Diagnostic Alert: Voice frequency visualizer detected a sudden coherence drop (${coherenceScore}% vs Baseline ${baselineCoherence}%). Push notification broadcast sent.`,
+        'error',
+        'PUSH_COHERENCE_ALERT'
+      );
+    }
+  }, [coherenceDropDetected, coherenceScore, baselineCoherence, addNotification]);
 
 
   const handleToneBiasChange = (newBias: number) => {
@@ -552,6 +574,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
       {/* CHILD PERSONA HOOK & VECTOR EMOTIONAL WORKSPACE */}
       <ChildPersonaWorkspace />
 
+      {/* HISTORICAL EMOTIONAL PROFILE & VOICE RESONANCE EVOLUTION (RECHARTS) */}
+      <EmotionalProfileVisualization />
+
       {/* N+1 PROACTIVE LEARNING & CURIOSITY ENGINE */}
       <ProactiveLearningEngine />
       <PrivacySettings />
@@ -596,7 +621,7 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
           <div className="p-3 bg-zinc-900/70 border border-zinc-800 rounded-2xl space-y-1">
             <span className="text-zinc-500 text-[10px] uppercase font-bold block">Enforced Voice Model</span>
             <span className="text-white font-bold flex items-center gap-1.5">
-              <Cpu size={14} className="text-pink-400" /> gemini-2.5-flash
+              <Cpu size={14} className="text-pink-400" /> gemini-flash-latest
             </span>
             <span className="text-[10px] text-emerald-400 block">Prebuilt Voice: N1 (24kHz PCM)</span>
           </div>
@@ -730,7 +755,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
                 animate={{ height: `${val}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 className={`w-3.5 rounded-t-lg ${
-                  isPlayingVoice
+                  coherenceDropDetected
+                    ? 'bg-gradient-to-t from-red-600 to-amber-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]'
+                    : isPlayingVoice
                     ? 'bg-gradient-to-t from-pink-500 via-amber-400 to-sky-300 animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.8)]'
                     : isListening 
                     ? 'bg-gradient-to-t from-pink-600 to-purple-400' 
@@ -738,6 +765,62 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
                 }`}
               />
             ))}
+          </div>
+
+          {/* Diagnostic Voice Coherence Telemetry & Push Trigger Shield */}
+          <div className={`p-3.5 rounded-2xl border font-mono text-xs space-y-2 transition-all ${
+            coherenceDropDetected 
+              ? 'bg-red-950/80 border-red-500/60 text-red-100 shadow-lg ring-1 ring-red-500/40' 
+              : 'bg-zinc-900/80 border-zinc-800 text-zinc-300'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                <Gauge size={12} className={coherenceDropDetected ? "text-red-400 animate-spin" : "text-emerald-400"} />
+                Voice Coherence Monitor
+              </span>
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase border ${
+                coherenceDropDetected
+                  ? 'bg-red-900 text-red-200 border-red-700 animate-pulse'
+                  : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+              }`}>
+                {coherenceDropDetected ? 'COHERENCE DROP' : 'OPTIMAL'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs font-bold">
+              <div>
+                <span>Current: </span>
+                <span className={coherenceDropDetected ? "text-red-300 text-sm font-extrabold" : "text-emerald-400"}>
+                  {coherenceScore}%
+                </span>
+              </div>
+              <div className="text-zinc-400 text-[11px]">
+                <span>Baseline: </span>
+                <span className="text-white font-semibold">{baselineCoherence}%</span>
+              </div>
+            </div>
+
+            {/* Interactive Diagnostic Drop Trigger */}
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+              {coherenceDropDetected ? (
+                <button
+                  onClick={recalibrateBaseline}
+                  className="w-full py-1.5 px-3 bg-emerald-900 hover:bg-emerald-800 text-emerald-100 border border-emerald-600 rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw size={12} className="animate-spin" />
+                  <span>Recalibrate Baseline Coherence</span>
+                </button>
+              ) : (
+                <button
+                  onClick={triggerSimulatedCoherenceDrop}
+                  className="w-full py-1.5 px-3 bg-red-950/90 hover:bg-red-900 text-red-200 border border-red-700/80 hover:border-red-500 rounded-xl font-bold text-[10px] transition-all flex items-center justify-center gap-1.5 shadow-md"
+                  title="Simulate sudden drop in voice frequency coherence to trigger push notification alert"
+                >
+                  <Zap size={12} className="text-amber-400" />
+                  <span>Trigger Diagnostic Coherence Drop</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="p-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-2 font-mono text-xs">

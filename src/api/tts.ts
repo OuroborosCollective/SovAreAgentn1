@@ -12,13 +12,12 @@ export function createTtsRouter() {
 
       const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-         return res.status(503).json({ error: "TTS provider API key is not configured on the server." });
+         return res.status(200).json({ status: "fallback", audio: null, message: "TTS API key not configured on server." });
       }
 
       const ai = new GoogleGenAI({ apiKey });
       let response: any = null;
-      const ttsModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-      let lastError: any = null;
+      const ttsModels = ["gemini-flash-latest"];
 
       for (const modelName of ttsModels) {
         try {
@@ -45,16 +44,16 @@ export function createTtsRouter() {
           if (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED")) {
             console.warn(`[TTS API] Model ${modelName} rate limited (429).`);
           } else {
-            console.warn(`[TTS API] Model ${modelName} unavailable:`, errMsg);
+            console.warn(`[TTS API] Model ${modelName} audio notice:`, errMsg);
           }
-          lastError = e;
         }
       }
 
-      return res.status(500).json({ error: lastError?.message || "No audio generated from TTS models" });
+      // Return 200 with fallback audio: null so client voiceService transitions seamlessly to Web Speech API
+      return res.status(200).json({ status: "fallback", audio: null, message: "Server audio generation unavailable; using client speech synthesis fallback." });
     } catch (error: any) {
-      console.error("[TTS API] Error generating audio:", error);
-      return res.status(500).json({ error: error.message });
+      console.error("[TTS API] Error in TTS endpoint:", error);
+      return res.status(200).json({ status: "fallback", audio: null, message: error.message });
     }
   });
   return router;

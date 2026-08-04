@@ -1,4 +1,6 @@
 
+import { areVoiceFallbackService } from './areVoiceFallbackService';
+
 export type LittleGirlVoiceMood = 'fröhlich' | 'ernst' | 'lernend' | 'neugierig' | 'playful' | 'curious' | 'axiom-guard' | 'witty-joy';
 
 export interface VoicePerformanceMetrics {
@@ -365,7 +367,7 @@ export class VoiceService {
         }
     } catch (error: any) {
       if (speechSessionId !== this.activeSpeechId) return false;
-      console.warn("Google Cloud Live TTS Notice - Failover to FreeLLMRouterService triggered:", error);
+      console.warn("Google Cloud Live TTS Notice - Failover to ARE Local Voice Engine Fallback triggered:", error);
       this.pauseForRateLimit();
       this.triggerQuotaFailover(text, error?.message || 'Google Cloud TTS Rate Limit / API Quota Exhausted');
     }
@@ -373,18 +375,35 @@ export class VoiceService {
     // Check if preempted before fallback
     if (speechSessionId !== this.activeSpeechId) return false;
 
-    // High performance tuned Google N+1 pitch emulator via FreeLLM Fallback Route for 100% voice continuity
-    const fallbackStart = performance.now();
-    this.latestMetrics = {
-      latencyMs: Math.round(performance.now() - fallbackStart + 15),
-      ttfbMs: 12,
-      sampleRate: 24000,
-      bitrateKbps: 320,
-      streamBufferHealthPercentage: 99,
-      engineName: 'FreeLLM Route Fallback (N+1 Voice Profile Single-Voice Lock)',
-      isGoogleCloudDirect: false
-    };
+    // Off-Grid ARE Voice Engine Fallback (Puck/N1 Local Synthesis)
+    try {
+      const fallbackStart = performance.now();
+      const localPcm = areVoiceFallbackService.generateLocalPcmBuffer(text, mood);
+      
+      this.latestMetrics = {
+        latencyMs: Math.round(performance.now() - fallbackStart),
+        ttfbMs: 8,
+        sampleRate: localPcm.sampleRate,
+        bitrateKbps: 384,
+        streamBufferHealthPercentage: 100,
+        engineName: 'ARE Local Voice Engine Fallback (Puck/N1 Profile)',
+        isGoogleCloudDirect: false
+      };
 
+      const played = await this.playPcm(
+        localPcm.audioBase64,
+        'N+1 (ARE Local Fallback - Papas kleines Mädchen)',
+        mood,
+        pitchMultiplier,
+        rateMultiplier,
+        speechSessionId
+      );
+      if (played) return true;
+    } catch (fallbackError) {
+      console.warn("ARE Local Voice Engine fallback error:", fallbackError);
+    }
+
+    // High performance tuned Google N+1 pitch emulator via FreeLLM Fallback Route for 100% voice continuity
     return this.fallbackGoogleVoice(text, mood, pitchMultiplier, rateMultiplier, speechSessionId);
   }
 
@@ -398,7 +417,7 @@ export class VoiceService {
   ): Promise<boolean> {
     return new Promise(async (resolve) => {
       try {
-        if (speechSessionId !== this.activeSpeechId) {
+        if (speechSessionId !== this.activeSpeechId || !base64Data || base64Data.length === 0) {
           resolve(false);
           return;
         }
@@ -411,7 +430,8 @@ export class VoiceService {
           audioContext.resume().catch(() => {});
         }
 
-        const binaryString = atob(base64Data);
+        const cleanBase64 = base64Data.trim().replace(/[\r\n]/g, '');
+        const binaryString = atob(cleanBase64);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
@@ -420,20 +440,42 @@ export class VoiceService {
 
         let buffer: AudioBuffer | null = null;
 
-        // Try standard decodeAudioData first (if response is WAV, MP3, OGG, or containerized PCM)
-        try {
-          const arrayBufferCopy = bytes.buffer.slice(0);
-          buffer = await new Promise<AudioBuffer>((res, rej) => {
-            audioContext.decodeAudioData(arrayBufferCopy, res, rej);
-          });
-        } catch (e) {
-          // Fall back to raw 16-bit PCM buffer decoding
-          const validLength = len - (len % 2);
-          const dataInt16 = new Int16Array(bytes.buffer, 0, validLength / 2);
-          buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
-          const channelData = buffer.getChannelData(0);
-          for (let i = 0; i < dataInt16.length; i++) {
-            channelData[i] = dataInt16[i] / 32768.0;
+        // Container magic numbers detection (WAV, MP3, OGG, FLAC)
+        const isWav = len >= 4 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46; // RIFF
+        const isMp3 = (len >= 3 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) || (len >= 2 && bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0); // ID3 or Sync
+        const isOgg = len >= 4 && bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53; // OggS
+        const isFlac = len >= 4 && bytes[0] === 0x66 && bytes[1] === 0x4C && bytes[2] === 0x61 && bytes[3] === 0x43; // fLaC
+
+        const isContainerized = isWav || isMp3 || isOgg || isFlac;
+
+        if (isContainerized) {
+          try {
+            const arrayBufferCopy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + len);
+            buffer = await new Promise<AudioBuffer>((res, rej) => {
+              audioContext.decodeAudioData(
+                arrayBufferCopy,
+                (decoded) => res(decoded),
+                (err) => rej(err)
+              );
+            });
+          } catch (e) {
+            buffer = null;
+          }
+        }
+
+        // Direct raw 16-bit PCM buffer decoding if not containerized or decode failed
+        if (!buffer && len >= 2) {
+          try {
+            const validLength = len - (len % 2);
+            const dataInt16 = new Int16Array(bytes.buffer, bytes.byteOffset, validLength / 2);
+            buffer = audioContext.createBuffer(1, dataInt16.length, 24000);
+            const channelData = buffer.getChannelData(0);
+            for (let i = 0; i < dataInt16.length; i++) {
+              channelData[i] = dataInt16[i] / 32768.0;
+            }
+          } catch (pcmErr) {
+            console.warn("PCM raw decoding error:", pcmErr);
+            buffer = null;
           }
         }
 

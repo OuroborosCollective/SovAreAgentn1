@@ -202,9 +202,9 @@ export class AREKappaRuntimeLibrary {
         4. Do NOT output markdown explanations or talking. Output ONLY the raw updated typescript file content, with no markdown wrappers or quotes.
       `;
 
-      // Use gemini-2.5-flash as instructed (smallest capable model for coding actions)
+      // Use gemini-flash-latest as instructed (smallest capable model for coding actions)
       const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-flash-latest",
         contents: repairPrompt,
       });
 

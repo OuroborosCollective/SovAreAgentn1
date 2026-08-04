@@ -38,6 +38,7 @@ import { KappaIREngine } from '../services/kappaIREngine';
 import { KappaIRProgram, KappaEffect, KappaPrimitiveType } from '../types/arekappa';
 import { StaticAnalysisReport, StaticAnalysisIssue } from '../services/arekappaStaticAnalyzer';
 import { PredictiveMetrics, WolframSystemStatus, MockViolation } from '../services/arekappaRuntimeLibrary';
+import { areBackgroundSyncService, SyncStatus } from '../services/areBackgroundSyncService';
 
 export const AREKappaRuntimeWorkspace: React.FC = () => {
   // Source Code input
@@ -72,6 +73,18 @@ fetch("https://api.ouroboros.io/sync?val=" + result)
   const [executionResult, setExecutionResult] = useState<any | null>(null);
   const [expandedReceiptId, setExpandedReceiptId] = useState<string | null>(null);
   
+  // ARE Background Sync Offline Queue State
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    isOnline: true,
+    pendingCount: 0,
+    isSyncing: false,
+    lastSyncedAt: null,
+    lastError: null,
+    sqliteActive: false,
+    sqliteRows: 0,
+    sqliteSizeBytes: 0
+  });
+
   // Interactive Tampering State
   const [targetTamperIndex, setTargetTamperIndex] = useState<number | null>(null);
   const [targetTamperKey, setTargetTamperKey] = useState<string>('outputsHash');
@@ -82,6 +95,16 @@ fetch("https://api.ouroboros.io/sync?val=" + result)
     fetchTelemetry();
     handleCompile();
     fetchLedger();
+
+    const unsubscribeSync = areBackgroundSyncService.subscribe((status) => {
+      setSyncStatus(status);
+      if (status.lastSyncedAt) {
+        fetchLedger();
+        verifyLedger();
+      }
+    });
+
+    return () => unsubscribeSync();
   }, []);
 
   const fetchTelemetry = async () => {
@@ -141,21 +164,75 @@ fetch("https://api.ouroboros.io/sync?val=" + result)
     }
     setIsExecuting(true);
     setExecutionResult(null);
+
+    // If browser is offline, queue directly into IndexedDB without making fetch request
+    if (!navigator.onLine) {
+      try {
+        const queuedTick = await areBackgroundSyncService.enqueueTick(program);
+        setExecutionResult({
+          resultValue: 'QUEUED_OFFLINE_INDEXEDDB',
+          evidenceReceipt: {
+            receiptId: queuedTick.id,
+            previousReceiptHash: '0xOFFLINE_PENDING_CHAIN_LINK',
+            programHash: '0x' + program.programId,
+            outputsHash: '0xOFFLINE_PENDING',
+            stateDeltaHash: '0xOFFLINE_DELTA',
+            chainHash: '0xOFFLINE_LOCAL_QUEUE',
+            timestamp: queuedTick.queuedAt,
+            executedBy: 'ARE_BACKGROUND_SYNC_SW',
+            signature: 'SIG_OFFLINE_LOCAL_QUEUE'
+          },
+          executionLog: [
+            `Network offline. ARE-Logik tick ${queuedTick.id} saved to IndexedDB.`,
+            `Immutable Information Axiom preserved: Tick will auto-sync to server database upon network restoration.`
+          ]
+        });
+      } catch (queueErr: any) {
+        setExecutionResult({
+          resultValue: 'OFFLINE_QUEUE_FAILED',
+          errorValue: queueErr.message,
+          executionLog: ['Failed to write tick to local IndexedDB queue.']
+        });
+      } finally {
+        setIsExecuting(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/arekappa/ledger/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ program })
       });
+      
       if (res.ok) {
         const data = await res.json();
-        setExecutionResult({
-          resultValue: data.resultValue,
-          evidenceReceipt: data.evidenceReceipt,
-          executionLog: data.executionLog
-        });
-        await fetchLedger();
-        await verifyLedger();
+        if (data.status === 'queued_offline') {
+          setExecutionResult({
+            resultValue: data.resultValue,
+            evidenceReceipt: {
+              receiptId: data.tickId,
+              previousReceiptHash: '0xOFFLINE_PENDING',
+              programHash: '0x' + program.programId,
+              outputsHash: '0xOFFLINE_PENDING',
+              stateDeltaHash: '0xOFFLINE_DELTA',
+              chainHash: '0xOFFLINE_SW_QUEUE',
+              timestamp: Date.now(),
+              executedBy: 'SERVICE_WORKER_OFFLINE_QUEUE',
+              signature: 'SIG_OFFLINE_QUEUED'
+            },
+            executionLog: data.executionLog || ['Tick queued in Service Worker IndexedDB.']
+          });
+        } else {
+          setExecutionResult({
+            resultValue: data.resultValue,
+            evidenceReceipt: data.evidenceReceipt,
+            executionLog: data.executionLog
+          });
+          await fetchLedger();
+          await verifyLedger();
+        }
       } else {
         const data = await res.json();
         setExecutionResult({
@@ -164,8 +241,35 @@ fetch("https://api.ouroboros.io/sync?val=" + result)
           executionLog: [data.message || 'Formal verification constraint violation intercepted. Runtime execution halted.']
         });
       }
-    } catch (err) {
-      console.error('Failed to append execution receipt:', err);
+    } catch (err: any) {
+      console.warn('Network error during execution. Enqueueing offline:', err);
+      try {
+        const queuedTick = await areBackgroundSyncService.enqueueTick(program);
+        setExecutionResult({
+          resultValue: 'QUEUED_OFFLINE_INDEXEDDB',
+          evidenceReceipt: {
+            receiptId: queuedTick.id,
+            previousReceiptHash: '0xOFFLINE_PENDING',
+            programHash: '0x' + program.programId,
+            outputsHash: '0xOFFLINE_PENDING',
+            stateDeltaHash: '0xOFFLINE_DELTA',
+            chainHash: '0xOFFLINE_LOCAL_QUEUE',
+            timestamp: queuedTick.queuedAt,
+            executedBy: 'ARE_BACKGROUND_SYNC_SW',
+            signature: 'SIG_OFFLINE_LOCAL_QUEUE'
+          },
+          executionLog: [
+            `Network request failed. ARE-Logik tick ${queuedTick.id} saved to IndexedDB.`,
+            `Immutable Information Axiom preserved: Tick will auto-sync to server database upon network restoration.`
+          ]
+        });
+      } catch (queueErr: any) {
+        setExecutionResult({
+          resultValue: 'EXECUTION_FAILED',
+          errorValue: err.message,
+          executionLog: ['Network request failed and could not enqueue locally.']
+        });
+      }
     } finally {
       setIsExecuting(false);
     }
@@ -350,6 +454,58 @@ fetch("https://api.ouroboros.io/sync?val=" + result)
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* SERVICE WORKER BACKGROUND SYNC WIDGET */}
+      <div className="p-4 bg-zinc-950/90 border border-purple-500/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className={`p-2.5 rounded-xl border flex items-center justify-center shrink-0 ${
+            syncStatus.isOnline
+              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-700/60'
+              : 'bg-amber-950/80 text-amber-400 border-amber-700/60'
+          }`}>
+            <Database size={20} className={syncStatus.isSyncing ? 'animate-spin' : ''} />
+          </div>
+
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Service Worker Background Sync
+              </span>
+              <span className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-full border ${
+                syncStatus.isOnline
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                  : 'bg-amber-950 text-amber-300 border-amber-700 animate-pulse'
+              }`}>
+                {syncStatus.isOnline ? 'ONLINE (Direct Sync)' : 'OFFLINE (IndexedDB Active)'}
+              </span>
+              <span className="px-2 py-0.5 text-[9px] font-mono font-bold rounded-full bg-pink-950 text-pink-300 border border-pink-700">
+                Axiom: Immutable Information
+              </span>
+            </div>
+
+            <p className="text-xs text-zinc-400">
+              Queues ARE-Logik ticks in IndexedDB when offline and automatically flushes to database once connectivity is restored.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+          {syncStatus.pendingCount > 0 && (
+            <span className="px-3 py-1 bg-amber-950/80 text-amber-300 border border-amber-700 rounded-xl text-xs font-mono font-bold">
+              {syncStatus.pendingCount} Queued Offline
+            </span>
+          )}
+
+          <button
+            onClick={() => areBackgroundSyncService.flushQueue()}
+            disabled={syncStatus.isSyncing || !syncStatus.isOnline || syncStatus.pendingCount === 0}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={syncStatus.isSyncing ? 'animate-spin' : ''} />
+            {syncStatus.isSyncing ? 'Flushing Queue...' : 'Flush Queue Now'}
+          </button>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-zinc-900 pb-6">
         <div>

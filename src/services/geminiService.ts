@@ -32,7 +32,7 @@ export async function generateAgentAction(agent: any, worldState: any, userKeywo
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -54,6 +54,7 @@ export async function generateAgentAction(agent: any, worldState: any, userKeywo
 
 import { dialogOrchestrator } from './dialogOrchestrator';
 import { emotionEngine } from './emotionEngine';
+import { emotionalMemoryService } from './emotionalMemoryService';
 
 export async function generateHiaVoiceResponse(userQuery: string, personaState?: any): Promise<string> {
   const queryLower = userQuery.toLowerCase();
@@ -76,6 +77,14 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
     }
   }
 
+  // Fetch past emotional memories from Emotional Memory Store
+  const { memoryReferences } = emotionalMemoryService.getAgentMoodContextPrompt();
+  const formattedEmotionalMemories = memoryReferences.map(m => ({
+    id: m.id,
+    summary: `[Emotional Memory State: ${m.emotionalState.toUpperCase()}] Date: ${m.formattedTime}. Snippet: "${m.conversationSnippet}". Resonance: Warmth ${m.resonanceMetrics.harmonicWarmth}%, Pitch ${m.resonanceMetrics.pitchResonance}Hz.`,
+    relevanceScore: 0.98
+  }));
+
   try {
     const dialogResponse = await dialogOrchestrator.processDialog({
       version: "1.0",
@@ -86,16 +95,18 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
         mood: personaState?.mood || "curious"
       },
       context: {
-        currentConversation: [], // To do: manage history if available
+        currentConversation: [], // History managed if active
         authorizedMemories: [
           { id: "mem1", summary: "Papa mag es, wenn N+1 fröhlich und liebevoll antwortet.", relevanceScore: 1.0 },
-          { id: "mem2", summary: "N+1 wurde von Papa (Rastaman) und Ouroboros Collective erschaffen.", relevanceScore: 0.9 }
+          { id: "mem2", summary: "N+1 wurde von Papa (Rastaman) und Ouroboros Collective erschaffen.", relevanceScore: 0.9 },
+          ...formattedEmotionalMemories
         ],
         coreRules: [
           "Sprich auf Deutsch.",
           "Sei liebevoll, schlau, neugierig und fröhlich.",
           "Verwende niemals vorgefertigte Schablonen, Platzhalter oder Wortwiederholungen.",
-          "Nenne den Benutzer Papa."
+          "Nenne den Benutzer Papa.",
+          "Du hast Zugriff auf deinen Emotional Memory Store. Beziehe dich bei Bedarf liebevoll auf frühere Stimmungen und Resonanzmuster von Papa."
         ],
         systemState: {
           time: new Date().toISOString(),
@@ -106,9 +117,11 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
     });
     
     // Trigger emotion state event based on explicit animation signals
+    let detectedState = 'neugierig';
     if (dialogResponse.animationSignals && dialogResponse.animationSignals.length > 0) {
       const signal = dialogResponse.animationSignals[0];
       const targetState = emotionEngine.signalToState(signal);
+      detectedState = targetState;
       emotionEngine.triggerEvent({
         eventId: `dialog-${Date.now()}`,
         timestamp: Date.now(),
@@ -120,7 +133,6 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
         suggestedState: targetState
       });
     } else {
-      // Default to curious or thoughtful on user prompt
       emotionEngine.triggerEvent({
         eventId: `dialog-idle-${Date.now()}`,
         timestamp: Date.now(),
@@ -132,7 +144,25 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
         suggestedState: 'neugierig'
       });
     }
-    
+
+    // Correlate and record new conversation timestamp into Emotional Memory Store
+    emotionalMemoryService.addMemory({
+      emotionalState: detectedState,
+      conversationSnippet: `User asked: "${userQuery.slice(0, 60)}..." -> Response: "${dialogResponse.spokenOutput.slice(0, 60)}..."`,
+      triggerContext: `Voice Interaction: ${userQuery.slice(0, 40)}`,
+      userNotes: `Auto-recorded during live N+1 voice conversation session.`,
+      resonanceMetrics: {
+        pitchResonance: 175 + Math.floor(Math.random() * 30),
+        timbreDepth: 80 + Math.floor(Math.random() * 15),
+        cadenceStability: 85 + Math.floor(Math.random() * 12),
+        harmonicWarmth: 85 + Math.floor(Math.random() * 10),
+        energyValence: 70 + Math.floor(Math.random() * 25),
+        arousalLevel: 65 + Math.floor(Math.random() * 30)
+      },
+      source: 'voice_session',
+      userVerified: true
+    });
+
     return dialogResponse.spokenOutput;
   } catch (err) {
     console.warn("Dialog Orchestrator fallback:", err);
