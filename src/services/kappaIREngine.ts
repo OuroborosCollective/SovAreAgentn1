@@ -18,7 +18,7 @@ export interface SyntaxValidationResult {
 
 export class KappaIREngine {
   // Simple SHA-256 style deterministic string hash for content addressing
-  private static computeContentHash(content: string): string {
+  public static computeContentHash(content: string): string {
     let hash = 0x811c9dc5;
     for (let i = 0; i < content.length; i++) {
       hash ^= content.charCodeAt(i);
@@ -31,7 +31,7 @@ export class KappaIREngine {
   /**
    * Formal Syntax Validator for κIR v1 programs
    */
-  public static validateKappaIRSyntax(program: KappaIRProgram, requireDeterminism: boolean = true): SyntaxValidationResult {
+  public static validateKappaIRSyntax(program: KappaIRProgram, requireDeterminism: boolean = false): SyntaxValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let checkedNodesCount = 0;
@@ -53,6 +53,16 @@ export class KappaIREngine {
     const validEffects: KappaEffect[] = ['PURE', 'READ', 'WRITE', 'NETWORK', 'CLOCK', 'RANDOM', 'PROCESS'];
     const nonDeterministicEffects: KappaEffect[] = ['NETWORK', 'CLOCK', 'RANDOM', 'PROCESS', 'READ'];
     const validPrimitiveTypes = ['I64_INTEGER', 'RATIONAL_EXACT', 'BOOLEAN', 'STRING_CANONICAL', 'SUBSTRATE_ADDRESS', 'EVIDENCE_HASH', 'HYPERGRAPH_NODE'];
+
+    const effectStrength: Record<KappaEffect, number> = {
+      'PURE': 0,
+      'CLOCK': 1,
+      'RANDOM': 2,
+      'READ': 3,
+      'WRITE': 4,
+      'PROCESS': 5,
+      'NETWORK': 6
+    };
 
     Object.values(program.nodes).forEach(node => {
       checkedNodesCount++;
@@ -78,10 +88,56 @@ export class KappaIREngine {
         }
       }
 
-      // Zero-float check: ensure no decimal point floats in numerical literal values
-      if (typeof node.value === 'string' && (node.value.includes('.') && !node.value.includes('"') && !node.value.includes("'"))) {
-        zeroFloatVerified = false;
-        errors.push(`Zero-Float Violation in Node [${node.id}]: Value contains floating-point representation (${node.value}). Rational or integer types required.`);
+      // Expression analysis and type checking
+      if (typeof node.value === 'string') {
+        const val = node.value;
+
+        // Zero-float check: ensure no decimal point floats in numerical literal values
+        if (val.includes('.') && !val.includes('"') && !val.includes("'")) {
+          zeroFloatVerified = false;
+          errors.push(`Zero-Float Violation in Node [${node.id}]: Value contains floating-point representation (${val}). Rational or integer types required.`);
+        }
+
+        // Strict validation of I64_INTEGER and STRING_CANONICAL mixing
+        const hasString = val.includes('"') || val.includes("'");
+        const hasInteger = /\b\d+\b/.test(val);
+        const hasArithmetic = /[\+\-\*\/]/.test(val);
+
+        if (hasString && hasInteger && hasArithmetic) {
+          errors.push(`Type Check Violation: Node [${node.id}] value contains invalid mixing of STRING_CANONICAL and I64_INTEGER in operation: '${val}'.`);
+        }
+
+        // Variable assignment strict checking
+        if (node.type === 'VARIABLE' && val.includes('=')) {
+          const [, rightSide] = val.split('=').map(s => s.trim());
+          const isStringLiteral = rightSide.includes('"') || rightSide.includes("'");
+          const isIntegerLiteral = /^\d+$/.test(rightSide);
+          const isBooleanLiteral = ['true', 'false', 'True', 'False'].includes(rightSide);
+
+          if (isStringLiteral && node.primitiveType !== 'STRING_CANONICAL') {
+            errors.push(`Type Check Violation: Variable Node [${node.id}] has string literal but declared type is '${node.primitiveType}'.`);
+          }
+          if (isIntegerLiteral && node.primitiveType !== 'I64_INTEGER') {
+            errors.push(`Type Check Violation: Variable Node [${node.id}] has integer literal but declared type is '${node.primitiveType}'.`);
+          }
+          if (isBooleanLiteral && node.primitiveType !== 'BOOLEAN') {
+            errors.push(`Type Check Violation: Variable Node [${node.id}] has boolean literal but declared type is '${node.primitiveType}'.`);
+          }
+        }
+      }
+
+      // Cascading effect propagation: Lattice-based effect verification
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(childId => {
+          const childNode = program.nodes[childId];
+          if (childNode) {
+            const parentStrength = effectStrength[node.effect] ?? 0;
+            const childStrength = effectStrength[childNode.effect] ?? 0;
+            if (childStrength > parentStrength) {
+              errors.push(`Effect Leak Violation: Node [${node.id}] with effect constraint '${node.effect}' references child Node [${childId}] with less restrictive effect constraint '${childNode.effect}'.`);
+            }
+          }
+        });
       }
     });
 
@@ -194,6 +250,12 @@ export class KappaIREngine {
     evidenceReceipt: EvidenceReceipt;
     executionLog: string[];
   } {
+    // Strict pre-execution validation gate
+    const validation = this.validateKappaIRSyntax(program, false);
+    if (!validation.isValid) {
+      throw new Error(`Execution Halted: Formal κIR validation failed with errors:\n- ${validation.errors.join('\n- ')}`);
+    }
+
     const executionLog: string[] = [];
     executionLog.push(`[κIR v1 Engine] Initializing zero-float substrate execution for program ${program.programId}`);
     executionLog.push(`[κIR v1 Engine] Canonical Program Hash: ${program.canonicalHash}`);

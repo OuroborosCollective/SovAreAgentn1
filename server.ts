@@ -17,6 +17,9 @@ import { createPrivacyRouter } from "./src/api/privacy.ts";
 import { createBackupRouter } from "./src/api/backup.ts";
 import { createTtsRouter } from "./src/api/tts.ts";
 import { securityRbacMiddleware, auditLogger } from "./src/lib/serverSecurity";
+import { AREKappaBackgroundService } from "./src/services/arekappaBackgroundService";
+import { AREKappaStaticAnalyzer } from "./src/services/arekappaStaticAnalyzer";
+import { AREKappaLedgerService } from "./src/services/arekappaLedgerService";
 
 dotenv.config();
 
@@ -150,6 +153,74 @@ async function startServer() {
     app.use("/api/privacy", createPrivacyRouter(() => pool));
     app.use("/api/backup", createBackupRouter(() => pool));
     app.use("/api/tts", createTtsRouter());
+
+    // Real-Time Server-Sent Events (SSE) Push Notification Broker
+    let sseClients: express.Response[] = [];
+
+    app.get("/api/push/stream", (req, res) => {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no' // Prevent Nginx proxy buffering
+      });
+      
+      // Send an immediate connection-established confirmation
+      res.write('retry: 5000\n');
+      res.write(': ok\n\n');
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+      
+      // Heartbeat every 15 seconds to keep connection alive and prevent proxy dropouts
+      const heartbeat = setInterval(() => {
+        try {
+          res.write(': heartbeat\n\n');
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }, 15000);
+
+      sseClients.push(res);
+
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        sseClients = sseClients.filter(c => c !== res);
+      });
+    });
+
+    app.post("/api/push/send", (req, res) => {
+      const { title, body, url } = req.body;
+      if (!body) {
+        return res.status(400).json({ error: "Notification body is required" });
+      }
+
+      const payload = {
+        title: title || "N+1 Puck Alert",
+        body,
+        url: url || "/",
+        timestamp: Date.now()
+      };
+
+      sseClients.forEach(client => {
+        try {
+          client.write(`event: notification\ndata: ${JSON.stringify(payload)}\n\n`);
+          if (typeof (client as any).flush === 'function') {
+            (client as any).flush();
+          }
+        } catch (e) {
+          console.error('[Push Server] Error sending to SSE client:', e);
+        }
+      });
+
+      res.json({ status: "success", deliveredCount: sseClients.length });
+    });
 
   function getPool() {
     if (!pool) {
@@ -2339,6 +2410,100 @@ echo "Run: tsx server.ts or npm run dev"
     }
   });
 
+  // AREKappa Router Endpoints
+  app.get('/api/arekappa/telemetry', (req, res) => {
+    res.json(AREKappaBackgroundService.getTelemetry());
+  });
+
+  app.post('/api/arekappa/scan', async (req, res) => {
+    try {
+      const report = await AREKappaBackgroundService.runIdleScan();
+      res.json({ status: "success", report });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Scan failed" });
+    }
+  });
+
+  app.post('/api/arekappa/repair', async (req, res) => {
+    const { filePath, issueSnippet } = req.body;
+    if (!filePath || !issueSnippet) {
+      return res.status(400).json({ status: "error", message: "filePath and issueSnippet are required" });
+    }
+    try {
+      const success = await AREKappaBackgroundService.repairViolation(filePath, issueSnippet);
+      res.json({ status: success ? "success" : "failed" });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Repair action failed" });
+    }
+  });
+
+  app.post('/api/arekappa/validate', (req, res) => {
+    const { program } = req.body;
+    if (!program) {
+      return res.status(400).json({ status: "error", message: "KappaIRProgram is required" });
+    }
+    try {
+      const report = AREKappaStaticAnalyzer.analyze(program);
+      res.json({ status: "success", report });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Static analysis failed" });
+    }
+  });
+
+  // AREKappa Evidence Receipt Ledger Endpoints
+  app.get('/api/arekappa/ledger', async (req, res) => {
+    try {
+      const ledger = await AREKappaLedgerService.getLedger();
+      res.json({ status: "success", ledger });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Failed to fetch ledger" });
+    }
+  });
+
+  app.post('/api/arekappa/ledger/execute', async (req, res) => {
+    const { program } = req.body;
+    if (!program) {
+      return res.status(400).json({ status: "error", message: "KappaIRProgram is required" });
+    }
+    try {
+      const result = await AREKappaLedgerService.appendExecution(program);
+      res.json({ status: "success", ...result });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Execution failed" });
+    }
+  });
+
+  app.get('/api/arekappa/ledger/verify', async (req, res) => {
+    try {
+      const report = await AREKappaLedgerService.verifyLedger();
+      res.json({ status: "success", report });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Ledger verification failed" });
+    }
+  });
+
+  app.post('/api/arekappa/ledger/tamper', async (req, res) => {
+    const { index, key, newValue } = req.body;
+    if (index === undefined || !key) {
+      return res.status(400).json({ status: "error", message: "index and key are required" });
+    }
+    try {
+      const success = await AREKappaLedgerService.tamperLedger(Number(index), key, newValue);
+      res.json({ status: success ? "success" : "failed" });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Tampering failed" });
+    }
+  });
+
+  app.post('/api/arekappa/ledger/clear', async (req, res) => {
+    try {
+      await AREKappaLedgerService.clearLedger();
+      res.json({ status: "success" });
+    } catch (err: any) {
+      res.status(500).json({ status: "error", message: err.message || "Failed to clear ledger" });
+    }
+  });
+
   // Vite middleware for development or static file serving for production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -2353,6 +2518,9 @@ echo "Run: tsx server.ts or npm run dev"
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Start the AREKappa persistent monitoring daemon
+  AREKappaBackgroundService.startDaemon();
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

@@ -1,4 +1,5 @@
 import { voiceService } from '../services/voiceService';
+import { DeterministicTestRunner } from '../services/deterministicTestRunner';
 
 export interface ValidationTestResult {
   testName: string;
@@ -143,6 +144,28 @@ export async function runCompleteRuntimeValidation(): Promise<{
     latencyMs: Math.round(performance.now() - start6),
     details: details6
   });
+
+  // Run deterministic κIR suite (Test 1 - Test 8)
+  try {
+    const detResults = DeterministicTestRunner.runDeterministicSuite();
+    detResults.forEach(r => {
+      results.push({
+        testName: r.testName,
+        category: 'DETERMINISTIC_ROUTER',
+        success: r.passed,
+        latencyMs: r.executionTimeMs,
+        details: r.details
+      });
+    });
+  } catch (e: any) {
+    results.push({
+      testName: 'κIR Deterministic Validation Suite Execution',
+      category: 'DETERMINISTIC_ROUTER',
+      success: false,
+      latencyMs: 0,
+      details: `Execution failed: ${e.message}`
+    });
+  }
 
   const passCount = results.filter(r => r.success).length;
   const failCount = results.length - passCount;

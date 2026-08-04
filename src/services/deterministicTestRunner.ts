@@ -176,6 +176,79 @@ export class DeterministicTestRunner {
       details: 'Identical input executed in isolated host simulations produced identical evidence chain hashes.'
     });
 
+    // Test 7: Formal Type Checker Violation & Execution Halting
+    const startTime7 = performance.now();
+    const invalidTypeSnippet = 'let invalidSum = "string" + 42';
+    const prog7 = KappaIREngine.compileToKappaIR(invalidTypeSnippet, 'TypeScript');
+    const validation7 = KappaIREngine.validateKappaIRSyntax(prog7, false);
+    
+    let executionHalted = false;
+    try {
+      KappaIREngine.executeKappaIR(prog7);
+    } catch (e: any) {
+      if (e.message.includes('Execution Halted')) {
+        executionHalted = true;
+      }
+    }
+    const endTime7 = performance.now();
+    results.push({
+      testName: 'Test 7: Formal Type Checker Violation & Execution Halting',
+      passed: !validation7.isValid && executionHalted,
+      canonicalHash1: prog7.canonicalHash,
+      canonicalHash2: '0xHALTED_STATE',
+      evidenceHashMatch: true,
+      outputStateMatch: executionHalted,
+      executionTimeMs: Math.round(endTime7 - startTime7),
+      details: !validation7.isValid && executionHalted
+        ? 'Successfully detected invalid mixing of STRING_CANONICAL and I64_INTEGER, triggering circuit breaker and halting runtime execution.'
+        : 'Failed to halt execution on strict type violation.'
+    });
+
+    // Test 8: Cascading Effect Leak & Lattice-Based Propagation
+    const startTime8 = performance.now();
+    const prog8: KappaIRProgram = {
+      programId: 'prog_test_8',
+      version: '1.0.0-κIR',
+      rootNodeId: 'node_root',
+      canonicalHash: '0xTEST_8_HASH',
+      createdAt: new Date().toISOString(),
+      targetLanguages: ['TypeScript'],
+      nodes: {
+        'node_root': {
+          id: 'node_root',
+          type: 'OPERATOR',
+          primitiveType: 'I64_INTEGER',
+          effect: 'PURE',
+          value: 'x + y',
+          children: ['node_child'],
+          contentHash: '0xPARENT_HASH'
+        },
+        'node_child': {
+          id: 'node_child',
+          type: 'FUNCTION_CALL',
+          primitiveType: 'I64_INTEGER',
+          effect: 'NETWORK',
+          value: 'fetch("https://api.ouroboros.io")',
+          children: [],
+          contentHash: '0xCHILD_HASH'
+        }
+      }
+    };
+    const validation8 = KappaIREngine.validateKappaIRSyntax(prog8, false);
+    const endTime8 = performance.now();
+    results.push({
+      testName: 'Test 8: Cascading Effect Leak & Lattice-Based Propagation',
+      passed: !validation8.isValid && validation8.errors.some(err => err.includes('Effect Leak Violation')),
+      canonicalHash1: prog8.canonicalHash,
+      canonicalHash2: '0xVIOLATION_STATE',
+      evidenceHashMatch: true,
+      outputStateMatch: true,
+      executionTimeMs: Math.round(endTime8 - startTime8),
+      details: !validation8.isValid
+        ? 'Successfully caught effect leakage where a PURE parent node referenced a child node with NETWORK side-effects.'
+        : 'Failed to catch lattice effect strength leakage.'
+    });
+
     return results;
   }
 }

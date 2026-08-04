@@ -72,9 +72,15 @@ export const ProtectedPersonalityMemory: React.FC = () => {
           </h3>
           <p className="text-zinc-400 text-[10px]">Dieser Block ist hartkodiert und darf von keinem Prompt/Service überschrieben werden.</p>
           {core ? (
-             <pre className="text-[10px] text-zinc-300 bg-black/50 p-3 rounded-lg overflow-x-auto border border-zinc-800">
-               {JSON.stringify(core.core_traits, null, 2)}
-             </pre>
+            <div className="text-[11px] text-zinc-300 bg-black/50 p-3 rounded-lg overflow-x-auto border border-zinc-800 leading-relaxed font-sans">
+              {typeof core === 'string' ? (
+                core
+              ) : (
+                <pre className="font-mono text-[10px]">
+                  {JSON.stringify((core as any).core_traits || core, null, 2)}
+                </pre>
+              )}
+            </div>
           ) : (
             <div className="text-zinc-500 italic p-3">Kein Kern initialisiert.</div>
           )}
@@ -89,14 +95,19 @@ export const ProtectedPersonalityMemory: React.FC = () => {
           <p className="text-zinc-400 text-[10px]">Verifizierte Hash-Kette mit vorherigen/nachherigen Hashes und Actor-Context.</p>
           <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
             <AnimatePresence>
-              {mutations.length > 0 ? mutations.map((mut) => (
-                <motion.div key={mut.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 bg-zinc-900 border border-emerald-900 rounded-xl">
-                   <div className="flex justify-between items-center mb-2">
-                     <span className="text-[10px] text-emerald-300 font-bold">Hash: {mut.new_hash.substring(0,8)}</span>
-                     <span className="text-[9px] text-zinc-500 flex items-center gap-1"><Clock size={10} /> {new Date(mut.created_at).toLocaleTimeString()}</span>
-                   </div>
-                   <div className="text-[10px] text-zinc-400">Context: {mut.actor_context}</div>
-                   <pre className="text-[9px] text-zinc-300 mt-2 bg-black/30 p-2 rounded">{JSON.stringify(mut.mutation_payload, null, 2)}</pre>
+              {mutations.length > 0 ? mutations.map((mut: any) => (
+                <motion.div key={mut.id || mut.hash || mut.timestamp} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 bg-zinc-900 border border-emerald-900 rounded-xl">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] text-emerald-300 font-bold">Hash: {((mut.new_hash || mut.hash || '') as string).substring(0,8)}</span>
+                      <span className="text-[9px] text-zinc-500 flex items-center gap-1"><Clock size={10} /> {new Date(mut.created_at || mut.timestamp || Date.now()).toLocaleTimeString()}</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-400">Context: {mut.actor_context || (mut.diff ? 'System Mutation' : 'Unknown Actor')}</div>
+                    {mut.mutation_payload && (
+                      <pre className="text-[9px] text-zinc-300 mt-2 bg-black/30 p-2 rounded">{JSON.stringify(mut.mutation_payload, null, 2)}</pre>
+                    )}
+                    {mut.diff && (
+                      <pre className="text-[9px] text-zinc-300 mt-2 bg-black/30 p-2 rounded font-mono whitespace-pre-wrap">{mut.diff}</pre>
+                    )}
                 </motion.div>
               )) : (
                 <div className="text-zinc-500 italic p-3 bg-zinc-900 border border-zinc-800 rounded-xl">Noch keine Modifikationen in der Hash-Kette.</div>
