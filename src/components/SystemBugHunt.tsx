@@ -200,6 +200,20 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     status: 'REPAIRED',
     rootCause: 'Missing cryptographic envelope on inter-agent message packets.',
     repairRoutine: 'Enforce Hawking Pro-Som Cryptographic Boundary Seals'
+  },
+
+  // Fehlerfamilie 7: Touch-Gestenerfassung & Vertical Scroll Integrity
+  {
+    id: 'err-14',
+    code: 'ERR_SWIPE_VERTICAL_SCROLL_COLLISION_14',
+    title: 'Swipe Gesture & Vertical Page Scroll Collision',
+    category: 'Fehlerfamilie 7: Touch & Scroll Gestures',
+    severity: 'HIGH',
+    description: 'Accidental workspace tab switching during vertical page scrolling on touch-enabled tablet/mobile screens.',
+    impact: 'Interrupted page scrolling and unwanted tab navigation when scrolling through long component layouts.',
+    status: 'REPAIRED',
+    rootCause: 'Lack of deltaY displacement bound and missing interactive/sub-scrollable child target guards in touch gesture handler.',
+    repairRoutine: 'Enforce deltaY < 50px threshold, deltaX 2.0x dominance ratio & ignore touch events on scrollable/interactive sub-elements.'
   }
 ];
 

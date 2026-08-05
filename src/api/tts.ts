@@ -16,7 +16,14 @@ export function createTtsRouter() {
          return res.status(200).json({ status: "fallback", audio: null, contentType: "audio/wav", message: "TTS API key not configured on server." });
       }
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       let response: any = null;
       const ttsModels = ["gemini-flash-latest"];
 

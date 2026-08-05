@@ -1,7 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { WolframResearchSandbox } from "./wolframResearchSandbox";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY || "",
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
 
 export async function generateAgentAction(agent: any, worldState: any, userKeywords: string = "") {
   const prompt = `

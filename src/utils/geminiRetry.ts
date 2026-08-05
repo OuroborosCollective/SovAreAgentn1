@@ -15,7 +15,14 @@ export async function generateContentWithRetry(
 
   return executeWithModelRevolver(async (route) => {
     if (route.provider === 'gemini') {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const ai = new GoogleGenAI({
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
       const adjustedParams: GenerateContentParameters = {
         ...params,
         model: route.modelName

@@ -13,13 +13,11 @@ export interface ModelRoute {
 }
 
 export const FREE_TIER_REVOLVER_ROUTES: ModelRoute[] = [
-  { provider: 'gemini', modelName: 'gemini-2.5-flash', isFreeTier: true, priority: 1, healthScore: 100 },
-  { provider: 'gemini', modelName: 'gemini-flash-latest', isFreeTier: true, priority: 2, healthScore: 100 },
-  { provider: 'gemini', modelName: 'gemini-2.0-flash', isFreeTier: true, priority: 3, healthScore: 100 },
-  { provider: 'gemini', modelName: 'gemini-1.5-flash', isFreeTier: true, priority: 4, healthScore: 100 },
-  { provider: 'gemini', modelName: 'gemini-2.5-pro', isFreeTier: true, priority: 5, healthScore: 100 },
-  { provider: 'gemini', modelName: 'gemini-1.5-pro', isFreeTier: true, priority: 6, healthScore: 100 },
-  { provider: 'local', modelName: 'n1-ouroboros-local-fallback', isFreeTier: true, priority: 7, healthScore: 100 }
+  { provider: 'gemini', modelName: 'gemini-flash-latest', isFreeTier: true, priority: 1, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-3.6-flash', isFreeTier: true, priority: 2, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-3.1-flash-lite', isFreeTier: true, priority: 3, healthScore: 100 },
+  { provider: 'gemini', modelName: 'gemini-3.1-pro-preview', isFreeTier: false, priority: 4, healthScore: 100 },
+  { provider: 'local', modelName: 'n1-ouroboros-local-fallback', isFreeTier: true, priority: 5, healthScore: 100 }
 ];
 
 let currentRouteIndex = 0;

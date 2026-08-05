@@ -388,39 +388,69 @@ export const App: React.FC = () => {
     };
   }, [addNotification]);
 
-  // Swipe-to-navigate gesture handling for main workspace tabs
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Swipe-to-navigate gesture handling for main workspace tabs with vertical scrolling isolation
+  const touchStartRef = useRef<{ x: number; y: number; time: number; isInteractive: boolean } | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
+      const target = e.target as HTMLElement | null;
+      // Detect if user started touch inside an interactive control or scrollable child container
+      const isInteractive = Boolean(
+        target && (
+          target.closest('input, textarea, select, button, canvas, audio, video, pre, code, [data-no-swipe]') ||
+          target.closest('.overflow-x-auto') ||
+          target.closest('.no-swipe')
+        )
+      );
+
       touchStartRef.current = {
         x: e.touches[0].clientX,
-        y: e.touches[0].clientY
+        y: e.touches[0].clientY,
+        time: Date.now(),
+        isInteractive
       };
     }
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!touchStartRef.current || e.changedTouches.length === 0) return;
+    
+    // Ignore swipe tab navigation if touch started on an interactive control/scrollable subcontainer
+    if (touchStartRef.current.isInteractive) {
+      touchStartRef.current = null;
+      return;
+    }
+
     const touchEnd = {
       x: e.changedTouches[0].clientX,
-      y: e.changedTouches[0].clientY
+      y: e.changedTouches[0].clientY,
+      time: Date.now()
     };
     const deltaX = touchEnd.x - touchStartRef.current.x;
     const deltaY = touchEnd.y - touchStartRef.current.y;
+    const durationMs = touchEnd.time - touchStartRef.current.time;
     touchStartRef.current = null;
 
-    // Minimum swipe distance threshold (> 50px) and dominant horizontal gesture
-    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+    // Strict criteria for Horizontal Tab Navigation Swipe:
+    // 1. Horizontal movement deltaX > 60px
+    // 2. Vertical displacement deltaY < 50px (Ensures vertical page scroll is unaffected)
+    // 3. Horizontal displacement is at least 2.0x larger than vertical movement
+    // 4. Swipe duration < 600ms (prevents slow diagonal scroll gestures from triggering)
+    if (
+      Math.abs(deltaX) > 60 && 
+      Math.abs(deltaY) < 50 && 
+      Math.abs(deltaX) > Math.abs(deltaY) * 2.0 &&
+      durationMs < 600
+    ) {
       const currentIndex = validTabIds.indexOf(activeTabRef.current);
       if (currentIndex !== -1) {
-        if (deltaX < -50) {
+        if (deltaX < -60) {
           // Swiped left -> Navigate to Next Tab
           const nextIndex = (currentIndex + 1) % validTabIds.length;
           const nextTabId = validTabIds[nextIndex];
           setActiveTab(nextTabId);
           addNotification(`Swiped to workspace tab: ${nextTabId.toUpperCase()}`, 'info');
-        } else if (deltaX > 50) {
+        } else if (deltaX > 60) {
           // Swiped right -> Navigate to Previous Tab
           const prevIndex = (currentIndex - 1 + validTabIds.length) % validTabIds.length;
           const prevTabId = validTabIds[prevIndex];
@@ -430,6 +460,41 @@ export const App: React.FC = () => {
       }
     }
   }, [validTabIds, setActiveTab, addNotification]);
+
+  // Ref and state for mobile touch control optimized menu tab scrolling
+  const navTabsContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeftNav, setCanScrollLeftNav] = useState(false);
+  const [canScrollRightNav, setCanScrollRightNav] = useState(false);
+
+  const checkNavScrollState = useCallback(() => {
+    if (navTabsContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = navTabsContainerRef.current;
+      setCanScrollLeftNav(scrollLeft > 5);
+      setCanScrollRightNav(scrollLeft + clientWidth < scrollWidth - 5);
+    }
+  }, []);
+
+  // Auto-scroll active tab into view on touch/click/swipe tab changes
+  useEffect(() => {
+    if (navTabsContainerRef.current) {
+      const activeEl = navTabsContainerRef.current.querySelector<HTMLElement>(`[data-tab-id="${activeTab}"]`);
+      if (activeEl) {
+        activeEl.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }
+      checkNavScrollState();
+    }
+  }, [activeTab, checkNavScrollState]);
+
+  const scrollNavTabs = (direction: 'left' | 'right') => {
+    if (navTabsContainerRef.current) {
+      const amount = direction === 'left' ? -180 : 180;
+      navTabsContainerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
 
   const menuItems = [
     { id: 'voice', label: 'N+1 Voice Studio', icon: Radio, badge: 'Papas girl' },
@@ -495,9 +560,9 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none antialiased selection:bg-pink-500/30 selection:text-white">
+    <div className="h-screen w-screen overflow-hidden bg-[#09090b] text-zinc-100 flex flex-col font-sans select-none antialiased selection:bg-pink-500/30 selection:text-white">
       {/* Dynamic Status / Navigation Header */}
-      <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-40 px-3 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md shrink-0 px-3 py-3 sm:px-6 sm:py-4 flex flex-col md:flex-row md:items-center justify-between gap-3 z-40">
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-pink-500/10 border border-pink-500/20 rounded-2xl text-pink-400 shadow-md">
             <Brain size={20} className="animate-pulse" />
@@ -620,56 +685,97 @@ export const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Main Container */}
-      <div className="flex-1 flex flex-col md:flex-row">
-        {/* Responsive Navigation Bar */}
-        <nav className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-900 bg-zinc-950/50 p-2 sm:p-4 flex flex-col justify-between shrink-0">
-          <div className="flex md:flex-col overflow-x-auto md:overflow-x-visible gap-1.5 pb-2 md:pb-0 scrollbar-thin">
+      {/* Main Container with Viewport Constraint for Vertical Scroll */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+        {/* Responsive Navigation Bar with Mobile Touch Control Optimized Scroll */}
+        <nav className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-900 bg-zinc-950/50 p-2 sm:p-4 flex flex-col justify-between shrink-0 relative md:overflow-y-auto">
+          <div className="flex flex-col gap-1.5">
             <div className="hidden md:block px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
               System Operations
             </div>
-            {menuItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`relative shrink-0 md:w-full min-h-[44px] flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'text-pink-200 font-bold'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabBackground"
-                      className="absolute inset-0 bg-pink-950/40 border border-pink-500/30 rounded-xl shadow-md pointer-events-none"
-                      initial={false}
-                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    />
-                  )}
-                  <div className="relative z-10 flex items-center gap-2.5 pointer-events-none">
-                    <Icon size={16} className={isActive ? 'text-pink-400' : 'text-zinc-500'} />
-                    <span className="whitespace-nowrap">{item.label}</span>
-                  </div>
-                  <span className={`relative z-10 text-[9px] font-mono px-1.5 py-0.5 rounded-md ml-2 pointer-events-none ${
-                    isActive ? 'bg-pink-900/50 text-pink-300' : 'bg-zinc-900 text-zinc-500'
-                  }`}>
-                    {item.badge}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
 
+            {/* Mobile Touch Control Scroll Header */}
+            <div className="flex md:hidden items-center justify-between px-1 pb-1 text-[10px] text-zinc-500 font-mono">
+              <span className="uppercase text-[9px] font-bold text-zinc-400 tracking-wider">Workspace Tabs</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => scrollNavTabs('left')}
+                  disabled={!canScrollLeftNav}
+                  className={`p-1 rounded-md transition-all ${
+                    canScrollLeftNav
+                      ? 'bg-zinc-900 hover:bg-pink-950/50 text-pink-400 border border-pink-900/40 active:scale-95'
+                      : 'bg-zinc-950 text-zinc-700 opacity-40 cursor-not-allowed border border-transparent'
+                  }`}
+                  aria-label="Scroll menu left"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollNavTabs('right')}
+                  disabled={!canScrollRightNav}
+                  className={`p-1 rounded-md transition-all ${
+                    canScrollRightNav
+                      ? 'bg-zinc-900 hover:bg-pink-950/50 text-pink-400 border border-pink-900/40 active:scale-95'
+                      : 'bg-zinc-950 text-zinc-700 opacity-40 cursor-not-allowed border border-transparent'
+                  }`}
+                  aria-label="Scroll menu right"
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Nav Tab Track with smooth touch physics */}
+            <div
+              ref={navTabsContainerRef}
+              onScroll={checkNavScrollState}
+              className="flex md:flex-col overflow-x-auto md:overflow-x-visible gap-1.5 pb-2 md:pb-0 scroll-smooth touch-pan-x snap-x snap-mandatory md:snap-none scrollbar-thin select-none"
+            >
+              {menuItems.map(item => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    data-tab-id={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`relative shrink-0 md:w-full min-h-[44px] snap-center flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'text-pink-200 font-bold'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabBackground"
+                        className="absolute inset-0 bg-pink-950/40 border border-pink-500/30 rounded-xl shadow-md pointer-events-none"
+                        initial={false}
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                      />
+                    )}
+                    <div className="relative z-10 flex items-center gap-2.5 pointer-events-none">
+                      <Icon size={16} className={isActive ? 'text-pink-400' : 'text-zinc-500'} />
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </div>
+                    <span className={`relative z-10 text-[9px] font-mono px-1.5 py-0.5 rounded-md ml-2 pointer-events-none ${
+                      isActive ? 'bg-pink-900/50 text-pink-300' : 'bg-zinc-900 text-zinc-500'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </nav>
 
-        {/* Content Workspace Panel with Swipe-to-Navigate Gesture support */}
+        {/* Content Workspace Panel with Swipe-to-Navigate Gesture support & Vertical Scroll */}
         <main 
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          className="flex-1 bg-zinc-950/10 p-3 sm:p-6 overflow-y-auto overscroll-y-contain min-h-0 relative touch-pan-y"
+          className="flex-1 bg-zinc-950/10 p-3 sm:p-6 overflow-y-auto overscroll-y-contain min-h-0 relative touch-pan-y custom-scrollbar"
         >
           {/* Mobile & Tablet Touch Swipe Navigation Banner */}
           <div className="flex items-center justify-between pb-2 text-[10px] text-zinc-500 font-mono sm:hidden border-b border-zinc-900/60 mb-4 bg-zinc-950/60 px-3 py-1.5 rounded-xl border">
@@ -683,7 +789,7 @@ export const App: React.FC = () => {
             </span>
           </div>
 
-          <div className="h-full">
+          <div className="min-h-full">
             <Suspense fallback={
               <div className="flex items-center justify-center min-h-[400px] w-full text-zinc-500 font-mono text-[10px]">
                 <RefreshCw className="animate-spin w-4 h-4 mr-2" />
@@ -697,7 +803,7 @@ export const App: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="h-full space-y-6"
+                  className="min-h-full space-y-6"
                 >
                   {activeTab === 'voice' && (
                     <MountTracker id="voice">
