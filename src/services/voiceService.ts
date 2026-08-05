@@ -88,7 +88,11 @@ export class VoiceService {
   private getAudioContext(): AudioContext {
     if (!this.currentAudioContext) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      this.currentAudioContext = new AudioCtx({ sampleRate: 24000 });
+      try {
+        this.currentAudioContext = new AudioCtx({ sampleRate: 24000 });
+      } catch (err) {
+        this.currentAudioContext = new AudioCtx();
+      }
       this.globalAnalyser = this.currentAudioContext.createAnalyser();
       this.globalAnalyser.fftSize = 256;
       this.globalAnalyser.smoothingTimeConstant = 0.8;

@@ -27,6 +27,7 @@ import {
 import { useAudioVisualizer } from "../hooks/useAudioVisualizer";
 import { useNotification } from '../context/NotificationContext';
 import { AudioFrequencyVisualizer } from "./AudioFrequencyVisualizer";
+import { CanvasWaveformVisualizer } from "./CanvasWaveformVisualizer";
 import { motion, AnimatePresence } from 'framer-motion';
 import { ResonanceEgoAnimator } from './ResonanceEgoAnimator';
 import { HiaFramedFacialAnimator } from './HiaFramedFacialAnimator';
@@ -1181,33 +1182,23 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
             </div>
           </div>
 
-          {/* Equalizer Bars with Cached SQLite vs Realtime Animation Modes */}
-          <div className="relative flex items-end justify-center gap-2 h-32 py-2 overflow-hidden rounded-2xl bg-zinc-900/40 border border-zinc-800/60 p-3">
-            {/* Ambient matrix scanlines overlay when processing cached SQLite stream data */}
+          {/* HTML5 Canvas Real-Time Waveform Visualization for Outgoing & Incoming Audio Streams */}
+          <div className="relative overflow-hidden rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-1">
+            {/* Ambient scanlines overlay when processing cached SQLite stream data */}
             {voiceDataSource === 'CACHED_SQLITE' && (
-              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-teal-500/10 pointer-events-none animate-pulse z-0" />
+              <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-teal-500/10 pointer-events-none animate-pulse z-10" />
             )}
 
-            {Array.from(isPlayingVoice ? outgoingFreqData : liveFrequencyData).slice(0, 15).map((val, idx) => (
-              <motion.div
-                key={idx}
-                animate={{ height: `${Math.max(5, (val / 255) * 100)}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`w-3.5 rounded-t-lg z-10 transition-colors duration-300 ${
-                  coherenceDropDetected
-                    ? 'bg-gradient-to-t from-red-600 to-amber-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]'
-                    : isPlayingVoice && voiceDataSource === 'CACHED_SQLITE'
-                    ? 'bg-gradient-to-t from-cyan-500 via-teal-400 to-indigo-400 animate-pulse shadow-[0_0_14px_rgba(6,182,212,0.9)]'
-                    : isPlayingVoice
-                    ? 'bg-gradient-to-t from-pink-500 via-amber-400 to-sky-300 animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.8)]'
-                    : isListening 
-                    ? 'bg-gradient-to-t from-pink-600 to-purple-400' 
-                    : voiceDataSource === 'CACHED_SQLITE'
-                    ? 'bg-cyan-950/80 border border-cyan-800/60'
-                    : 'bg-zinc-800'
-                }`}
-              />
-            ))}
+            <CanvasWaveformVisualizer
+              frequencyData={isPlayingVoice ? outgoingFreqData : liveFrequencyData}
+              isPlaying={isPlayingVoice}
+              isListening={isListening}
+              voiceDataSource={voiceDataSource}
+              coherenceDropDetected={coherenceDropDetected}
+              height={130}
+              showGrid={true}
+              showPeakHud={true}
+            />
           </div>
 
           {/* Explicit SQLite Event Stream Audio & AudioContext Binding Control */}

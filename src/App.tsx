@@ -19,7 +19,9 @@ import {
   Send,
   Lock,
   Heart,
-  Brain
+  Brain,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -96,19 +98,21 @@ export const App: React.FC = () => {
     };
 
     const handleRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason?.stack || event.reason?.message || event.reason || 'Unhandled promise rejection';
-      console.error('[Global App Interceptor] Caught unhandled rejection:', reason);
-      const isCritical = reason.toString().includes('render') || 
-                         reason.toString().includes('Null') || 
-                         reason.toString().includes('undefined') || 
-                         reason.toString().includes('fail') ||
-                         reason.toString().includes('crash');
-      if (isCritical) {
+      const reasonStr = event.reason?.stack || event.reason?.message || (typeof event.reason === 'string' ? event.reason : JSON.stringify(event.reason || ''));
+      console.warn('[Global App Interceptor] Caught unhandled rejection:', reasonStr);
+      
+      // Always prevent default browser console popup for handled background rejections
+      event.preventDefault();
+
+      // Only crash if React component tree or state evaluation explicitly threw invariant DOM/render errors
+      const isReactDomCrash = reasonStr.includes('Minified React error') || 
+                               reasonStr.includes('Cannot read properties of null (reading \'useContext\')') ||
+                               reasonStr.includes('Target container is not a DOM element');
+      if (isReactDomCrash) {
         setSystemCrash({
-          error: reason.toString(),
+          error: reasonStr,
           count: 1
         });
-        event.preventDefault();
       }
     };
 
@@ -130,15 +134,7 @@ export const App: React.FC = () => {
   const [activeConnections, setActiveConnections] = useState<number>(1);
   const [isCoreLocked, setIsCoreLocked] = useState<boolean>(true);
   
-  // Push notification state
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
-    typeof window !== 'undefined' ? Notification.permission : 'default'
-  );
   const [sseConnected, setSseConnected] = useState<boolean>(false);
-  const [testTitle, setTestTitle] = useState<string>('System Alert');
-  const [testBody, setTestBody] = useState<string>('N+1 is fully initialized and monitoring axioms.');
-  const [testUrl, setTestUrl] = useState<string>('/');
-  const [isSendingPush, setIsSendingPush] = useState<boolean>(false);
   const [showSyncAlert, setShowSyncAlert] = useState<boolean>(false);
   const [unsyncedCount, setUnsyncedCount] = useState<number>(0);
   const [isFlushingFromAlert, setIsFlushingFromAlert] = useState<boolean>(false);
@@ -284,24 +280,9 @@ export const App: React.FC = () => {
             });
           }
 
-          // 1. Play native sound/trigger in-app notification context
+          // Play native sound/trigger in-app notification context
           if (data.body) {
             addNotification(data.body, 'info', 'PUSH_ALERT');
-          }
-
-          // 2. Show native OS notification if permission is granted
-          if (Notification.permission === 'granted' && 'serviceWorker' in navigator && data.body) {
-            navigator.serviceWorker.ready.then(reg => {
-              reg.showNotification(data.title || 'N+1', {
-                body: data.body || 'A system event requires attention.',
-                icon: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png',
-                badge: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png',
-                vibrate: [100, 50, 100],
-                data: {
-                  url: data.url || '/'
-                }
-              } as any);
-            });
           }
         } catch (e) {
           console.error('[Push System] Failed to parse stream payload:', e);
@@ -407,67 +388,48 @@ export const App: React.FC = () => {
     };
   }, [addNotification]);
 
-  // Request native permission
-  const handleRequestPermission = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      addNotification('This browser does not support native desktop notifications.', 'error');
-      return;
+  // Swipe-to-navigate gesture handling for main workspace tabs
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY
+      };
     }
+  }, []);
 
-    try {
-      const permission = await Notification.requestPermission();
-      setNotificationPermission(permission);
-      if (permission === 'granted') {
-        addNotification('Native Push Notifications successfully authorized!', 'success');
-        // Test notification immediately
-        new Notification('N+1 Active', {
-          body: 'You will now receive native alerts even in the background.',
-          icon: 'https://raw.githubusercontent.com/OuroborosCollective/SovAreAgentn1/main/public/icon.png'
-        });
-      } else {
-        addNotification('Notification permissions denied. Alerts will fall back to in-app toasts.', 'info');
-      }
-    } catch (e: any) {
-      console.error('Permission request failed:', e);
-      addNotification(`Could not request permissions: ${e.message}`, 'error');
-    }
-  };
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current || e.changedTouches.length === 0) return;
+    const touchEnd = {
+      x: e.changedTouches[0].clientX,
+      y: e.changedTouches[0].clientY
+    };
+    const deltaX = touchEnd.x - touchStartRef.current.x;
+    const deltaY = touchEnd.y - touchStartRef.current.y;
+    touchStartRef.current = null;
 
-  // Trigger server-sent push notification
-  const handleTriggerTestPush = async () => {
-    setIsSendingPush(true);
-    try {
-      const response = await fetch('/api/push/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: testTitle,
-          body: testBody,
-          url: testUrl
-        })
-      });
-
-      if (response.ok) {
-        addNotification('Push broadcast sent successfully through real server!', 'success');
-      } else {
-        let errorMsg = `Server error (${response.status})`;
-        try {
-          const errData = await response.json();
-          errorMsg = errData.error || errData.message || errorMsg;
-        } catch {
-          const text = await response.text().catch(() => '');
-          if (text) errorMsg += `: ${text.slice(0, 100)}`;
+    // Minimum swipe distance threshold (> 50px) and dominant horizontal gesture
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      const currentIndex = validTabIds.indexOf(activeTabRef.current);
+      if (currentIndex !== -1) {
+        if (deltaX < -50) {
+          // Swiped left -> Navigate to Next Tab
+          const nextIndex = (currentIndex + 1) % validTabIds.length;
+          const nextTabId = validTabIds[nextIndex];
+          setActiveTab(nextTabId);
+          addNotification(`Swiped to workspace tab: ${nextTabId.toUpperCase()}`, 'info');
+        } else if (deltaX > 50) {
+          // Swiped right -> Navigate to Previous Tab
+          const prevIndex = (currentIndex - 1 + validTabIds.length) % validTabIds.length;
+          const prevTabId = validTabIds[prevIndex];
+          setActiveTab(prevTabId);
+          addNotification(`Swiped to workspace tab: ${prevTabId.toUpperCase()}`, 'info');
         }
-        addNotification(`Failed to broadcast: ${errorMsg}`, 'error');
       }
-    } catch (e: any) {
-      addNotification(`Failed to send test push: ${e.message}`, 'error');
-    } finally {
-      setIsSendingPush(false);
     }
-  };
+  }, [validTabIds, setActiveTab, addNotification]);
 
   const menuItems = [
     { id: 'voice', label: 'N+1 Voice Studio', icon: Radio, badge: 'Papas girl' },
@@ -701,199 +663,115 @@ export const App: React.FC = () => {
             })}
           </div>
 
-          {/* Quick Push System Integration Box */}
-          <div className="mt-8 p-4 bg-zinc-900/40 border border-zinc-800 rounded-2xl space-y-3 font-mono text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400 font-bold flex items-center gap-1.5">
-                <Bell size={12} className="text-pink-400 animate-bounce" />
-                <span>Desktop Alerts</span>
-              </span>
-              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
-                notificationPermission === 'granted' 
-                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                  : notificationPermission === 'denied'
-                    ? 'bg-red-950 text-red-400 border border-red-800'
-                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-              }`}>
-                {notificationPermission}
-              </span>
-            </div>
-
-            <p className="text-[10px] text-zinc-500 leading-relaxed">
-              Enable native background OS push notifications for important reminders.
-            </p>
-
-            {notificationPermission !== 'granted' ? (
-              <button
-                onClick={handleRequestPermission}
-                className="w-full py-2 bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
-              >
-                <span>Authorize Push Alerts</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-bold bg-emerald-950/20 p-2 border border-emerald-900/30 rounded-lg">
-                <CheckCircle2 size={12} />
-                <span>OS Push Enabled</span>
-              </div>
-            )}
-          </div>
         </nav>
 
-        {/* Content Workspace Panel */}
-        <main className="flex-1 bg-zinc-950/10 p-3 sm:p-6 overflow-y-auto overscroll-y-contain min-h-0 relative">
-          <div className="h-full space-y-8">
+        {/* Content Workspace Panel with Swipe-to-Navigate Gesture support */}
+        <main 
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="flex-1 bg-zinc-950/10 p-3 sm:p-6 overflow-y-auto overscroll-y-contain min-h-0 relative touch-pan-y"
+        >
+          {/* Mobile & Tablet Touch Swipe Navigation Banner */}
+          <div className="flex items-center justify-between pb-2 text-[10px] text-zinc-500 font-mono sm:hidden border-b border-zinc-900/60 mb-4 bg-zinc-950/60 px-3 py-1.5 rounded-xl border">
+            <span className="flex items-center gap-1.5 text-zinc-400 font-bold">
+              <ChevronLeft size={13} className="text-pink-400 animate-pulse" />
+              <span>Swipe Left/Right to Switch Workspace Tabs</span>
+              <ChevronRight size={13} className="text-pink-400 animate-pulse" />
+            </span>
+            <span className="px-2 py-0.5 bg-pink-950/80 text-pink-300 font-bold rounded-md border border-pink-800/50 uppercase text-[9px]">
+              Tab {validTabIds.indexOf(activeTab) + 1} of {validTabIds.length}
+            </span>
+          </div>
+
+          <div className="h-full">
             <Suspense fallback={
               <div className="flex items-center justify-center min-h-[400px] w-full text-zinc-500 font-mono text-[10px]">
                 <RefreshCw className="animate-spin w-4 h-4 mr-2" />
                 INITIALIZING SUBSYSTEM...
               </div>
             }>
-              <div className={activeTab === 'voice' ? 'block space-y-6' : 'hidden'}>
-                <MountTracker id="voice">
-              <NexusErrorBoundary fallbackTitle="N+1 Voice Studio Exception">
-                <div className="space-y-6">
-                  {/* Push Notifications Configuration Panel */}
-                  <div className="p-6 bg-zinc-950/80 border border-zinc-900 rounded-3xl space-y-4 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Bell size={18} className="text-pink-400" />
-                        <h2 className="text-sm font-bold text-white">Push System Dispatcher & Diagnostics</h2>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-500">
-                        Real-Time (SSE Stream)
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs leading-relaxed">
-                      <div className="space-y-2">
-                        <h3 className="font-bold text-zinc-300">Push System Mechanism</h3>
-                        <p className="text-zinc-500">
-                          The system registers the service worker <code>/sw.js</code> on startup. In parallel, it connects to a Server-Sent Events stream at <code>/api/push/stream</code>, providing immediate full-stack notifications.
-                        </p>
-                        <p className="text-zinc-500">
-                          When a reminder triggers on the server, a push event is broadcasted. If authorized, the service worker pushes a native desktop overlay even with the window closed.
-                        </p>
-                      </div>
-
-                      <div className="space-y-3 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
-                        <h4 className="font-bold text-white flex items-center gap-1.5">
-                          <Sliders size={14} className="text-purple-400" />
-                          <span>Custom Test Event</span>
-                        </h4>
-                        
-                        <div className="space-y-2 font-mono">
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Title</label>
-                            <input
-                              type="text"
-                              value={testTitle}
-                              onChange={e => setTestTitle(e.target.value)}
-                              className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[9px] text-zinc-500 uppercase font-bold">Alert Message</label>
-                            <input
-                              type="text"
-                              value={testBody}
-                              onChange={e => setTestBody(e.target.value)}
-                              className="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white focus:outline-none focus:border-pink-500"
-                            />
-                          </div>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="h-full space-y-6"
+                >
+                  {activeTab === 'voice' && (
+                    <MountTracker id="voice">
+                      <NexusErrorBoundary fallbackTitle="N+1 Voice Studio Exception">
+                        <div className="space-y-6">
+                          <HiaResonanceVoice onNavigateTab={setActiveTab} />
                         </div>
-                      </div>
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
 
-                      <div className="flex flex-col justify-between p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
-                        <div className="space-y-2">
-                          <h4 className="font-bold text-white flex items-center gap-1.5">
-                            <Send size={14} className="text-pink-400" />
-                            <span>Dispatch Broadcast</span>
-                          </h4>
-                          <p className="text-zinc-500">
-                            Broadcast this notification template to all active operators. If native permissions are granted, this will immediately fire a desktop alert.
-                          </p>
+                  {activeTab === 'inference' && (
+                    <MountTracker id="inference">
+                      <NexusErrorBoundary fallbackTitle="LLM Revolver Exception">
+                        <PredictiveRuntimeInference />
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
+
+                  {activeTab === 'arekappa' && (
+                    <MountTracker id="arekappa">
+                      <NexusErrorBoundary fallbackTitle="AREKappa Workspace Exception">
+                        <AREKappaRuntimeWorkspace />
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
+
+                  {activeTab === 'sanctuary' && (
+                    <MountTracker id="sanctuary">
+                      <NexusErrorBoundary fallbackTitle="Axiom Sanctuary Exception">
+                        <CoreResonanceSanctuary />
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
+
+                  {activeTab === 'vcs' && (
+                    <MountTracker id="vcs">
+                      <NexusErrorBoundary fallbackTitle="VCS Sync Exception">
+                        <NexusBridgeWithBoundary />
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
+
+                  {activeTab === 'diagnostics' && (
+                    <MountTracker id="diagnostics">
+                      <NexusErrorBoundary fallbackTitle="Diagnostics View Exception">
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                            <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
+                            <SystemBugHunt />
+                          </div>
+                          <TTITracker />
+                          <FailoverDiagnostics />
+                          <IntegrityDiagnostics />
                         </div>
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
 
-                        <button
-                          onClick={handleTriggerTestPush}
-                          disabled={isSendingPush}
-                          className="mt-4 w-full py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg"
-                        >
-                          {isSendingPush ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
-                          <span>Trigger Server Push Alert</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <HiaResonanceVoice onNavigateTab={setActiveTab} />
-                </div>
-              </NexusErrorBoundary>
-                </MountTracker>
-            </div>
-
-            <div className={activeTab === 'inference' ? 'block' : 'hidden'}>
-              <MountTracker id="inference">
-              <NexusErrorBoundary fallbackTitle="LLM Revolver Exception">
-                <PredictiveRuntimeInference />
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
-
-            <div className={activeTab === 'arekappa' ? 'block' : 'hidden'}>
-              <MountTracker id="arekappa">
-              <NexusErrorBoundary fallbackTitle="AREKappa Workspace Exception">
-                <AREKappaRuntimeWorkspace />
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
-
-            <div className={activeTab === 'sanctuary' ? 'block' : 'hidden'}>
-              <MountTracker id="sanctuary">
-              <NexusErrorBoundary fallbackTitle="Axiom Sanctuary Exception">
-                <CoreResonanceSanctuary />
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
-
-            <div className={activeTab === 'vcs' ? 'block' : 'hidden'}>
-              <MountTracker id="vcs">
-              <NexusErrorBoundary fallbackTitle="VCS Sync Exception">
-                <NexusBridgeWithBoundary />
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
-
-            <div className={activeTab === 'diagnostics' ? 'block space-y-6' : 'hidden'}>
-              <MountTracker id="diagnostics">
-              <NexusErrorBoundary fallbackTitle="Diagnostics View Exception">
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                    <SystemValidationTestbed onSendToBugHunt={() => setActiveTab('diagnostics')} />
-                    <SystemBugHunt />
-                  </div>
-                  <TTITracker />
-                  <FailoverDiagnostics />
-                  <IntegrityDiagnostics />
-                </div>
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
-
-            <div className={activeTab === 'calibrations' ? 'block space-y-8' : 'hidden'}>
-              <MountTracker id="calibrations">
-              <NexusErrorBoundary fallbackTitle="Settings Workspace Exception">
-                <div className="space-y-8">
-                  <N1AudiobookReader />
-                  <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
-                  <PhysicalStabilityMonitor />
-                  <FleetManagementWorkspace />
-                  <Integrations />
-                </div>
-              </NexusErrorBoundary>
-              </MountTracker>
-            </div>
+                  {activeTab === 'calibrations' && (
+                    <MountTracker id="calibrations">
+                      <NexusErrorBoundary fallbackTitle="Settings Workspace Exception">
+                        <div className="space-y-8">
+                          <N1AudiobookReader />
+                          <SettingsWorkspace onCoreLockStateChange={(locked) => setIsCoreLocked(locked)} />
+                          <PhysicalStabilityMonitor />
+                          <FleetManagementWorkspace />
+                          <Integrations />
+                        </div>
+                      </NexusErrorBoundary>
+                    </MountTracker>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </Suspense>
           </div>
         </main>

@@ -18,25 +18,11 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
   const requestRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Send Push Notification alert via system endpoint
-  const sendCoherencePushAlert = useCallback(async (current: number, baseline: number) => {
+  // Log coherence drop event
+  const sendCoherenceAlert = useCallback((current: number, baseline: number) => {
     if (hasPushedAlertRef.current) return;
     hasPushedAlertRef.current = true;
-
-    try {
-      console.log(`[N+1 Voice Studio] Triggering coherence drop push notification (${current}% vs Baseline ${baseline}%)...`);
-      await fetch('/api/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'N+1 Voice Studio Diagnostic Alert',
-          body: `Sudden voice coherence drop detected! Current: ${current.toFixed(1)}% vs Baseline: ${baseline.toFixed(1)}%. Auto-recalibration initialized.`,
-          url: '/?tab=voice'
-        })
-      });
-    } catch (err) {
-      console.warn('[N+1 Voice Studio] Failed to send push notification:', err);
-    }
+    console.log(`[N+1 Voice Studio] Coherence drop detected (${current}% vs Baseline ${baseline}%). Auto-recalibration initialized.`);
   }, []);
 
   const triggerSimulatedCoherenceDrop = useCallback(() => {
@@ -44,8 +30,8 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
     hasPushedAlertRef.current = false;
     setCoherenceScore(42.8);
     setCoherenceDropDetected(true);
-    sendCoherencePushAlert(42.8, baselineCoherence);
-  }, [baselineCoherence, sendCoherencePushAlert]);
+    sendCoherenceAlert(42.8, baselineCoherence);
+  }, [baselineCoherence, sendCoherenceAlert]);
 
   const recalibrateBaseline = useCallback(() => {
     isSimulatedDropRef.current = false;
@@ -90,7 +76,7 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
       // Detect sudden drop (> 20% below established baseline)
       if (currentScore < baselineCoherence - 20) {
         setCoherenceDropDetected(true);
-        sendCoherencePushAlert(currentScore, baselineCoherence);
+        sendCoherenceAlert(currentScore, baselineCoherence);
       } else {
         setCoherenceDropDetected(false);
       }
@@ -201,8 +187,11 @@ export function useAudioVisualizer(isActive: boolean, isListening: boolean, isSp
         sourceRef.current.disconnect();
         sourceRef.current = null;
       }
+      analyserRef.current = null;
+      setAudioLevel(0);
+      setFrequencyData(new Uint8Array(32));
     };
-  }, [isActive, isListening, isSpeaking, baselineCoherence, sendCoherencePushAlert]);
+  }, [isActive, isListening, isSpeaking, baselineCoherence, sendCoherenceAlert]);
 
   return {
     audioLevel,

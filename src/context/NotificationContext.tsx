@@ -66,18 +66,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const reasonMsg = event.reason?.message || '';
+      const reasonMsg = event.reason?.message || (typeof event.reason === 'string' ? event.reason : '');
       
-      // Ignore Vite HMR WebSocket connection errors (expected when HMR is blocked by proxy)
-      if (reasonMsg.includes('WebSocket') && reasonMsg.includes('closed without opened')) {
-        event.preventDefault();
+      // Prevent default unhandled rejection alert
+      event.preventDefault();
+
+      // Ignore expected background network / stream or socket drops
+      if (
+        !reasonMsg ||
+        reasonMsg.includes('WebSocket') || 
+        reasonMsg.includes('Failed to fetch') ||
+        reasonMsg.includes('Load failed') ||
+        reasonMsg.includes('abort') ||
+        reasonMsg.includes('NetworkError')
+      ) {
         return;
       }
 
       addNotification(
-        reasonMsg || "An unexpected asynchronous error occurred.", 
-        'error', 
-        'ERR_UNHANDLED_REJECTION'
+        reasonMsg, 
+        'info', 
+        'ASYNC_EVENT'
       );
     };
 

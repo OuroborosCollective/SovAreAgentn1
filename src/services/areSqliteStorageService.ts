@@ -109,22 +109,31 @@ class ARESqliteStorageService {
           emscriptenModuleConfig.wasmBinary = wasmBinary;
         }
 
-        // Initialize sql.js WASM engine safely with CJS/ESM compatibility check
-        const initFn = typeof initSqlJs === 'function' ? initSqlJs : (initSqlJs as any)?.default;
-        if (typeof initFn !== 'function') {
-          throw new Error('initSqlJs module resolving failed: factory is not a function');
+        // Initialize sql.js WASM engine safely with CJS/ESM compatibility check (in browser DOM environment)
+        try {
+          if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+            const initFn = typeof initSqlJs === 'function' ? initSqlJs : (initSqlJs as any)?.default;
+            if (typeof initFn === 'function') {
+              this.SQL = await initFn(emscriptenModuleConfig);
+            }
+          } else {
+            console.log('[ARE SQLite Storage] Non-browser Node runtime detected: operating in in-memory storage mode.');
+          }
+        } catch (wasmErr: any) {
+          console.warn('[ARE SQLite Storage] WASM initialization bypassed in non-browser environment:', wasmErr?.message || wasmErr);
         }
-        this.SQL = await initFn(emscriptenModuleConfig);
 
         // Load binary dump from IndexedDB if exists
         const savedBinary = await this.loadBinaryFromIndexedDB();
 
-        if (savedBinary && savedBinary.byteLength > 0) {
+        if (this.SQL && savedBinary && savedBinary.byteLength > 0) {
           this.db = new this.SQL.Database(savedBinary);
           console.log('[ARE SQLite Storage] Loaded existing SQLite database from persistent store.');
-        } else {
+        } else if (this.SQL) {
           this.db = new this.SQL.Database();
           console.log('[ARE SQLite Storage] Created new SQLite database instance.');
+        } else {
+          console.log('[ARE SQLite Storage] Operating in in-memory fallback state.');
         }
 
         // Initialize schema
@@ -365,6 +374,52 @@ class ARESqliteStorageService {
     }
   }
 
+  public async exportTicksToJson(): Promise<string> {
+    await this.init();
+    let ticks: SqliteARETick[] = [];
+
+    if (this.db) {
+      try {
+        const res = this.db.exec("SELECT id, tick_id, program_id, program_json, queued_at, status, content_hash FROM are_offline_ticks ORDER BY queued_at DESC;");
+        if (res.length > 0 && res[0].values) {
+          ticks = res[0].values.map((row: any[]) => {
+            let parsedProgram: KappaIRProgram | null = null;
+            if (row[3]) {
+              try {
+                parsedProgram = JSON.parse(String(row[3]));
+              } catch {
+                parsedProgram = null;
+              }
+            }
+            return {
+              id: String(row[0]),
+              tickId: Number(row[1] || 0),
+              programId: String(row[2] || ''),
+              program: parsedProgram as KappaIRProgram,
+              queuedAt: Number(row[4] || 0),
+              status: String(row[5] || 'PENDING') as any,
+              contentHash: String(row[6] || '')
+            };
+          });
+        }
+      } catch (err) {
+        console.error('[ARE SQLite Storage] Failed to export ticks to JSON:', err);
+      }
+    } else {
+      ticks = [...this.fallbackTicks];
+    }
+
+    const payload = {
+      exportTimestamp: new Date().toISOString(),
+      database: "are_ticks_sqlite.db",
+      tableName: "are_offline_ticks",
+      totalRecords: ticks.length,
+      ticks
+    };
+
+    return JSON.stringify(payload, null, 2);
+  }
+
   public async exportTicksToCsv(): Promise<string> {
     await this.init();
     let rows: any[] = [];
@@ -373,13 +428,22 @@ class ARESqliteStorageService {
       try {
         const res = this.db.exec("SELECT id, program_id, status, queued_at, content_hash FROM are_offline_ticks ORDER BY queued_at DESC;");
         if (res.length > 0 && res[0].values) {
-          rows = res[0].values.map(row => ({
-            id: String(row[0]),
-            program_id: String(row[1]),
-            status: String(row[2]),
-            queued_at: new Date(Number(row[3])).toISOString(),
-            content_hash: String(row[4])
-          }));
+          rows = res[0].values.map(row => {
+            const rawQueuedAt = Number(row[3] || 0);
+            let formattedDate = '';
+            try {
+              formattedDate = rawQueuedAt > 0 ? new Date(rawQueuedAt).toISOString() : new Date().toISOString();
+            } catch {
+              formattedDate = new Date().toISOString();
+            }
+            return {
+              id: String(row[0] || ''),
+              program_id: String(row[1] || ''),
+              status: String(row[2] || 'PENDING'),
+              queued_at: formattedDate,
+              content_hash: String(row[4] || '')
+            };
+          });
         }
       } catch (err) {
         console.error('[ARE SQLite Storage] Failed to export ticks to CSV:', err);

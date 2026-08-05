@@ -30,7 +30,15 @@ class SystemErrorBus {
 
     // Listen to unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
-      const reason = event.reason ? String(event.reason) : 'UnhandledPromiseRejection';
+      const reason = event.reason ? String(event.reason?.message || event.reason) : 'UnhandledPromiseRejection';
+      if (
+        reason.includes('WebSocket') || 
+        reason.includes('Failed to fetch') || 
+        reason.includes('Load failed') ||
+        reason.includes('abort')
+      ) {
+        return;
+      }
       this.dispatchError({
         errorLog: reason,
         source: 'FIRESTORE',

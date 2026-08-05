@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint, Activity, Wrench, Trash2, Sparkles, HardDrive } from 'lucide-react';
+import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint, Activity, Wrench, Trash2, Sparkles, HardDrive, Download, FileJson, FileSpreadsheet } from 'lucide-react';
 import { areSqliteStorageService, MaintenanceResult } from '../services/areSqliteStorageService';
 import { areBackgroundSyncService, SyncStatus } from '../services/areBackgroundSyncService';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +15,12 @@ export const IntegrityDiagnostics: React.FC = () => {
   
   const [isRunningMaintenance, setIsRunningMaintenance] = useState(false);
   const [maintenanceResult, setMaintenanceResult] = useState<MaintenanceResult | null>(areSqliteStorageService.getLastMaintenanceResult());
+
+  const [isExportingJson, setIsExportingJson] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [showJsonConfirmModal, setShowJsonConfirmModal] = useState(false);
+  const [pendingRecordCount, setPendingRecordCount] = useState<number>(0);
 
   useEffect(() => {
     const unsub = areBackgroundSyncService.subscribe((newStatus) => {
@@ -66,6 +72,61 @@ export const IntegrityDiagnostics: React.FC = () => {
     }
   };
 
+  const handleOpenJsonConfirmModal = () => {
+    const currentCount = status?.sqliteRows || 0;
+    setPendingRecordCount(currentCount);
+    setShowJsonConfirmModal(true);
+  };
+
+  const handleConfirmJsonExport = async () => {
+    setShowJsonConfirmModal(false);
+    setIsExportingJson(true);
+    try {
+      const jsonContent = await areSqliteStorageService.exportTicksToJson();
+      const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `are_ticks_sqlite_${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMessage(`Successfully exported ${pendingRecordCount} records from are_ticks database as JSON file: ${a.download}`);
+      setTimeout(() => setExportMessage(null), 6000);
+    } catch (err: any) {
+      console.error('[Integrity Diagnostics] Failed to export JSON:', err);
+      setExportMessage(`Export failed: ${err.message}`);
+    } finally {
+      setIsExportingJson(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setIsExportingCsv(true);
+    try {
+      const csvContent = await areSqliteStorageService.exportTicksToCsv();
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `are_ticks_sqlite_${timestamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMessage(`Successfully exported are_ticks database as CSV file: ${a.download}`);
+      setTimeout(() => setExportMessage(null), 6000);
+    } catch (err: any) {
+      console.error('[Integrity Diagnostics] Failed to export CSV:', err);
+      setExportMessage(`Export failed: ${err.message}`);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
   return (
     <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl mt-6">
       <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
@@ -78,14 +139,25 @@ export const IntegrityDiagnostics: React.FC = () => {
             <p className="text-xs text-zinc-500">Automated checksum validation & immutable ledger health.</p>
           </div>
         </div>
-        <button 
-          onClick={performCheck}
-          disabled={isChecking}
-          className="px-3 py-1.5 bg-blue-900/20 border border-blue-800/50 text-blue-400 hover:bg-blue-900/40 hover:text-white rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-2"
-        >
-          {isChecking ? <RefreshCw size={12} className="animate-spin" /> : <Fingerprint size={12} />}
-          Run Integrity Scan
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleOpenJsonConfirmModal}
+            disabled={isExportingJson}
+            className="px-3 py-1.5 bg-emerald-950/40 border border-emerald-700/60 text-emerald-300 hover:bg-emerald-900/60 hover:text-white rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1.5"
+            title="Export all are_ticks records from SQLite database as JSON"
+          >
+            {isExportingJson ? <RefreshCw size={12} className="animate-spin" /> : <FileJson size={12} />}
+            {isExportingJson ? 'Exporting...' : 'Export JSON'}
+          </button>
+          <button 
+            onClick={performCheck}
+            disabled={isChecking}
+            className="px-3 py-1.5 bg-blue-900/20 border border-blue-800/50 text-blue-400 hover:bg-blue-900/40 hover:text-white rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-2"
+          >
+            {isChecking ? <RefreshCw size={12} className="animate-spin" /> : <Fingerprint size={12} />}
+            Run Integrity Scan
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -286,6 +358,87 @@ export const IntegrityDiagnostics: React.FC = () => {
         )}
       </div>
 
+      {/* Data Portability & Database Export Card */}
+      <div className="border border-emerald-900/40 bg-emerald-950/10 rounded-2xl p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-900/30 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 rounded-xl">
+              <FileJson size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Data Portability & Database Export
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase font-mono font-bold">
+                  JSON / CSV
+                </span>
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Export current contents of the <code className="text-emerald-300 font-mono">are_ticks</code> SQLite database as a formatted JSON download file for portability and backup.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleOpenJsonConfirmModal}
+              disabled={isExportingJson}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50"
+            >
+              {isExportingJson ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>{isExportingJson ? 'Generating JSON...' : 'Export SQLite Ticks (JSON)'}</span>
+            </button>
+
+            <button
+              onClick={handleExportCsv}
+              disabled={isExportingCsv}
+              className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 disabled:opacity-50 text-zinc-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+              title="Export as CSV spreadsheet"
+            >
+              {isExportingCsv ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <FileSpreadsheet size={14} />
+              )}
+              <span>CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Target Database Table</span>
+            <span className="text-xs font-bold font-mono text-emerald-400">are_offline_ticks (are_ticks)</span>
+          </div>
+
+          <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Exportable Records</span>
+            <span className="text-xs font-bold font-mono text-white">
+              {status?.sqliteRows || 0} Ticks
+            </span>
+          </div>
+
+          <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Data Format</span>
+            <span className="text-xs font-bold font-mono text-sky-400">Structured JSON (.json)</span>
+          </div>
+        </div>
+
+        {exportMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-3 bg-emerald-950/60 border border-emerald-600/80 text-emerald-300 rounded-xl text-xs font-mono flex items-center gap-2"
+          >
+            <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+            <span>{exportMessage}</span>
+          </motion.div>
+        )}
+      </div>
+
       {checkResult && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
@@ -321,6 +474,79 @@ export const IntegrityDiagnostics: React.FC = () => {
       <div className="text-[10px] text-zinc-600 italic">
         * The background automated integrity checker validates the cryptographically linked hash chain of ARE-Logik ticks every 5 minutes to prevent data drift and guarantee Ouroboros Protocol compliance.
       </div>
+
+      {/* Confirmation Modal for JSON Export */}
+      <AnimatePresence>
+        {showJsonConfirmModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-zinc-950 border border-emerald-500/40 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-6 shadow-2xl relative overflow-hidden"
+            >
+              <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
+                <div className="p-3 bg-emerald-950/80 border border-emerald-600/60 text-emerald-300 rounded-2xl">
+                  <FileJson size={24} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Confirm JSON Database Export</h3>
+                  <p className="text-xs text-zinc-400">Review record count summary before initiating download</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 font-mono text-xs">
+                <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/80">
+                  <span className="text-zinc-500 uppercase text-[10px] font-bold">Database Source</span>
+                  <span className="text-emerald-400 font-bold">SQLite (`are_ticks_sqlite.db`)</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/80">
+                  <span className="text-zinc-500 uppercase text-[10px] font-bold">Target Table</span>
+                  <span className="text-zinc-300 font-bold">`are_offline_ticks` (`are_ticks`)</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5 border-b border-zinc-800/80">
+                  <span className="text-zinc-500 uppercase text-[10px] font-bold">Total Record Count</span>
+                  <span className="text-white text-sm font-bold bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-600 text-emerald-300">
+                    {pendingRecordCount} Ticks
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-1.5">
+                  <span className="text-zinc-500 uppercase text-[10px] font-bold">Export Format</span>
+                  <span className="text-sky-400 font-bold">JSON (.json UTF-8 formatted)</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Exporting will package all {pendingRecordCount} records including cryptographic tick IDs, state payloads, and verification timestamps into a structured JSON file.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-zinc-900">
+                <button
+                  onClick={() => setShowJsonConfirmModal(false)}
+                  className="px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmJsonExport}
+                  disabled={isExportingJson}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/60"
+                >
+                  {isExportingJson ? (
+                    <RefreshCw size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  <span>{isExportingJson ? 'Generating...' : `Confirm & Export (${pendingRecordCount} Records)`}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
