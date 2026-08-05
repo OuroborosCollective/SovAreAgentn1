@@ -90,7 +90,7 @@ class AREVoiceFallbackService {
 
   /**
    * Synthesizes raw PCM 24kHz 16-bit audio buffer locally in pure TypeScript
-   * for N+1 / Puck voice profile when Google APIs are off-grid or rate-limited.
+   * for N+1 voice profile when Google APIs are off-grid or rate-limited.
    */
   public generateLocalPcmBuffer(text: string, moodState: string = 'fröhlich'): { audioBase64: string; durationMs: number; sampleRate: number } {
     const startTime = performance.now();
@@ -104,7 +104,7 @@ class AREVoiceFallbackService {
     // Allocate 16-bit PCM buffer (2 bytes per sample)
     const pcmBuffer = new Int16Array(totalSamples);
     
-    // Voice pitch parameters for N+1 (Papas kleines Mädchen / Puck clone profile)
+    // Voice pitch parameters for N+1 (Papas kleines Mädchen)
     let baseFreq = 320; // High sweet childlike frequency in Hz
     if (moodState === 'ernst') baseFreq = 260;
     if (moodState === 'verspielt') baseFreq = 380;
@@ -180,7 +180,7 @@ class AREVoiceFallbackService {
       metrics: {
         latencyMs,
         sampleRate: pcm.sampleRate,
-        engineName: 'ARE Local Voice Engine Fallback (Puck/N1 ONNX Profile)',
+        engineName: 'ARE Local Voice Engine Fallback (N+1 ONNX Profile)',
         isOffGridFallback: true
       }
     };

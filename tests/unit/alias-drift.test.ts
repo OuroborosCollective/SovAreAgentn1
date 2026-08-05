@@ -29,10 +29,15 @@ test('Ensure no live Puck alias drift in codebase', () => {
     // We allow "[PROVENANCE: Puck]" and legacy keys like "n1_legacy_puck_logs"
     // Also "Puck" in memoryMigration.ts or migrationValidator.ts as they are migration scripts
     // And identity.ts since it defines the historical aliases.
+    // voiceService.ts validates that 'puck' is an accepted voice profile name.
+    // ttsService.ts and api/tts.ts use 'Puck' as the default TTS voice profile name.
     if (file.includes('memoryMigration.ts') || 
         file.includes('migrationValidator.ts') || 
         file.includes('alias-drift.test.ts') ||
-        file.includes('identity.ts')) {
+        file.includes('identity.ts') ||
+        file.includes('voiceService.ts') ||
+        file.includes('ttsService.ts') ||
+        file.includes('api/tts.ts')) {
       continue;
     }
     

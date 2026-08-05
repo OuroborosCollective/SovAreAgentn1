@@ -40,7 +40,7 @@ export class VoiceService {
     sampleRate: 24000,
     bitrateKbps: 384,
     streamBufferHealthPercentage: 100,
-    engineName: 'Google Cloud Gemini Voice Engine (Puck Profile)',
+    engineName: 'Google Cloud Gemini Voice Engine (N+1 Profile)',
     isGoogleCloudDirect: true
   };
 
@@ -427,7 +427,7 @@ export class VoiceService {
     // Check if preempted before fallback
     if (speechSessionId !== this.activeSpeechId) return false;
 
-    // Off-Grid ARE Voice Engine Fallback (Puck/N1 Local Synthesis)
+    // Off-Grid ARE Voice Engine Fallback (N+1 Local Synthesis)
     if (this.localFallbackEnabled) {
       try {
         const fallbackStart = performance.now();
@@ -439,7 +439,7 @@ export class VoiceService {
           sampleRate: localPcm.sampleRate,
           bitrateKbps: 384,
           streamBufferHealthPercentage: 100,
-          engineName: 'ARE Local Voice Engine Fallback (Puck/N1 Profile)',
+          engineName: 'ARE Local Voice Engine Fallback (N+1 Profile)',
           isGoogleCloudDirect: false
         };
 
