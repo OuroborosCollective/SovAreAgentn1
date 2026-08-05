@@ -311,6 +311,84 @@ class ARESqliteStorageService {
   /**
    * Returns stats about local SQLite storage
    */
+  public async getTickDensityMetrics(): Promise<{ timestamp: number, count: number }[]> {
+    await this.init();
+    
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+    
+    if (!this.db) {
+      // Fallback: group by minute from fallback array
+      const bins: Record<string, number> = {};
+      this.fallbackTicks.filter(t => t.queuedAt >= oneHourAgo).forEach(t => {
+        const minBin = Math.floor(t.queuedAt / 60000) * 60000;
+        bins[minBin] = (bins[minBin] || 0) + 1;
+      });
+      return Object.keys(bins).map(k => ({ timestamp: Number(k), count: bins[k] })).sort((a, b) => a.timestamp - b.timestamp);
+    }
+    
+    try {
+      // Return ticks grouped by minute
+      const res = this.db.exec(`
+        SELECT (queued_at / 60000) * 60000 as min_bin, COUNT(*) 
+        FROM are_offline_ticks 
+        WHERE queued_at >= ${oneHourAgo}
+        GROUP BY min_bin 
+        ORDER BY min_bin ASC;
+      `);
+      if (res.length === 0 || !res[0].values) return [];
+      
+      return res[0].values.map((row: any) => ({
+        timestamp: Number(row[0]),
+        count: Number(row[1])
+      }));
+    } catch (err) {
+      console.error('[ARE SQLite Storage] Failed to query tick density:', err);
+      return [];
+    }
+  }
+
+  public async exportTicksToCsv(): Promise<string> {
+    await this.init();
+    let rows: any[] = [];
+    
+    if (this.db) {
+      try {
+        const res = this.db.exec("SELECT id, program_id, status, queued_at, content_hash FROM are_offline_ticks ORDER BY queued_at DESC;");
+        if (res.length > 0 && res[0].values) {
+          rows = res[0].values.map(row => ({
+            id: String(row[0]),
+            program_id: String(row[1]),
+            status: String(row[2]),
+            queued_at: new Date(Number(row[3])).toISOString(),
+            content_hash: String(row[4])
+          }));
+        }
+      } catch (err) {
+        console.error('[ARE SQLite Storage] Failed to export ticks to CSV:', err);
+      }
+    } else {
+      // Fallback
+      rows = this.fallbackTicks.map(t => ({
+        id: t.id,
+        program_id: t.programId,
+        status: t.status,
+        queued_at: new Date(t.queuedAt).toISOString(),
+        content_hash: t.contentHash
+      }));
+    }
+    
+    if (rows.length === 0) return 'id,program_id,status,queued_at,content_hash\n';
+    
+    const headers = ['id', 'program_id', 'status', 'queued_at', 'content_hash'];
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => headers.map(h => `"${(r as any)[h] || ''}"`).join(','))
+    ].join('\n');
+    
+    return csvContent;
+  }
+
   public async getStats(): Promise<{ totalRows: number; pendingCount: number; dbSizeBytes: number; isSqliteActive: boolean }> {
     await this.init();
     if (!this.db) {

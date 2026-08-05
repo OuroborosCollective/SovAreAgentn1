@@ -50,6 +50,8 @@ export interface PredictivePattern {
   status: 'active' | 'learning' | 'mitigating';
 }
 
+import { MountTracker } from './MountTracker';
+
 const INITIAL_PREDICTIVE_PATTERNS: PredictivePattern[] = [
   {
     id: 'pat-01',
@@ -325,6 +327,7 @@ export const PredictiveRuntimeInference: React.FC = () => {
       )}
 
       {/* METRICS CARDS */}
+      <MountTracker id="inference_metrics_cards">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Predicted Bottleneck Probability', value: '4.2%', sub: 'Low Risk (Nominal)', icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -353,8 +356,10 @@ export const PredictiveRuntimeInference: React.FC = () => {
           </motion.div>
         ))}
       </div>
+      </MountTracker>
 
       {/* FORECAST CHARTS */}
+      <MountTracker id="inference_forecast_charts">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Probability Area Chart */}
         <div className="lg:col-span-2 p-5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
@@ -416,8 +421,10 @@ export const PredictiveRuntimeInference: React.FC = () => {
           </div>
         </div>
       </div>
+      </MountTracker>
 
       {/* SELF-LEARNING PATTERN LIBRARY */}
+      <MountTracker id="inference_pattern_library">
       <div className="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-6 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
           <div className="flex items-center gap-2">
@@ -517,8 +524,10 @@ export const PredictiveRuntimeInference: React.FC = () => {
           </div>
         </form>
       </div>
+      </MountTracker>
 
       {/* LIVE EVENT LOG TERMINAL */}
+      <MountTracker id="inference_telemetry_log">
       <div className="p-5 bg-black border border-zinc-800 rounded-2xl space-y-3 font-mono text-xs">
         <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
           <div className="flex items-center gap-2 text-zinc-400">
@@ -537,6 +546,7 @@ export const PredictiveRuntimeInference: React.FC = () => {
           ))}
         </div>
       </div>
+      </MountTracker>
     </div>
   );
 };

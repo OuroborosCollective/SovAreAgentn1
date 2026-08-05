@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint } from 'lucide-react';
+import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint, Activity } from 'lucide-react';
 import { areSqliteStorageService } from '../services/areSqliteStorageService';
 import { areBackgroundSyncService, SyncStatus } from '../services/areBackgroundSyncService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 export const IntegrityDiagnostics: React.FC = () => {
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -10,13 +11,23 @@ export const IntegrityDiagnostics: React.FC = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<{ checked: number; fixed: number; errors: string[] } | null>(null);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
+  const [densityData, setDensityData] = useState<{ timestamp: number, count: number }[]>([]);
 
   useEffect(() => {
     const unsub = areBackgroundSyncService.subscribe((newStatus) => {
       setStatus(newStatus);
       setWasmHealth(areSqliteStorageService.getWasmHealth());
     });
-    return () => unsub();
+    
+    areSqliteStorageService.getTickDensityMetrics().then(setDensityData);
+    const interval = setInterval(() => {
+      areSqliteStorageService.getTickDensityMetrics().then(setDensityData);
+    }, 15000);
+
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
   }, []);
 
   const performCheck = async () => {
@@ -26,6 +37,8 @@ export const IntegrityDiagnostics: React.FC = () => {
       setCheckResult(results);
       setLastCheckTime(new Date());
       setWasmHealth(areSqliteStorageService.getWasmHealth());
+      const newDensity = await areSqliteStorageService.getTickDensityMetrics();
+      setDensityData(newDensity);
     } catch (err: any) {
       setCheckResult({ checked: 0, fixed: 0, errors: [err.message] });
     } finally {
@@ -97,6 +110,71 @@ export const IntegrityDiagnostics: React.FC = () => {
           <div className="text-lg font-bold text-emerald-400 flex items-center gap-2">
             100% <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded uppercase">Verified</span>
           </div>
+        </div>
+      </div>
+
+      {/* Ticks Density Chart */}
+      <div className="mt-6 border border-zinc-800/60 bg-black/20 rounded-2xl p-4 sm:p-6 space-y-4">
+        <div className="flex items-center gap-2 text-zinc-400">
+          <Activity size={16} className="text-blue-400" />
+          <h3 className="text-xs font-bold uppercase tracking-wider">ARE-Ticks Density (Last 60 Minutes)</h3>
+        </div>
+        
+        <div className="h-[200px] w-full">
+          {densityData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={densityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorTicks" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis 
+                  dataKey="timestamp" 
+                  stroke="#52525b" 
+                  fontSize={10}
+                  tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  minTickGap={30}
+                />
+                <YAxis 
+                  stroke="#52525b" 
+                  fontSize={10} 
+                  tickFormatter={(val) => Math.round(val).toString()}
+                  allowDecimals={false}
+                />
+                <Tooltip 
+                  content={({ active, payload, label }: any) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-zinc-900 border border-zinc-700 p-2 rounded-lg shadow-xl text-xs font-mono">
+                          <p className="text-zinc-400 mb-1">{new Date(label).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-blue-400 font-bold">{payload[0].value} Ticks</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="count" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  fillOpacity={1} 
+                  fill="url(#colorTicks)" 
+                  animationDuration={1000}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-zinc-600 font-mono text-[10px] space-y-2 border border-dashed border-zinc-800 rounded-xl bg-zinc-900/20">
+              <Activity size={24} className="text-zinc-700 mb-1" />
+              <span>Awaiting telemetry data...</span>
+              <span>(Start an active voice session to accumulate metrics)</span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -211,6 +211,28 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
     activeNodes: [] as string[]
   });
 
+  const [outgoingFreqData, setOutgoingFreqData] = useState<Uint8Array>(new Uint8Array(32));
+
+  useEffect(() => {
+    let animationFrameId: number;
+    const updateData = () => {
+      const globalAnalyser = voiceService.getGlobalAnalyser();
+      if (globalAnalyser && isPlayingVoice) {
+        const dataArray = new Uint8Array(globalAnalyser.frequencyBinCount);
+        globalAnalyser.getByteFrequencyData(dataArray);
+        setOutgoingFreqData(new Uint8Array(dataArray));
+      } else {
+        setOutgoingFreqData(new Uint8Array(32)); // Reset when not playing
+      }
+      animationFrameId = requestAnimationFrame(updateData);
+    };
+    
+    updateData();
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    };
+  }, [isPlayingVoice]);
+
   const loadSqliteEvents = useCallback(async () => {
     try {
       const events = await areSqliteStorageService.getSseEvents();
@@ -1162,10 +1184,10 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
               <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-teal-500/10 pointer-events-none animate-pulse z-0" />
             )}
 
-            {Array.from(liveFrequencyData).slice(0, 15).map((val, idx) => (
+            {Array.from(isPlayingVoice ? outgoingFreqData : liveFrequencyData).slice(0, 15).map((val, idx) => (
               <motion.div
                 key={idx}
-                animate={{ height: `${val}%` }}
+                animate={{ height: `${Math.max(5, (val / 255) * 100)}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 className={`w-3.5 rounded-t-lg z-10 transition-colors duration-300 ${
                   coherenceDropDetected

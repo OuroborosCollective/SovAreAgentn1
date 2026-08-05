@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import JSZip from 'jszip';
 import { generateDeterministicId, generateDeterministicNumber, getDeterministicTimestamp } from '../utils/deterministic';
+import { areSqliteStorageService } from '../services/areSqliteStorageService';
 
 export interface BiometricSecurityState {
   isBiometricSupported: boolean;
@@ -95,6 +96,94 @@ export const SettingsWorkspace: React.FC<{
     setAnimatorSpeed(newSpeed);
     localStorage.setItem('n1_animator_speed', newSpeed);
     window.dispatchEvent(new CustomEvent('n1_animator_speed_change', { detail: newSpeed }));
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    try {
+      setIsExportingCsv(true);
+      const csvContent = await areSqliteStorageService.exportTicksToCsv();
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `are_ticks_export_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
+  const handleExportDiagnostics = async () => {
+    try {
+      setIsExporting(true);
+      const stateSnapshot: Record<string, any> = {};
+      
+      // Exclude sensitive credentials
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          const lowerKey = key.toLowerCase();
+          if (
+            lowerKey.includes('key') ||
+            lowerKey.includes('token') ||
+            lowerKey.includes('secret') ||
+            lowerKey.includes('password') ||
+            lowerKey.includes('credential') ||
+            lowerKey.includes('biometric')
+          ) {
+            continue; // Skip sensitive keys
+          }
+          
+          let val = localStorage.getItem(key);
+          try {
+            stateSnapshot[key] = JSON.parse(val || '');
+          } catch {
+            stateSnapshot[key] = val;
+          }
+        }
+      }
+
+      // Add basic metadata
+      stateSnapshot['_metadata'] = {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        appName: 'N+1 Axiomatic Core',
+        version: '1.0.0'
+      };
+
+      const jsonString = JSON.stringify(stateSnapshot, null, 2);
+      let downloadBlob = new Blob([jsonString], { type: 'application/json' });
+      let filename = `nplus1-diagnostics-snapshot-${Date.now()}.json`;
+
+      // Compress using CompressionStream if supported
+      if (typeof CompressionStream !== 'undefined') {
+        const stream = new Blob([jsonString]).stream();
+        const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+        downloadBlob = await new Response(compressedStream).blob();
+        filename += '.gz';
+      }
+
+      const url = URL.createObjectURL(downloadBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export diagnostics snapshot:', error);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   useEffect(() => {
@@ -634,6 +723,54 @@ export const SettingsWorkspace: React.FC<{
               <span className="text-[10px] text-zinc-500 font-normal leading-tight">{speedOpt.desc}</span>
             </button>
           ))}
+        </div>
+
+        {/* Diagnostics State Snapshot Export */}
+        <div className="border-t border-zinc-900 pt-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-emerald-950/50 border border-emerald-800 text-emerald-400 rounded-2xl shrink-0">
+              <Download size={28} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white mb-1">Diagnostics State Snapshot</h3>
+              <p className="text-[11px] text-zinc-400 max-w-md">
+                Export the entire application state (excluding sensitive credentials) as a compressed JSON file for local diagnostics and state recovery.
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleExportDiagnostics}
+            disabled={isExporting}
+            className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 shadow-lg"
+          >
+            {isExporting ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
+            <span>{isExporting ? 'Exporting...' : 'Export Snapshot'}</span>
+          </button>
+        </div>
+
+        {/* SQLite CSV Export */}
+        <div className="border-t border-zinc-900 pt-6 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-amber-950/50 border border-amber-800 text-amber-400 rounded-2xl shrink-0">
+              <FileArchive size={28} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white mb-1">Export ARE-Ticks CSV</h3>
+              <p className="text-[11px] text-zinc-400 max-w-md">
+                Export all historical ARE-Logik ticks from the local SQLite database into a CSV file for manual analysis.
+              </p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleExportCsv}
+            disabled={isExportingCsv}
+            className="px-6 py-3.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 shadow-lg"
+          >
+            {isExportingCsv ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
+            <span>{isExportingCsv ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
         </div>
 
         {/* Forensic Analysis Export */}

@@ -28,7 +28,9 @@ type PlaybackCallback = (state: VoicePlaybackState) => void;
 export class VoiceService {
   private listeners: Set<PlaybackCallback> = new Set();
   private currentAudioContext: AudioContext | null = null;
+  private globalAnalyser: AnalyserNode | null = null;
   private currentSourceNode: AudioBufferSourceNode | null = null;
+
   private activeSpeechId: number = 0;
   private activeVolumeInterval: any = null;
   private localFallbackEnabled: boolean = false; // Default to deactivated as requested
@@ -67,6 +69,10 @@ export class VoiceService {
     this.listeners.forEach(cb => cb(fullState));
   }
 
+  public getGlobalAnalyser(): AnalyserNode | null {
+    return this.globalAnalyser;
+  }
+
   public getMetrics(): VoicePerformanceMetrics {
     return this.latestMetrics;
   }
@@ -79,9 +85,22 @@ export class VoiceService {
     return this.localFallbackEnabled;
   }
 
+  private getAudioContext(): AudioContext {
+    if (!this.currentAudioContext) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      this.currentAudioContext = new AudioCtx({ sampleRate: 24000 });
+      this.globalAnalyser = this.currentAudioContext.createAnalyser();
+      this.globalAnalyser.fftSize = 256;
+      this.globalAnalyser.smoothingTimeConstant = 0.8;
+      this.globalAnalyser.connect(this.currentAudioContext.destination);
+    }
+    return this.currentAudioContext;
+  }
+
   public unlockAudio() {
-    if (this.currentAudioContext && this.currentAudioContext.state === 'suspended') {
-      this.currentAudioContext.resume().catch(() => {});
+    const audioContext = this.getAudioContext();
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {});
     }
     if ('speechSynthesis' in window) {
       try {
@@ -106,10 +125,9 @@ export class VoiceService {
       try { this.currentSourceNode.stop(); } catch (e) {}
       this.currentSourceNode = null;
     }
-    if (this.currentAudioContext) {
-      try { this.currentAudioContext.close(); } catch (e) {}
-      this.currentAudioContext = null;
-    }
+    // Note: We DO NOT close currentAudioContext anymore! This keeps the Context alive,
+    // avoiding the overhead/limitations of repeatedly recreating AudioContexts
+    // which caused the repeating sound and subsequent webkit/audio subsystem collapse.
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -563,9 +581,7 @@ export class VoiceService {
           return;
         }
 
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        const audioContext = new AudioCtx({ sampleRate: 24000 });
-        this.currentAudioContext = audioContext;
+        const audioContext = this.getAudioContext();
 
         if (audioContext.state === 'suspended') {
           audioContext.resume().catch(() => {});
@@ -656,7 +672,11 @@ export class VoiceService {
           source.connect(gainNode);
         }
 
-        gainNode.connect(audioContext.destination);
+        if (this.globalAnalyser) {
+          gainNode.connect(this.globalAnalyser);
+        } else {
+          gainNode.connect(audioContext.destination);
+        }
 
         this.notify({ 
           isPlaying: true, 
@@ -696,8 +716,6 @@ export class VoiceService {
           if (speechSessionId === this.activeSpeechId) {
             this.notify({ isPlaying: false, activeVoice: voiceName, mood, volumeLevel: 0, metrics: this.latestMetrics, dataSource: 'REALTIME_STREAM' });
           }
-          try { audioContext.close(); } catch (e) {}
-          this.currentAudioContext = null;
           this.currentSourceNode = null;
           resolve(true);
         };

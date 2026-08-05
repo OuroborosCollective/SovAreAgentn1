@@ -43,7 +43,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'CRITICAL',
     description: 'Asynchronous race condition between ARE-Logik local state machine and remote Firestore/DB listeners during high-frequency ticks.',
     impact: 'Transient state divergence between local agent sandbox and remote state registry.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Unbuffered state mutations overriding atomic vector clock ticks.',
     repairRoutine: 'Apply Vector Clock Mutex Locks & Force Full Snapshot Reconciliation'
   },
@@ -55,7 +55,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Concurrent writes to vector embedding cache causing stale index updates.',
     impact: 'Vector search returning unranked or stale neighbor nodes.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Lack of distributed mutex lock on write operations to Milvus PGVector replica.',
     repairRoutine: 'Acquire Distributed Mutex Lock & Flush In-Memory Write-Ahead Log'
   },
@@ -69,7 +69,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Recursive agent heuristic triggers exceeding execution depth boundaries under rapid simulation cycles.',
     impact: 'Stack memory escalation and potential tick loop lag.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Unbounded recursive call tree in self-improving heuristic feedback loop.',
     repairRoutine: 'Inject Depth-Limiting Guard Clauses & Prune Call Stack Buffers'
   },
@@ -81,7 +81,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'MEDIUM',
     description: 'Agent planning tree expanding beyond maximum allowable node branching factor.',
     impact: 'Excessive CPU utilization during autonomous reasoning iteration.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Missing memoization cache on AST node traversal loops.',
     repairRoutine: 'Enable AST Traversal Memoization & Branch Pruning'
   },
@@ -95,7 +95,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Concurrent streaming requests saturating context buffer capacity under multi-agent reasoning calls.',
     impact: 'Intermittent latency spikes in AI prompt response delivery.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Lack of token queue throttling under parallel agent reasoning triggers.',
     repairRoutine: 'Flush Cache Lines, Allocate Dedicated CPU Token Queue & Lazy Chunking'
   },
@@ -107,7 +107,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Exceeding token window bounds when proxying large codebase dumps to Gemini backend.',
     impact: 'HTTP 400 Bad Request / Token Limit Exceeded exceptions.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Uncompressed prompt serialization without sliding-window token truncation.',
     repairRoutine: 'Implement Sliding-Window Token Truncation & AST Minimization'
   },
@@ -121,7 +121,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'CRITICAL',
     description: 'Port and header protocol mismatch between internal agent bus and external Docker container docking middleware.',
     impact: 'External system integration endpoints unable to establish handshake socket.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Incompatible headers and missing Docker health check probe specs.',
     repairRoutine: 'Reconfigure Docker Docking Spec, Reset Socket Handshake & Register Route'
   },
@@ -133,7 +133,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'CRITICAL',
     description: 'Nginx reverse proxy unable to tunnel WebSocket frames during live agent telemetry streams.',
     impact: 'WebSocket fallback to long-polling, causing UI update lag.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Missing Upgrade and Connection proxy headers in Express/Vite server setup.',
     repairRoutine: 'Inject Nginx Upgrade Header Forwarding Rules & Keep-Alive Timers'
   },
@@ -147,7 +147,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'CRITICAL',
     description: "Attempting to access '.length' property on an uninitialized or undefined array reference.",
     impact: 'Component render crash / White screen of death on client-side SPA.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Missing optional chaining (`?.`) or default array initialization (`[]`) on state lists.',
     repairRoutine: 'Apply Mandatory Optional Chaining `(list || []).length` & Default Prop Guards'
   },
@@ -159,7 +159,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Accessing nested property of agent registry record before asynchronous fetch completes.',
     impact: 'Undefined property exception in agent inspector sidebar.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Render cycle executing prior to Firestore snapshot initialization.',
     repairRoutine: 'Add Loading Skeletons and Guarded Null Checks on Agent Records'
   },
@@ -171,7 +171,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'MEDIUM',
     description: 'Target connection ID in semantic graph missing from active node dictionary.',
     impact: 'Broken SVG edge rendering in Semantic Graph Knowledge Base.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Orphaned node ID reference in graph dependency array.',
     repairRoutine: 'Filter Orphaned Edges & Auto-Reconcile Graph Topology'
   },
@@ -185,7 +185,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'HIGH',
     description: 'Kappa field coefficient dropping below critical stability threshold (κ < 1.0).',
     impact: 'Degradation of deterministic reasoning accuracy in ARE-Logik engine.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Accumulation of unrefactored heuristic stubs in knowledge base.',
     repairRoutine: 'Execute Erdős-Kappa Field Re-Normalization & Entropy Dampening'
   },
@@ -197,7 +197,7 @@ export const INITIAL_FAMILY_ERRORS: LogicalErrorItem[] = [
     severity: 'CRITICAL',
     description: 'Hawking rule violation in recursive agent constraint solver.',
     impact: 'Unbounded information propagation across isolated agent subnets.',
-    status: 'DETECTED',
+    status: 'REPAIRED',
     rootCause: 'Missing cryptographic envelope on inter-agent message packets.',
     repairRoutine: 'Enforce Hawking Pro-Som Cryptographic Boundary Seals'
   }
