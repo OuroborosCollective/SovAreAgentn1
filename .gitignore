@@ -5,3 +5,9 @@ dist/
 ssl/
 *.zip
 
+# Test reports (generated artifacts)
+*-report.json
+unit-report.json
+integration-report.json
+contract-report.json
+

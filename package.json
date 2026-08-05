@@ -27,7 +27,7 @@
     "test:contract": "vitest run tests/contract --reporter=json --outputFile=contract-report.json",
     "test:docker": "docker compose -f docker-compose.yml config > /dev/null",
     "test:security": "npm audit --audit-level=critical",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:contract && npm run test:security && npm run test:docker"
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:contract && npm run test:e2e && npm run test:security && npm run test:docker"
   },
   "dependencies": {
     "@google/genai": "^2.15.0",
