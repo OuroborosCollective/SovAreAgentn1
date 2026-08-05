@@ -43,6 +43,7 @@ import { ProactiveLearningEngine } from './ProactiveLearningEngine';
 import { PrivacySettings } from './PrivacySettings';
 import { ProtectedPersonalityMemory } from './ProtectedPersonalityMemory';
 import { VoicePerformanceMonitor } from './VoicePerformanceMonitor';
+import { HiaResonanceAlertMonitor } from './HiaResonanceAlertMonitor';
 import { BidirectionalVoiceSession } from './BidirectionalVoiceSession';
 import { FamilyVoiceVerification } from './FamilyVoiceVerification';
 import { ChildPersonaWorkspace } from './ChildPersonaWorkspace';
@@ -947,6 +948,9 @@ export const HiaResonanceVoice: React.FC<HiaResonanceVoiceProps> = ({ onNavigate
 
       {/* VOICE PERFORMANCE MONITORING LAYER */}
       <VoicePerformanceMonitor />
+
+      {/* HIA RESONANCE SAFETY THRESHOLD ALERT MONITOR */}
+      <HiaResonanceAlertMonitor />
 
       {/* BIDIRECTIONAL VOICING & EVENT CONTRACT MONITORING WORKSPACE */}
       <BidirectionalVoiceSession />

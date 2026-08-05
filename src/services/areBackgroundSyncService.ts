@@ -66,14 +66,14 @@ class AREBackgroundSyncService {
         });
       }
 
-      // Automated Integrity Checker (Periodic)
+      // Automated Integrity & Maintenance Utility (Periodic - Vacuum & Orphan Check)
       setInterval(() => {
-        areSqliteStorageService.runIntegrityCheck().then(results => {
-          if (results.fixed > 0) {
-            console.log(`[ARE Background Sync] Integrity check auto-fixed ${results.fixed} records.`);
+        areSqliteStorageService.runMaintenanceUtility().then(mResult => {
+          if (mResult.vacuumExecuted || mResult.orphanedCleaned > 0) {
+            console.log(`[ARE Maintenance Utility] Automated background maintenance complete. Reclaimed ${mResult.bytesReclaimed} bytes, purged ${mResult.orphanedCleaned} orphans.`);
             this.notifyStatus();
           }
-        }).catch(err => console.warn('[ARE Background Sync] Scheduled integrity check failed:', err));
+        }).catch(err => console.warn('[ARE Maintenance Utility] Scheduled maintenance failed:', err));
       }, 1000 * 60 * 5); // Every 5 minutes
     }
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint, Activity } from 'lucide-react';
-import { areSqliteStorageService } from '../services/areSqliteStorageService';
+import { Shield, CheckCircle, AlertTriangle, RefreshCw, Database, Fingerprint, Activity, Wrench, Trash2, Sparkles, HardDrive } from 'lucide-react';
+import { areSqliteStorageService, MaintenanceResult } from '../services/areSqliteStorageService';
 import { areBackgroundSyncService, SyncStatus } from '../services/areBackgroundSyncService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -12,16 +12,21 @@ export const IntegrityDiagnostics: React.FC = () => {
   const [checkResult, setCheckResult] = useState<{ checked: number; fixed: number; errors: string[] } | null>(null);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   const [densityData, setDensityData] = useState<{ timestamp: number, count: number }[]>([]);
+  
+  const [isRunningMaintenance, setIsRunningMaintenance] = useState(false);
+  const [maintenanceResult, setMaintenanceResult] = useState<MaintenanceResult | null>(areSqliteStorageService.getLastMaintenanceResult());
 
   useEffect(() => {
     const unsub = areBackgroundSyncService.subscribe((newStatus) => {
       setStatus(newStatus);
       setWasmHealth(areSqliteStorageService.getWasmHealth());
+      setMaintenanceResult(areSqliteStorageService.getLastMaintenanceResult());
     });
     
     areSqliteStorageService.getTickDensityMetrics().then(setDensityData);
     const interval = setInterval(() => {
       areSqliteStorageService.getTickDensityMetrics().then(setDensityData);
+      setMaintenanceResult(areSqliteStorageService.getLastMaintenanceResult());
     }, 15000);
 
     return () => {
@@ -43,6 +48,21 @@ export const IntegrityDiagnostics: React.FC = () => {
       setCheckResult({ checked: 0, fixed: 0, errors: [err.message] });
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  const performMaintenance = async () => {
+    setIsRunningMaintenance(true);
+    try {
+      const res = await areSqliteStorageService.runMaintenanceUtility();
+      setMaintenanceResult(res);
+      setWasmHealth(areSqliteStorageService.getWasmHealth());
+      const newDensity = await areSqliteStorageService.getTickDensityMetrics();
+      setDensityData(newDensity);
+    } catch (err: any) {
+      console.error('[Integrity Diagnostics] Maintenance utility failed:', err);
+    } finally {
+      setIsRunningMaintenance(false);
     }
   };
 
@@ -176,6 +196,94 @@ export const IntegrityDiagnostics: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Automated SQLite Maintenance & Vacuum Utility Card */}
+      <div className="border border-purple-900/40 bg-purple-950/10 rounded-2xl p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-purple-900/30 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-950/80 border border-purple-700/60 text-purple-300 rounded-xl">
+              <Wrench size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                Automated SQLite Maintenance & Vacuum
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 uppercase font-mono font-bold">
+                  Periodic
+                </span>
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Periodically executes SQLite <code className="text-purple-300 font-mono">VACUUM</code>, purges orphaned records, and reclaims fragmented storage space.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={performMaintenance}
+            disabled={isRunningMaintenance}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 shrink-0"
+          >
+            {isRunningMaintenance ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            <span>{isRunningMaintenance ? 'Running Maintenance...' : 'Run Maintenance & Vacuum'}</span>
+          </button>
+        </div>
+
+        {maintenanceResult ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">VACUUM Execution</span>
+                <span className={`text-xs font-bold font-mono ${maintenanceResult.vacuumExecuted ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {maintenanceResult.vacuumExecuted ? 'VACUUM Completed' : 'Deferred'}
+                </span>
+              </div>
+
+              <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Reclaimed Storage</span>
+                <span className="text-xs font-bold font-mono text-purple-300">
+                  {maintenanceResult.bytesReclaimed > 1024 
+                    ? `${(maintenanceResult.bytesReclaimed / 1024).toFixed(1)} KB` 
+                    : `${maintenanceResult.bytesReclaimed} B`}
+                </span>
+              </div>
+
+              <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">Orphaned Records</span>
+                <span className="text-xs font-bold font-mono text-amber-300">
+                  {maintenanceResult.orphanedCleaned} Purged / {maintenanceResult.orphanedFound} Found
+                </span>
+              </div>
+
+              <div className="p-3 bg-black/40 border border-zinc-800 rounded-xl space-y-0.5">
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">PRAGMA Integrity</span>
+                <span className={`text-xs font-bold font-mono ${maintenanceResult.integrityStatus === 'ok' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {maintenanceResult.integrityStatus}
+                </span>
+              </div>
+            </div>
+
+            {/* Step-by-step Audit Logs */}
+            <div className="p-3 bg-black/60 border border-zinc-800/80 rounded-xl font-mono text-[10px] space-y-1">
+              <div className="text-zinc-500 font-bold uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Maintenance Execution Audit Details:</span>
+                <span>{new Date(maintenanceResult.timestamp).toLocaleTimeString()}</span>
+              </div>
+              {maintenanceResult.details.map((detail, idx) => (
+                <div key={idx} className="text-zinc-300 flex items-start gap-2">
+                  <span className="text-purple-400 font-bold">›</span>
+                  <span>{detail}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-black/30 border border-dashed border-zinc-800 rounded-xl text-center text-xs text-zinc-500 font-mono">
+            Click 'Run Maintenance & Vacuum' above or wait for periodic background execution (every 5 min).
+          </div>
+        )}
       </div>
 
       {checkResult && (

@@ -16,6 +16,18 @@ export interface SqliteARETick {
   contentHash: string;
 }
 
+export interface MaintenanceResult {
+  vacuumExecuted: boolean;
+  bytesBefore: number;
+  bytesAfter: number;
+  bytesReclaimed: number;
+  orphanedFound: number;
+  orphanedCleaned: number;
+  integrityStatus: string;
+  timestamp: number;
+  details: string[];
+}
+
 const DB_INDEXEDDB_NAME = 'ARESqlitePersistentStoreDB';
 const DB_INDEXEDDB_STORE = 'sqlite_binary';
 const DB_INDEXEDDB_KEY = 'are_ticks_sqlite.db';
@@ -28,9 +40,14 @@ class ARESqliteStorageService {
   private wasmHealth: { status: 'OK' | 'ERROR' | 'PENDING', mimeType: string, url: string, error?: string } = { status: 'PENDING', mimeType: '', url: '' };
   private fallbackTicks: SqliteARETick[] = [];
   private fallbackSseEvents: any[] = [];
+  private lastMaintenanceResult: MaintenanceResult | null = null;
 
   public getWasmHealth() {
     return { ...this.wasmHealth };
+  }
+
+  public getLastMaintenanceResult(): MaintenanceResult | null {
+    return this.lastMaintenanceResult ? { ...this.lastMaintenanceResult } : null;
   }
 
   /**
@@ -567,6 +584,196 @@ class ARESqliteStorageService {
     }
 
     return results;
+  }
+
+  /**
+   * Automated Maintenance Utility:
+   * 1. Runs PRAGMA integrity_check
+   * 2. Validates checksums on stored ARE-Logik ticks
+   * 3. Scans for orphaned or corrupted records in SQLite tables and purges them
+   * 4. Executes VACUUM on the active SQLite database to reclaim unallocated storage
+   * 5. Persists optimized database binary to IndexedDB
+   */
+  public async runMaintenanceUtility(): Promise<MaintenanceResult> {
+    await this.init();
+    const timestamp = Date.now();
+    const details: string[] = [];
+
+    if (!this.db) {
+      const res: MaintenanceResult = {
+        vacuumExecuted: false,
+        bytesBefore: 0,
+        bytesAfter: 0,
+        bytesReclaimed: 0,
+        orphanedFound: 0,
+        orphanedCleaned: 0,
+        integrityStatus: 'SQLite Engine Inactive (Fallback mode)',
+        timestamp,
+        details: ['SQLite WebAssembly engine is inactive; operating in memory/IndexedDB fallback mode.']
+      };
+      this.lastMaintenanceResult = res;
+      return res;
+    }
+
+    let orphanedFound = 0;
+    let orphanedCleaned = 0;
+    let integrityStatus = 'ok';
+
+    // 1. PRAGMA integrity_check
+    try {
+      const pragmaRes = this.db.exec("PRAGMA integrity_check;");
+      if (pragmaRes.length > 0 && pragmaRes[0].values && pragmaRes[0].values[0]) {
+        integrityStatus = String(pragmaRes[0].values[0][0]);
+      }
+      details.push(`PRAGMA integrity_check result: ${integrityStatus}`);
+    } catch (e: any) {
+      integrityStatus = `Error: ${e.message}`;
+      details.push(`PRAGMA integrity_check failed: ${e.message}`);
+    }
+
+    // 2. Checksum integrity verification for ticks
+    try {
+      const checksumRes = await this.runIntegrityCheck();
+      if (checksumRes.fixed > 0) {
+        details.push(`Checksum validator repaired ${checksumRes.fixed} mismatched record hashes.`);
+      } else {
+        details.push(`Checksum validator verified ${checksumRes.checked} record hashes.`);
+      }
+    } catch (e: any) {
+      details.push(`Checksum validation warning: ${e.message}`);
+    }
+
+    // 3. Orphaned Record Detection & Cleaning
+    try {
+      // Offline ticks orphan check
+      const tickRes = this.db.exec("SELECT id, program_json, program_id, queued_at FROM are_offline_ticks;");
+      const orphanedTickIds: string[] = [];
+
+      if (tickRes.length > 0 && tickRes[0].values) {
+        for (const row of tickRes[0].values) {
+          const id = String(row[0] || '');
+          const programJson = String(row[1] || '');
+          const programId = String(row[2] || '');
+          const queuedAt = Number(row[3] || 0);
+
+          let isOrphan = false;
+          if (!id || !programId || queuedAt <= 0) {
+            isOrphan = true;
+          } else {
+            try {
+              const parsed = JSON.parse(programJson);
+              if (!parsed || typeof parsed !== 'object' || !parsed.programId) {
+                isOrphan = true;
+              }
+            } catch {
+              isOrphan = true;
+            }
+          }
+
+          if (isOrphan) {
+            orphanedTickIds.push(id);
+          }
+        }
+      }
+
+      // SSE events orphan check
+      const sseRes = this.db.exec("SELECT id, payload_json, received_at FROM are_sse_events;");
+      const orphanedSseIds: string[] = [];
+
+      if (sseRes.length > 0 && sseRes[0].values) {
+        for (const row of sseRes[0].values) {
+          const id = String(row[0] || '');
+          const payloadJson = String(row[1] || '');
+          const receivedAt = Number(row[2] || 0);
+
+          let isOrphan = false;
+          if (!id || receivedAt <= 0) {
+            isOrphan = true;
+          } else {
+            try {
+              JSON.parse(payloadJson);
+            } catch {
+              isOrphan = true;
+            }
+          }
+
+          if (isOrphan) {
+            orphanedSseIds.push(id);
+          }
+        }
+      }
+
+      orphanedFound = orphanedTickIds.length + orphanedSseIds.length;
+      details.push(`Orphaned record audit: scanned tables, detected ${orphanedFound} orphaned/corrupted entry(ies).`);
+
+      if (orphanedFound > 0) {
+        this.db.exec('BEGIN TRANSACTION;');
+        try {
+          if (orphanedTickIds.length > 0) {
+            const stmt = this.db.prepare("DELETE FROM are_offline_ticks WHERE id = ?;");
+            for (const id of orphanedTickIds) {
+              stmt.run([id]);
+              orphanedCleaned++;
+            }
+            stmt.free();
+          }
+          if (orphanedSseIds.length > 0) {
+            const stmt = this.db.prepare("DELETE FROM are_sse_events WHERE id = ?;");
+            for (const id of orphanedSseIds) {
+              stmt.run([id]);
+              orphanedCleaned++;
+            }
+            stmt.free();
+          }
+          this.db.exec('COMMIT;');
+          details.push(`Purged ${orphanedCleaned} orphaned/corrupted database records.`);
+        } catch (err: any) {
+          try { this.db.exec('ROLLBACK;'); } catch {}
+          details.push(`Orphan purge transaction error: ${err.message}`);
+        }
+      }
+    } catch (err: any) {
+      details.push(`Orphan detection error: ${err.message}`);
+    }
+
+    // 4. Measure size before vacuum, execute VACUUM, measure size after vacuum
+    let bytesBefore = 0;
+    let bytesAfter = 0;
+    let bytesReclaimed = 0;
+    let vacuumExecuted = false;
+
+    try {
+      const exportBefore = this.db.export();
+      bytesBefore = exportBefore.byteLength;
+
+      this.db.exec("VACUUM;");
+      vacuumExecuted = true;
+
+      const exportAfter = this.db.export();
+      bytesAfter = exportAfter.byteLength;
+
+      bytesReclaimed = Math.max(0, bytesBefore - bytesAfter);
+      details.push(`VACUUM executed successfully. Initial size: ${bytesBefore} B -> Reclaimed: ${bytesReclaimed} B -> Final size: ${bytesAfter} B.`);
+
+      await this.persistToIndexedDB();
+    } catch (err: any) {
+      details.push(`VACUUM execution error: ${err.message}`);
+    }
+
+    const result: MaintenanceResult = {
+      vacuumExecuted,
+      bytesBefore,
+      bytesAfter,
+      bytesReclaimed,
+      orphanedFound,
+      orphanedCleaned,
+      integrityStatus,
+      timestamp,
+      details
+    };
+
+    this.lastMaintenanceResult = result;
+    return result;
   }
 
   /**
