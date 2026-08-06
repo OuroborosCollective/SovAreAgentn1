@@ -59,7 +59,8 @@ export type MotionPattern =
   | 'drift'       // Drifting
   | 'tremble'     // Trembling (uncertain)
   | 'jump'        // Jumping for joy
-  | 'sleep';      // Sleepy movement
+  | 'sleep'       // Sleepy movement
+  | 'sparkle';    // Sparkle effect
 
 export const EMOTION_MOTIONS: Record<N1EmotionState, MotionPattern[]> = {
   ruhig: ['float', 'drift', 'wave', 'pulse'],
@@ -147,12 +148,12 @@ export interface PlayroomAnimationProps {
 
 // Shape Component
 const AnimatedShape: React.FC<{
-  type: ShapeType;
+  shapeType: ShapeType;
   color: string;
   size: number;
-  motion: MotionPattern;
+  motionType: MotionPattern;
   delay?: number;
-}> = ({ type, color, size, motion, delay = 0 }) => {
+}> = ({ shapeType, color, size, motionType, delay = 0 }) => {
   
   const getMotionVariants = () => {
     const base = {
@@ -160,7 +161,7 @@ const AnimatedShape: React.FC<{
       animate: { scale: 1, opacity: 1 },
     };
     
-    switch (motion) {
+    switch (motionType) {
       case 'float':
         return {
           ...base,
@@ -243,6 +244,15 @@ const AnimatedShape: React.FC<{
             opacity: [0.5, 0.8, 0.5],
           },
         };
+      case 'sparkle':
+        return {
+          ...base,
+          animate: {
+            scale: [0.8, 1.3, 0.8],
+            opacity: [0.4, 1, 0.4],
+            rotate: [0, 180, 360],
+          },
+        };
       default:
         return base;
     }
@@ -258,7 +268,7 @@ const AnimatedShape: React.FC<{
       filter: `drop-shadow(0 0 ${size/4}px ${color})`,
     };
 
-    switch (type) {
+    switch (shapeType) {
       case 'blob':
         return <motion.div style={{ ...style, borderRadius: '60% 40% 30% 70% / 60% 30% 70% 40%' }} />;
       case 'star':
@@ -360,7 +370,7 @@ const AnimatedShape: React.FC<{
 // Learning Celebration Effect
 const LearningCelebrationEffect: React.FC<{ celebration: LearningCelebration }> = ({ celebration }) => {
   const shapes = Array.from({ length: 12 }, (_, i) => ({
-    type: celebration.shapes[i % celebration.shapes.length],
+    shapeType: celebration.shapes[i % celebration.shapes.length] as ShapeType,
     color: celebration.colors[i % celebration.colors.length],
     size: 20 + Math.random() * 40,
     position: {
@@ -392,10 +402,10 @@ const LearningCelebrationEffect: React.FC<{ celebration: LearningCelebration }> 
             className="absolute"
           >
             <AnimatedShape
-              type={shape.type}
+              shapeType={shape.shapeType}
               color={shape.color}
               size={shape.size}
-              motion="float"
+              motionType="float"
             />
           </motion.div>
         ))}
@@ -458,7 +468,7 @@ export const PlayroomAnimations: React.FC<PlayroomAnimationProps> = ({
   const [particles, setParticles] = useState<
     Array<{
       id: number;
-      type: ShapeType;
+      shapeType: ShapeType;
       color: string;
       size: number;
       x: number;
@@ -477,7 +487,7 @@ export const PlayroomAnimations: React.FC<PlayroomAnimationProps> = ({
 
     const newParticles = Array.from({ length: 15 }, (_, i) => ({
       id: Date.now() + i,
-      type: shapes[i % shapes.length],
+      shapeType: shapes[i % shapes.length],
       color: colors[i % colors.length],
       size: 15 + Math.random() * 35,
       x: Math.random() * 100,
@@ -527,10 +537,10 @@ export const PlayroomAnimations: React.FC<PlayroomAnimationProps> = ({
           }}
         >
           <AnimatedShape
-            type={particle.type}
+            shapeType={particle.shapeType}
             color={particle.color}
             size={particle.size}
-            motion={particle.motion}
+            motionType={particle.motion}
             delay={particle.delay}
           />
         </motion.div>

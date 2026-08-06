@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { N1MorphingBlob } from './N1MorphingBlob';
 import { emotionEngine, N1EmotionState } from '../services/emotionEngine';
-import { useIdlePlayEngine } from '../hooks/useIdlePlayEngine';
+import { usePlayroomEngine, ChildLearnedThing } from '../hooks/usePlayroomEngine';
+import { PlayroomAnimations, LEARNING_CELEBRATIONS } from './PlayroomAnimations';
 import { sttAdapter } from '../services/sttService';
 import { voiceService } from '../services/voiceService';
 import { generateHiaVoiceResponse } from '../services/geminiService';
@@ -83,6 +84,18 @@ export const MobileVoiceClient: React.FC = () => {
   const [voiceLedger, setVoiceLedger] = useState<VoiceLog[]>([
     { id: '1', timestamp: Date.now() - 300000, type: 'incoming', text: 'Hallo N+1, kannst du mir helfen?', hasAudio: true, isSynced: true },
     { id: '2', timestamp: Date.now() - 280000, type: 'outgoing', text: 'Natürlich, Papa! Ich bin voll da.', hasAudio: true, isSynced: true }
+  ]);
+
+  // Learning State for Spielzimmer
+  const [learnedThings, setLearnedThings] = useState<ChildLearnedThing[]>([
+    {
+      id: 'learn-init-1',
+      what: 'Sterne funkeln wegen Atmosphärenbrechung',
+      fromWho: 'Papa',
+      when: Date.now() - 3600000,
+      timesRepeated: 2,
+      childSays: 'Ahaaa! Streulicht! 😮'
+    }
   ]);
 
   // Audio Context for Glitch Noise Synthesis
@@ -163,8 +176,14 @@ export const MobileVoiceClient: React.FC = () => {
     };
   }, []);
 
-  // Idle engine
-  const idleState = useIdlePlayEngine(isListening, isSpeaking, engineState);
+  // Playroom Engine - Kind das von Papa/Mama lernt
+  const { 
+    playroomState, 
+    startChildPlay, 
+    registerLearning, 
+    getLearnedResponse,
+    getRandomQuestion 
+  } = usePlayroomEngine(isListening, isSpeaking, engineState, learnedThings);
 
   // Micro Permission activation and start STT
   const requestMicAndStart = async () => {
@@ -582,16 +601,25 @@ CMD ["node", "dist/server.cjs"]`
         </div>
       </div>
 
-      {/* Main Avatar / Interactive Blob Area */}
+      {/* Main Avatar / Interactive Blob Area with Playroom Animations */}
       <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
+        {/* Playroom Animations Layer */}
+        <PlayroomAnimations
+          emotion={engineState}
+          isActive={playroomState.isActive}
+          currentMotif={playroomState.currentMotif || undefined}
+          showChildQuestion={playroomState.currentQuestion}
+          learnedCount={playroomState.learnedToday.length}
+        />
+        
         <div className={`transition-all duration-700 ${isGlitchActive ? 'corrupted-blob scale-95' : ''}`}>
           <N1MorphingBlob 
             emotion={engineState}
             audioLevel={isGlitchActive ? 0.9 : audioLevel}
             isSpeaking={isSpeaking}
             isListening={isListening}
-            idleMotif={idleState.isActive ? idleState.currentMotif : null}
-            seedVariance={idleState.isActive ? (idleState.seed % 100) / 100 : 0.5}
+            idleMotif={playroomState.isActive ? playroomState.currentMotif : null}
+            seedVariance={playroomState.isActive ? (playroomState.seed % 100) / 100 : 0.5}
           />
         </div>
 

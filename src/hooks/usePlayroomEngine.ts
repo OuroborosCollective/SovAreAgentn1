@@ -158,7 +158,7 @@ const TIME_PROFILES = {
     energy: 'low',
   },
   night: {
-    motifs: ['schlaf', 'träumen'] as PlayroomMotif[],
+    motifs: ['müde', 'gähnen'] as PlayroomMotif[],
     greeting: '*schnarch* 😴💤',
     energy: 'sleep',
   },
