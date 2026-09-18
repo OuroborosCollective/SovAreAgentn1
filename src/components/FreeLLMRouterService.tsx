@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Cpu, 
   Sliders, 
@@ -10,9 +10,19 @@ import {
   CheckCircle2, 
   Flame, 
   Gauge, 
-  Layers 
+  Layers,
+  Plus,
+  Trash2,
+  Key,
+  Check,
+  X,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { googleApiKeyManager, ApiKeyInfo, KeyManagerEvent } from '../services/googleApiKeyManager';
 
 export interface LLMRoute {
   id: string;
@@ -24,6 +34,18 @@ export interface LLMRoute {
   reliability: number;
   quotaUsed: number;
   quotaLimit: number;
+}
+
+interface StoredKey {
+  id: string;
+  label: string;
+  keyPreview: string;
+  isActive: boolean;
+  quotaUsed: number;
+  quotaLimit: number;
+  lastUsed: number | null;
+  errorCount: number;
+  isValidated: boolean;
 }
 
 export const FreeLLMRouterService: React.FC = () => {
@@ -79,6 +101,56 @@ export const FreeLLMRouterService: React.FC = () => {
   const [circuitBreakerStatus, setCircuitBreakerStatus] = useState<'CLOSED' | 'OPEN' | 'HALF-OPEN'>('CLOSED');
   const [simulatedFailures, setSimulatedFailures] = useState<number>(0);
 
+  // Google API Key Management State
+  const [storedKeys, setStoredKeys] = useState<StoredKey[]>([]);
+  const [newKeyInput, setNewKeyInput] = useState<string>('');
+  const [newKeyLabel, setNewKeyLabel] = useState<string>('');
+  const [isAddingKey, setIsAddingKey] = useState<boolean>(false);
+  const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+  const [lastFailover, setLastFailover] = useState<string | null>(null);
+  const [integrityStatus, setIntegrityStatus] = useState<{ isHealthy: boolean; issues: string[] }>({ isHealthy: true, issues: [] });
+
+  // Load keys from manager
+  const loadKeys = useCallback(async () => {
+    await googleApiKeyManager.waitForInitialization();
+    const keys = googleApiKeyManager.getKeys();
+    // Transform the keys to match the StoredKey interface
+    const transformedKeys: StoredKey[] = keys.map((k: any) => ({
+      id: k.id,
+      label: k.label,
+      keyPreview: k.key, // getKeys returns masked key
+      isActive: k.isActive,
+      quotaUsed: k.quotaUsed,
+      quotaLimit: k.quotaLimit,
+      lastUsed: k.lastUsed,
+      errorCount: k.errorCount,
+      isValidated: k.isValidated
+    }));
+    setStoredKeys(transformedKeys);
+    
+    // Run integrity check
+    const integrity = googleApiKeyManager.runIntegrityCheck();
+    setIntegrityStatus(integrity);
+  }, []);
+
+  // Initialize
+  useEffect(() => {
+    loadKeys();
+
+    // Subscribe to key manager events
+    const unsubscribe = googleApiKeyManager.subscribe((event: KeyManagerEvent) => {
+      if (event.type === 'failover-triggered') {
+        setLastFailover(`Key rotated to: ${event.keyId}`);
+        setTimeout(() => setLastFailover(null), 5000);
+      }
+      loadKeys();
+    });
+
+    return () => unsubscribe();
+  }, [loadKeys]);
+
   // Auto-mutate latency for visual effect
   useEffect(() => {
     const interval = setInterval(() => {
@@ -97,11 +169,9 @@ export const FreeLLMRouterService: React.FC = () => {
 
   const handleVerifyRoutes = async () => {
     setIsVerifying(true);
-    // Simulate real network verification
     await new Promise(resolve => setTimeout(resolve, 1500));
     setRoutes(prev => prev.map(r => {
       if (r.id === 'route-4') {
-        // Recover HF Hub occasionally
         return { ...r, status: 'standby', latency: 450, reliability: 85.0 };
       }
       return r;
@@ -113,12 +183,9 @@ export const FreeLLMRouterService: React.FC = () => {
     setSimulatedFailures(prev => prev + 1);
     setCircuitBreakerStatus('OPEN');
     
-    // Rotate routes
     setRoutes(prev => {
       const updated = [...prev];
-      // Mark primary as rate-limited
       updated[0].status = 'rate-limited';
-      // Promote DeepSeek as active
       updated[1].status = 'active';
       return updated;
     });
@@ -137,6 +204,56 @@ export const FreeLLMRouterService: React.FC = () => {
       });
     }, 8000);
   };
+
+  const handleAddKey = async () => {
+    if (!newKeyInput.trim()) return;
+
+    setIsValidating(true);
+    setValidationError(null);
+
+    try {
+      const result = await googleApiKeyManager.addKey(newKeyInput.trim(), newKeyLabel.trim() || undefined);
+      
+      if (result.success) {
+        setNewKeyInput('');
+        setNewKeyLabel('');
+        setShowKeyInput(false);
+        await loadKeys();
+      } else {
+        setValidationError(result.error || 'Failed to add key');
+      }
+    } catch (error: any) {
+      setValidationError(error?.message || 'Validation failed');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleRemoveKey = (keyId: string) => {
+    googleApiKeyManager.removeKey(keyId);
+    loadKeys();
+  };
+
+  const handleActivateKey = (keyId: string) => {
+    googleApiKeyManager.activateKey(keyId);
+    loadKeys();
+  };
+
+  const handleClearAllKeys = () => {
+    if (confirm('Are you sure you want to remove all stored API keys?')) {
+      googleApiKeyManager.clearAllKeys();
+      loadKeys();
+    }
+  };
+
+  const handleRunIntegrityCheck = () => {
+    const status = googleApiKeyManager.runIntegrityCheck();
+    setIntegrityStatus(status);
+  };
+
+  const activeKeysCount = storedKeys.filter(k => k.isValidated && k.quotaUsed < k.quotaLimit).length;
+  const totalQuotaUsed = storedKeys.reduce((sum, k) => sum + k.quotaUsed, 0);
+  const totalQuotaLimit = storedKeys.reduce((sum, k) => sum + k.quotaLimit, 0) || 10000;
 
   return (
     <div className="p-6 bg-zinc-950/80 border border-zinc-900 rounded-3xl space-y-6 shadow-xl font-mono text-xs">
@@ -269,6 +386,283 @@ export const FreeLLMRouterService: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Google API Key Management Section */}
+      <div className="border-t border-zinc-800 pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-950/50 border border-emerald-800 text-emerald-400 rounded-xl">
+              <Key size={18} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider">Google AI Studio API Keys</h4>
+              <p className="text-[10px] text-zinc-500">Voice TTS Multi-Key Revolver with Auto-Failover</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRunIntegrityCheck}
+              className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 text-[10px] font-bold rounded-lg border border-zinc-800 flex items-center gap-1"
+              title="Run Integrity Check"
+            >
+              <ShieldCheck size={12} />
+              <span>Integrity</span>
+            </button>
+            {!showKeyInput && (
+              <button
+                onClick={() => setShowKeyInput(true)}
+                className="px-3 py-1.5 bg-emerald-950/50 hover:bg-emerald-900/50 text-emerald-400 text-[10px] font-bold rounded-lg border border-emerald-800 flex items-center gap-1"
+              >
+                <Plus size={12} />
+                <span>Add Key</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Key Status Overview */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="p-3 bg-zinc-900/40 border border-zinc-800/80 rounded-xl">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold">Stored Keys</span>
+            <p className="text-lg font-bold text-white mt-1">{storedKeys.length}</p>
+          </div>
+          <div className="p-3 bg-zinc-900/40 border border-zinc-800/80 rounded-xl">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold">Available Keys</span>
+            <p className="text-lg font-bold text-emerald-400 mt-1">{activeKeysCount}</p>
+          </div>
+          <div className="p-3 bg-zinc-900/40 border border-zinc-800/80 rounded-xl">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold">Total Quota Used</span>
+            <p className="text-lg font-bold text-amber-400 mt-1">{totalQuotaUsed.toLocaleString()}</p>
+          </div>
+          <div className="p-3 bg-zinc-900/40 border border-zinc-800/80 rounded-xl">
+            <span className="text-[9px] text-zinc-500 uppercase font-bold">System Health</span>
+            <p className={`text-lg font-bold mt-1 ${integrityStatus.isHealthy ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {integrityStatus.isHealthy ? 'HEALTHY' : 'ISSUES'}
+            </p>
+          </div>
+        </div>
+
+        {/* Failover Alert */}
+        <AnimatePresence>
+          {lastFailover && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="p-3 bg-amber-950/30 border border-amber-600/50 rounded-xl flex items-center gap-2"
+            >
+              <AlertCircle size={14} className="text-amber-400" />
+              <span className="text-amber-300 text-[10px]">{lastFailover}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Integrity Issues */}
+        {integrityStatus.issues.length > 0 && (
+          <div className="p-3 bg-rose-950/20 border border-rose-800/50 rounded-xl space-y-1">
+            <div className="flex items-center gap-2 text-rose-400 text-[10px] font-bold uppercase">
+              <AlertTriangle size={12} />
+              <span>Integrity Issues</span>
+            </div>
+            {integrityStatus.issues.map((issue, i) => (
+              <p key={i} className="text-rose-300/80 text-[10px]">• {issue}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Add Key Form */}
+        <AnimatePresence>
+          {showKeyInput && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-3 p-4 bg-zinc-900/40 border border-zinc-800/80 rounded-xl overflow-hidden"
+            >
+              <div className="flex items-center gap-2">
+                <Key size={14} className="text-zinc-500" />
+                <span className="text-zinc-400 text-[10px] font-bold uppercase">Add New API Key</span>
+              </div>
+              
+              <div className="space-y-2">
+                <input
+                  type="password"
+                  value={newKeyInput}
+                  onChange={(e) => setNewKeyInput(e.target.value)}
+                  placeholder="Paste Google AI Studio API Key (AIza...)"
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-emerald-600"
+                />
+                <input
+                  type="text"
+                  value={newKeyLabel}
+                  onChange={(e) => setNewKeyLabel(e.target.value)}
+                  placeholder="Label (optional, e.g., 'Key Work', 'Key Home')"
+                  className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-xs placeholder-zinc-600 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              {validationError && (
+                <div className="flex items-center gap-2 text-rose-400 text-[10px]">
+                  <X size={12} />
+                  <span>{validationError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddKey}
+                  disabled={!newKeyInput.trim() || isValidating}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg flex items-center gap-1.5"
+                >
+                  {isValidating ? (
+                    <>
+                      <RefreshCw size={12} className="animate-spin" />
+                      <span>Validating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={12} />
+                      <span>Add Key</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowKeyInput(false);
+                    setNewKeyInput('');
+                    setNewKeyLabel('');
+                    setValidationError(null);
+                  }}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold rounded-lg flex items-center gap-1.5"
+                >
+                  <X size={12} />
+                  <span>Cancel</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Key List */}
+        {storedKeys.length > 0 ? (
+          <div className="space-y-2">
+            <div className="px-4 py-2 bg-zinc-900/20 text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-between border-b border-zinc-900">
+              <span>Stored API Keys</span>
+              <div className="flex items-center gap-4">
+                <span className="w-24 text-right">Quota</span>
+                <span className="w-16 text-right">Status</span>
+                <span className="w-20 text-right">Actions</span>
+              </div>
+            </div>
+
+            {storedKeys.map(key => (
+              <div
+                key={key.id}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                  key.isActive 
+                    ? 'bg-emerald-950/20 border-emerald-700/50' 
+                    : key.errorCount >= 5
+                      ? 'bg-rose-950/20 border-rose-700/50'
+                      : 'bg-zinc-900/30 border-zinc-800/80'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`p-2 rounded-lg shrink-0 ${
+                    key.isActive ? 'bg-emerald-900/50 text-emerald-400' : 'bg-zinc-800/50 text-zinc-500'
+                  }`}>
+                    <Key size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-xs truncate">{key.label}</span>
+                      {key.isActive && (
+                        <span className="px-1.5 py-0.5 bg-emerald-900/50 text-emerald-400 text-[8px] font-bold rounded uppercase">Active</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-mono">{key.keyPreview}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="w-24 text-right">
+                    <div className="text-[10px] text-zinc-400">
+                      <span className={key.quotaUsed >= key.quotaLimit ? 'text-rose-400' : 'text-zinc-300'}>
+                        {key.quotaUsed.toLocaleString()}
+                      </span>
+                      <span className="text-zinc-600"> / {key.quotaLimit.toLocaleString()}</span>
+                    </div>
+                    <div className="h-1 bg-zinc-800 rounded-full mt-1 overflow-hidden">
+                      <div 
+                        className={`h-full transition-all ${
+                          key.quotaUsed >= key.quotaLimit 
+                            ? 'bg-rose-500' 
+                            : key.quotaUsed > key.quotaLimit * 0.8
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, (key.quotaUsed / key.quotaLimit) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="w-16 text-right">
+                    {key.isValidated ? (
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase">Valid</span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-rose-400 uppercase">Invalid</span>
+                    )}
+                  </div>
+
+                  <div className="w-20 text-right flex items-center justify-end gap-1">
+                    {!key.isActive && key.isValidated && key.errorCount < 5 && (
+                      <button
+                        onClick={() => handleActivateKey(key.id)}
+                        className="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-emerald-400 rounded transition-colors"
+                        title="Activate this key"
+                      >
+                        <Check size={12} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleRemoveKey(key.id)}
+                      className="p-1.5 hover:bg-zinc-800 text-zinc-500 hover:text-rose-400 rounded transition-colors"
+                      title="Remove this key"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Clear All Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleClearAllKeys}
+                className="px-3 py-1.5 bg-rose-950/30 hover:bg-rose-900/30 text-rose-400 text-[10px] font-bold rounded-lg border border-rose-900/50 flex items-center gap-1"
+              >
+                <Trash2 size={10} />
+                <span>Clear All Keys</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 bg-zinc-900/20 border border-zinc-800/50 rounded-xl text-center">
+            <Key size={24} className="mx-auto text-zinc-600 mb-2" />
+            <p className="text-zinc-400 text-xs">No API keys stored</p>
+            <p className="text-zinc-600 text-[10px] mt-1">Add a Google AI Studio API key to enable voice TTS with auto-failover</p>
+            {!showKeyInput && (
+              <button
+                onClick={() => setShowKeyInput(true)}
+                className="mt-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg flex items-center gap-1.5 mx-auto"
+              >
+                <Plus size={12} />
+                <span>Add First Key</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
