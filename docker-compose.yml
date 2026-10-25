@@ -10,9 +10,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        GIT_REVISION: ${GIT_REVISION:-unknown}
+        GIT_REVISION: ${GIT_REVISION:?Set the exact source commit SHA}
         BUILD_TIME: ${BUILD_TIME:-unknown}
-        VERSION: ${VERSION:-latest}
+        VERSION: ${VERSION:-unreleased}
     container_name: n1_system_app
     ports:
       - "3000:3000"
@@ -20,9 +20,14 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - DB_URI=${DB_URI:-postgres://n1_user:n1_password@db:5432/n1_db}
+      - DB_URI=${DB_URI:?Provide the actual database URI, including matching user and password}
       - DB_SSL=false
       - N1_SYNC_TOKEN=${N1_SYNC_TOKEN:-}
+      - N1_COOKIE_SECRET=${N1_COOKIE_SECRET:?Set a unique cookie signing secret of at least 32 characters}
+      - N1_ADMIN_SECRET=${N1_ADMIN_SECRET:-}
+      - GIT_REVISION=${GIT_REVISION:?Set the exact source commit SHA}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - N1_OAUTH_REDIRECT_URI=${N1_OAUTH_REDIRECT_URI:-}
       - N1_OAUTH_ID=${N1_OAUTH_ID:-}
       - N1_OAUTH_SECRET=${N1_OAUTH_SECRET:-}
       - MEMCACHED_ENDPOINT=${MEMCACHED_ENDPOINT:-}
@@ -58,7 +63,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-n1_db}
       POSTGRES_USER: ${POSTGRES_USER:-n1_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-n1_secure_generated_pass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set the PostgreSQL password; it must match DB_URI}
     command: ["postgres", "-c", "statement_timeout=10000", "-c", "max_connections=50", "-c", "idle_in_transaction_session_timeout=10000"]
     volumes:
       - pgdata:/var/lib/postgresql/data
