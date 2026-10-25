@@ -671,7 +671,7 @@ async function startServer() {
       `);
 
       const schemaSql = fs.readFileSync(path.join(process.cwd(), "db_schema.sql"), "utf8");
-      if (/\\bDROP\\s+(TABLE|SCHEMA|DATABASE)\\b/i.test(schemaSql)) {
+      if (/\bDROP\s+(TABLE|SCHEMA|DATABASE)\b/i.test(schemaSql)) {
         throw new Error("Destructive DDL is forbidden during N+1 startup");
       }
       await client.query(schemaSql);
