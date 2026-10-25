@@ -47,6 +47,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled dist artifacts from builder stage (including sbom.json)
 COPY --from=builder /app/dist ./dist
+# Bootstrap and genesis files are loaded by server.ts at runtime.
+COPY --from=builder /app/db_schema.sql /app/genesis_core.sql ./
 
 # Create the non-root identity BEFORE setting ownership.
 RUN addgroup -g 10000 nplus1 && adduser -D -u 10000 -G nplus1 nplus1 \
