@@ -1,20 +1,43 @@
 import { Router } from "express";
 import fs from "fs";
 
+type ProbeStatus = "connected" | "unreachable" | "unconfigured";
+
+function measuredRevision(): string {
+  const revision = process.env.GIT_REVISION;
+  return revision && /^[0-9a-f]{40}$/i.test(revision) ? revision : "unverified";
+}
+
+async function probeDatabase(pool: any): Promise<ProbeStatus> {
+  if (!pool || typeof pool.query !== "function") return "unconfigured";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Query an actual database connection; constructing a Pool is not evidence.
+    await Promise.race([
+      Promise.resolve().then(() => pool.query("SELECT 1 AS probe")),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("database probe deadline exceeded")), 2500);
+      }),
+    ]);
+    return "connected";
+  } catch {
+    return "unreachable";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function createHealthRouter(dependencies: { getPool: () => any; getMemcached: () => any }) {
   const router = Router();
-  const { getPool, getMemcached } = dependencies;
 
-  router.get(["/liveness", "/"], (req, res) => {
+  router.get(["/liveness", "/"], (_req, res) => {
     res.json({
-      status: "ok",
-      mode: "liveness",
-      timestamp: new Date().toISOString(),
-      revision: "main@d51c8b7ce98a8564e7ffc8e3e03e9d11a58658e1",
+      status: "ok", mode: "liveness",
+      timestamp: new Date().toISOString(), revision: measuredRevision(),
     });
   });
 
-  router.get("/readiness", async (req, res) => {
+  router.get("/readiness", async (_req, res) => {
     const timestamp = new Date().toISOString();
     let workspaceOk = false;
     try {
@@ -24,58 +47,39 @@ export function createHealthRouter(dependencies: { getPool: () => any; getMemcac
       workspaceOk = false;
     }
 
-    const pool = getPool();
-    const memcached = getMemcached();
-    const dbStatus = pool ? "connected" : "unconfigured";
-    const memcachedStatus = memcached ? "connected" : "unconfigured";
-    const isReady = workspaceOk;
-
+    const databaseStatus = await probeDatabase(dependencies.getPool());
+    const revision = measuredRevision();
+    const isReady = workspaceOk && databaseStatus === "connected" && revision !== "unverified";
+    const memcachedConfigured = Boolean(dependencies.getMemcached());
+    const llmConfigured = Boolean(process.env.GEMINI_API_KEY || process.env.FREE_LLM_API_KEY);
     res.status(isReady ? 200 : 503).json({
       status: isReady ? "ready" : "degraded",
       mode: "readiness",
-      timestamp,
-      revision: "main@d51c8b7ce98a8564e7ffc8e3e03e9d11a58658e1",
-      source: process.env.K_SERVICE ? "Cloud Run Container" : "Node.js Process",
+      timestamp, revision,
+      source: "local_process_checks",
       subsystems: {
-        workspace: { status: workspaceOk ? "ok" : "unreachable", path: process.cwd() },
-        database: { status: dbStatus },
-        memcached: { status: memcachedStatus },
-        free_llm: { status: "configured", active_primary_route: "keller-route-01-gemini-flash" }
-      }
+        workspace: { status: workspaceOk ? "ok" : "unreachable" },
+        database: { status: databaseStatus },
+        memcached: { status: memcachedConfigured ? "configured_unverified" : "unconfigured" },
+        free_llm: { status: llmConfigured ? "configured_unverified" : "unconfigured" },
+      },
     });
   });
 
-  router.get("/dependency", async (req, res) => {
-    const timestamp = new Date().toISOString();
-    let dbConnected = false;
-    let memcachedConnected = false;
-
-    const pool = getPool();
-    const memcached = getMemcached();
-
-    if (pool) {
-      try {
-        await pool.query("SELECT 1");
-        dbConnected = true;
-      } catch (err) {
-        dbConnected = false;
-      }
-    }
-
-    if (memcached) {
-      memcachedConnected = true;
-    }
-
-    const dependenciesOk = dbConnected || (!process.env.DB_URI);
-
+  router.get("/dependency", async (_req, res) => {
+    const databaseStatus = await probeDatabase(dependencies.getPool());
+    const dependenciesOk = databaseStatus === "connected";
     res.status(dependenciesOk ? 200 : 503).json({
       status: dependenciesOk ? "ok" : "degraded",
       mode: "dependency",
-      timestamp,
+      timestamp: new Date().toISOString(),
+      revision: measuredRevision(),
       subsystems: {
-        database: { status: pool ? (dbConnected ? "connected" : "unreachable") : "unconfigured" },
-        memcached: { status: memcached ? (memcachedConnected ? "connected" : "unreachable") : "unconfigured" }
-      }
+        database: { status: databaseStatus },
+        memcached: {
+          status: dependencies.getMemcached() ? "configured_unverified" : "unconfigured",
+        },
+      },
     });
   });
 
