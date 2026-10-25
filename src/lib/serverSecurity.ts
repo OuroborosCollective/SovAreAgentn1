@@ -183,7 +183,7 @@ export function findPolicy(path: string, method: string): EndpointPolicy | null 
       return policy;
     }
     if (policy.pathPattern.includes(':') || policy.pathPattern.endsWith('/')) {
-      const regexPattern = '^' + policy.pathPattern.replace(/:[^\\/]+/g, '[^/]+') + (policy.pathPattern.endsWith('/') ? '.*$' : '$');
+      const regexPattern = "^" + policy.pathPattern.replace(/:[a-zA-Z_][a-zA-Z0-9_]*/g, "[^/]+") + (policy.pathPattern.endsWith("/") ? ".*$" : "$");
       if (new RegExp(regexPattern).test(normalizedPath)) {
         return policy;
       }
