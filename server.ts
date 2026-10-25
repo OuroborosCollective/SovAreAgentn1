@@ -33,12 +33,16 @@ if (!process.env.N1_SYNC_URL || process.env.N1_SYNC_URL.includes("YOUR-REMOTE-RE
 const getNexusToken = (req?: express.Request): string | null => {
   if (req) {
     const authHeader = req.headers['authorization'];
-    const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (authHeader?.startsWith('token ') ? authHeader.slice(6) : authHeader);
+    const headerToken = typeof authHeader === 'string'
+      ? (authHeader.startsWith('Bearer ') ? authHeader.slice(7)
+        : authHeader.startsWith('token ') ? authHeader.slice(6) : null)
+      : null;
     const cookieToken = req.signedCookies?.n1_sync_auth;
-    if (cookieToken) return cookieToken;
-    if (headerToken) return headerToken;
+    if (typeof cookieToken === 'string' && cookieToken.length > 0) return cookieToken;
+    // Never provide the server's machine PAT to an unauthenticated request.
+    return headerToken || null;
   }
-  if (process.env.N1_SYNC_TOKEN && process.env.N1_SYNC_TOKEN !== "N1_SYNC_TOKEN=" && process.env.N1_SYNC_TOKEN.trim().length > 0) {
+  if (process.env.N1_SYNC_TOKEN && process.env.N1_SYNC_TOKEN !== "N1_SYNC_TOKEN=" && process.env.N1_SYNC_TOKEN.trim().length >= 32) {
     return process.env.N1_SYNC_TOKEN.trim();
   }
   return null;
@@ -55,12 +59,13 @@ async function startServer() {
   const PORT = 3000;
   let freeLLMFailoverCount = 0;
 
-  // Cookie Signing Secret: Load strictly from environment or generate random runtime secret
+  // A persistent signing key is required in production; ephemeral keys may only
+  // be used by an explicitly non-production development process.
   const cookieSecret = process.env.N1_COOKIE_SECRET || process.env.COOKIE_SECRET || process.env.SESSION_SECRET;
-  if (!cookieSecret && process.env.NODE_ENV === "production") {
-    console.warn("[SECURITY WARN] N1_COOKIE_SECRET environment variable is missing in production mode!");
+  if (process.env.NODE_ENV === "production" && (!cookieSecret || cookieSecret.length < 32)) {
+    throw new Error("N1_COOKIE_SECRET must be configured with at least 32 characters for production.");
   }
-  const activeCookieSecret = cookieSecret || (process.env.N1_RUNTIME_SECRET ||= crypto.randomBytes(32).toString("hex"));
+  const activeCookieSecret = cookieSecret || crypto.randomBytes(32).toString("hex");
 
   // CORS Origin Allowlist Configuration
   const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -70,10 +75,7 @@ async function startServer() {
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      const isAllowed = allowedOrigins.includes(origin) ||
-        origin.endsWith('.run.app') ||
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1');
+      const isAllowed = allowedOrigins.includes(origin);
       if (isAllowed) {
         callback(null, true);
       } else {
@@ -303,10 +305,10 @@ async function startServer() {
     const clientId = process.env.N1_OAUTH_ID || "";
     const hasSecret = !!process.env.N1_OAUTH_SECRET;
     const hasToken = !!getNexusToken(req);
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI || null;
 
     res.json({
-      configured: !!(clientId && hasSecret),
+      configured: !!(clientId && hasSecret && redirectUri),
       clientId: clientId ? `${clientId.slice(0, 6)}...${clientId.slice(-4)}` : null,
       rawClientId: clientId,
       hasSecret,
@@ -317,15 +319,11 @@ async function startServer() {
   });
 
   app.get("/api/auth/nexus/url", (req, res) => {
-    const clientId = (req.query.client_id as string) || process.env.N1_OAUTH_ID;
-    if (!clientId) {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "N1_OAUTH_ID not configured in environment" 
-      });
+    const clientId = process.env.N1_OAUTH_ID;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri) {
+      return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
     }
-
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
@@ -343,9 +341,10 @@ async function startServer() {
 
   app.get("/api/auth/nexus/login", (req, res) => {
     const clientId = process.env.N1_OAUTH_ID;
-    if (!clientId) return res.status(500).json({ status: "error", message: "N1_OAUTH_ID not configured" });
-    
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri) {
+      return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
+    }
     const state = crypto.randomBytes(16).toString("hex");
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
@@ -371,7 +370,11 @@ async function startServer() {
 
     const clientId = process.env.N1_OAUTH_ID;
     const clientSecret = process.env.N1_OAUTH_SECRET;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
 
+    if (!clientId || !clientSecret || !redirectUri) {
+      return res.status(503).send("OAuth is not configured");
+    }
     if (!code) return res.status(400).send("No authorization code provided");
 
     try {
@@ -385,25 +388,24 @@ async function startServer() {
           client_id: clientId,
           client_secret: clientSecret,
           code,
+          redirect_uri: redirectUri,
         }),
       });
 
       const tokenData = await tokenResponse.json();
       if (tokenData.access_token) {
-        // Fetch user profile from GitHub API
-        let userData = { login: "NexusUser", avatar_url: "https://github.com/identicons/n1.png", id: "nexus-user" };
-        try {
-          const userRes = await fetch("https://api.github.com/user", {
-            headers: {
-              Authorization: `Bearer ${tokenData.access_token}`,
-              "User-Agent": "N1-System-App"
-            }
-          });
-          if (userRes.ok) {
-            userData = await userRes.json();
+        // A valid exchange token is insufficient: verify the provider identity
+        // before issuing a signed application session.
+        const userRes = await fetch("https://api.github.com/user", {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "User-Agent": "N1-System-App"
           }
-        } catch (e) {
-          console.warn("Could not fetch user info in callback:", e);
+        });
+        if (!userRes.ok) throw new Error("GitHub identity verification failed");
+        const userData = await userRes.json();
+        if (typeof userData.login !== "string" || !userData.login) {
+          throw new Error("GitHub profile was missing a verified login");
         }
 
         res.cookie("n1_sync_auth", tokenData.access_token, { 
@@ -451,119 +453,43 @@ async function startServer() {
     }
   });
 
-  // Direct Handshake Exchange API (verifies code server-side and sets signed HttpOnly cookie)
-  app.post("/api/auth/nexus/handshake", async (req, res) => {
-    const { code } = req.body;
-    const idToUse = process.env.N1_OAUTH_ID;
-    const secretToUse = process.env.N1_OAUTH_SECRET;
-
-    if (!code) {
-      return res.status(400).json({ status: "error", message: "Missing authorization code for handshake" });
-    }
-
-    if (!idToUse || !secretToUse) {
-      return res.status(400).json({ status: "error", message: "N1_OAUTH_ID and N1_OAUTH_SECRET are required for OAuth code exchange" });
-    }
-
-    try {
-      const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          client_id: idToUse,
-          client_secret: secretToUse,
-          code,
-        }),
-      });
-
-      const tokenData = await tokenResponse.json();
-
-      if (tokenData.access_token) {
-        const client = new Octokit({ auth: tokenData.access_token });
-        const { data } = await client.rest.users.getAuthenticated();
-
-        res.cookie("n1_sync_auth", tokenData.access_token, { 
-          httpOnly: true, 
-          secure: true, 
-          sameSite: 'none',
-          signed: true,
-          maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        res.json({
-          status: "success",
-          scope: tokenData.scope || "repo,user",
-          user: { login: data.login, avatar_url: data.avatar_url, id: data.id },
-          handshakeMethod: "FULL_CLIENT_HANDSHAKE"
-        });
-      } else {
-        res.status(400).json({ status: "error", message: tokenData.error_description || tokenData.error || "OAuth exchange failed" });
-      }
-    } catch (err: any) {
-      res.status(500).json({ status: "error", message: "Handshake error: " + err.message });
-    }
+  // Legacy code-only exchange has no state/PKCE binding; leave unavailable
+  // until a one-time, state-verified exchange contract is implemented.
+  app.post("/api/auth/nexus/handshake", (_req, res) => {
+    res.status(501).json({ status: "error", code: "OAUTH_PROOF_REQUIRED" });
   });
 
   // Google OAuth Routes
   app.get("/api/auth/google/config", (req, res) => {
     const googleClientId = process.env.GOOGLE_OAUTH_CLIENT_ID || "";
-    const redirectUri = `https://${req.get('host')}/api/auth/google/callback`;
+    const redirectUri = null;
 
     res.json({
-      configured: !!googleClientId,
+      configured: false, // A client ID is not a working server-verified OAuth flow.
       clientId: googleClientId ? `${googleClientId.slice(0, 10)}...` : null,
       redirectUri,
-      keylessSupported: true,
+      keylessSupported: false,
       provider: "Google Identity OAuth"
     });
   });
 
-  app.get("/api/auth/google/keyless", (req, res) => {
-    const userEmail = process.env.USER_EMAIL || "Rastamanweeste@gmail.com";
-    const googleUser = {
-      id: "google-usr-keyless-n1",
-      email: userEmail,
-      name: userEmail.split("@")[0].replace(/\./g, " ").toUpperCase(),
-      picture: "https://lh3.googleusercontent.com/a/default-user",
-      authMethod: "KEYLESS_GOOGLE_OAUTH_HANDSHAKE",
-      connectedAt: new Date().toISOString(),
-      scopes: ["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"]
-    };
-
-    res.cookie("n1_google_auth", JSON.stringify(googleUser), {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      signed: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    res.json({
-      status: "success",
-      user: googleUser,
-      handshakeMethod: "KEYLESS_GOOGLE_OAUTH"
-    });
+  app.get("/api/auth/google/keyless", (_req, res) => {
+    res.status(501).json({ status: "error", code: "PROVIDER_VERIFICATION_REQUIRED" });
   });
 
-  app.get("/api/auth/github/me", (req, res) => {
+  app.get("/api/auth/github/me", async (req, res) => {
     const token = getNexusToken(req);
-    res.json({ authenticated: !!token });
+    if (!token) return res.json({ authenticated: false });
+    try {
+      const { data } = await new Octokit({ auth: token }).rest.users.getAuthenticated();
+      res.json({ authenticated: true, user: { login: data.login, id: data.id } });
+    } catch {
+      res.json({ authenticated: false });
+    }
   });
 
-  app.get("/api/auth/google/me", (req, res) => {
-    const rawCookie = req.signedCookies.n1_google_auth || req.cookies.n1_google_auth;
-    if (rawCookie) {
-      try {
-        const user = typeof rawCookie === 'string' ? JSON.parse(rawCookie) : rawCookie;
-        return res.json({ authenticated: true, user });
-      } catch (e) {
-        // ignore
-      }
-    }
-    res.json({ authenticated: false });
+  app.get("/api/auth/google/me", (_req, res) => {
+    res.json({ authenticated: false, user: null });
   });
 
   app.post("/api/auth/google/logout", (req, res) => {
@@ -2611,4 +2537,7 @@ echo "Run: tsx server.ts or npm run dev"
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error("[N+1 startup failed]", error);
+  process.exitCode = 1;
+});
