@@ -32,8 +32,9 @@ requireFact(!/googleUser.*KEYLESS_GOOGLE_OAUTH_HANDSHAKE/.test(server),
   "Keyless authentication must not mint fabricated users");
 requireFact(!/main@d51c8b7ce98a8564e7ffc8e3e03e9d11a58658e1/.test(health),
   "Health must report the live runtime revision, not a historical hardcoded SHA");
-requireFact(workflow.includes("test-runtime-truth.mjs"),
-  "CI must execute real HTTP and database probes");
+requireFact(workflow.includes("npm run test:runtime")
+  && pkg.scripts["test:runtime"] === "node scripts/test-runtime-truth.mjs",
+  "CI must execute the real HTTP and database test script via a bound npm command");
 requireFact(workflow.includes("trivy-action") && workflow.includes("gitleaks-action"),
   "CI must execute real container and secret scanners");
 
