@@ -41,6 +41,33 @@ describe("authorization truth boundary (issue #5 regression)", () => {
     expect(resolveActorAndRole(request(undefined, {}, { n1_google_auth: '{"email":"unknown@example.test"}' })).role).toBe("public");
   });
 
+  it("rejects old raw-token signed cookies even if the user had once logged in", () => {
+    vi.stubEnv("N1_FAMILY_GITHUB_IDS", "1001");
+    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: "gho_old_browser_token" })).role).toBe("public");
+  });
+
+  it("requires an allowlisted GitHub provider identity in the versioned signed session", () => {
+    vi.stubEnv("N1_FAMILY_GITHUB_IDS", "1001,1002");
+    const signedCookie = JSON.stringify({ version: 2, githubId: "1001", token: "gho_" + "t".repeat(30) });
+    const actor = resolveActorAndRole(request(undefined, { n1_sync_auth: signedCookie }));
+    expect(actor.role).toBe("family");
+    expect(actor.actor).toBe("GitHubFamilyUser:1001");
+  });
+
+  it("denies revoked and unlisted signed family identities", () => {
+    const cookie = JSON.stringify({ version: 2, githubId: "4444", token: "gho_" + "t".repeat(30) });
+    vi.stubEnv("N1_FAMILY_GITHUB_IDS", "1001");
+    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: cookie })).role).toBe("public");
+    vi.stubEnv("N1_FAMILY_GITHUB_IDS", "");
+    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: cookie })).role).toBe("public");
+  });
+
+  it("rejects a v2 cookie with no usable provider token", () => {
+    vi.stubEnv("N1_FAMILY_GITHUB_IDS", "1001");
+    const cookie = JSON.stringify({ version: 2, githubId: "1001", token: "" });
+    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: cookie })).role).toBe("public");
+  });
+
   it("rejects weak configured secrets rather than weakening the owner boundary", () => {
     vi.stubEnv("N1_ADMIN_SECRET", "weak");
     const req = { headers: { "x-admin-key": "weak" }, signedCookies: {}, cookies: {} } as any;
