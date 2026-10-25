@@ -164,7 +164,7 @@ jobs:
       - name: Re-check DB data persists across app restart
         run: node scripts/test-runtime-persistence.mjs
       - name: Scan the built image for high and critical CVEs
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: n1-ci:${{ github.sha }}
