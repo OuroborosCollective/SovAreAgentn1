@@ -6,6 +6,7 @@ networks:
 
 services:
   app:
+    image: n1-ci:${GIT_REVISION:?Set the exact source commit SHA}
     build:
       context: .
       dockerfile: Dockerfile
