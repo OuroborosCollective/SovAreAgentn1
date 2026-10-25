@@ -16,7 +16,7 @@ import { createPersonalityRouter } from "./src/api/personality.ts";
 import { createPrivacyRouter } from "./src/api/privacy.ts";
 import { createBackupRouter } from "./src/api/backup.ts";
 import { createTtsRouter } from "./src/api/tts.ts";
-import { securityRbacMiddleware, auditLogger } from "./src/lib/serverSecurity";
+import { securityRbacMiddleware, auditLogger, isAllowedFamilyGitHubId, readBoundFamilySession } from "./src/lib/serverSecurity";
 import { AREKappaBackgroundService } from "./src/services/arekappaBackgroundService";
 import { AREKappaStaticAnalyzer } from "./src/services/arekappaStaticAnalyzer";
 import { AREKappaLedgerService } from "./src/services/arekappaLedgerService";
@@ -37,8 +37,8 @@ const getNexusToken = (req?: express.Request): string | null => {
       ? (authHeader.startsWith('Bearer ') ? authHeader.slice(7)
         : authHeader.startsWith('token ') ? authHeader.slice(6) : null)
       : null;
-    const cookieToken = req.signedCookies?.n1_sync_auth;
-    if (typeof cookieToken === 'string' && cookieToken.length > 0) return cookieToken;
+    const familySession = readBoundFamilySession(req.signedCookies?.n1_sync_auth);
+    if (familySession) return familySession.token;
     // Never provide the server's machine PAT to an unauthenticated request.
     return headerToken || null;
   }
@@ -308,7 +308,7 @@ async function startServer() {
     const redirectUri = process.env.N1_OAUTH_REDIRECT_URI || null;
 
     res.json({
-      configured: !!(clientId && hasSecret && redirectUri),
+      configured: !!(clientId && hasSecret && redirectUri && process.env.N1_FAMILY_GITHUB_IDS),
       clientId: clientId ? `${clientId.slice(0, 6)}...${clientId.slice(-4)}` : null,
       rawClientId: clientId,
       hasSecret,
@@ -321,7 +321,7 @@ async function startServer() {
   app.get("/api/auth/nexus/url", (req, res) => {
     const clientId = process.env.N1_OAUTH_ID;
     const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
-    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri) {
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri || !process.env.N1_FAMILY_GITHUB_IDS) {
       return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
     }
     const state = crypto.randomBytes(16).toString("hex");
@@ -342,7 +342,7 @@ async function startServer() {
   app.get("/api/auth/nexus/login", (req, res) => {
     const clientId = process.env.N1_OAUTH_ID;
     const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
-    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri) {
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri || !process.env.N1_FAMILY_GITHUB_IDS) {
       return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
     }
     const state = crypto.randomBytes(16).toString("hex");
@@ -404,11 +404,15 @@ async function startServer() {
         });
         if (!userRes.ok) throw new Error("GitHub identity verification failed");
         const userData = await userRes.json();
-        if (typeof userData.login !== "string" || !userData.login) {
-          throw new Error("GitHub profile was missing a verified login");
+        if (typeof userData.login !== "string" || !userData.login
+          || !isAllowedFamilyGitHubId(userData.id)) {
+          return res.status(403).send("GitHub identity is not authorized for N+1 family access");
         }
 
-        res.cookie("n1_sync_auth", tokenData.access_token, { 
+        // Prior raw-token signed cookies are not valid N+1 family sessions.
+        res.cookie("n1_sync_auth", JSON.stringify({
+          version: 2, githubId: String(userData.id), token: tokenData.access_token,
+        }), { 
           httpOnly: true, 
           secure: true, 
           sameSite: 'lax',
