@@ -635,12 +635,15 @@ async function startServer() {
     }
   });
 
-  // PostgreSQL initialization helper
+  // PostgreSQL bootstrap: one transaction, no destructive schema resets,
+  // and no successful server start unless schema readback succeeds.
   const initDb = async () => {
-    if (!pool) return;
+    if (!pool) throw new Error("Database pool is not configured");
+    const client = await pool.connect();
+    let committed = false;
     try {
-      const client = await pool.connect();
-      await client.query('CREATE EXTENSION IF NOT EXISTS vector');
+      await client.query("BEGIN");
+      await client.query("CREATE EXTENSION IF NOT EXISTS vector");
       await client.query(`
         CREATE TABLE IF NOT EXISTS knowledge_vectors (
           id TEXT PRIMARY KEY,
@@ -653,7 +656,7 @@ async function startServer() {
         )
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS knowledge_vectors_hnsw_idx 
+        CREATE INDEX IF NOT EXISTS knowledge_vectors_hnsw_idx
         ON knowledge_vectors USING hnsw (embedding vector_cosine_ops)
       `);
       await client.query(`
@@ -666,27 +669,38 @@ async function startServer() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
-      // Issue #11 & #12: Core Personality & Memory Models
-      const schemaSql = fs.readFileSync(path.join(process.cwd(), 'db_schema.sql'), 'utf8');
-      await client.query(schemaSql);
-      
-      const genesisSql = fs.readFileSync(path.join(process.cwd(), 'genesis_core.sql'), 'utf8');
-      await client.query(genesisSql);
 
+      const schemaSql = fs.readFileSync(path.join(process.cwd(), "db_schema.sql"), "utf8");
+      if (/\\bDROP\\s+(TABLE|SCHEMA|DATABASE)\\b/i.test(schemaSql)) {
+        throw new Error("Destructive DDL is forbidden during N+1 startup");
+      }
+      await client.query(schemaSql);
+      const genesisSql = fs.readFileSync(path.join(process.cwd(), "genesis_core.sql"), "utf8");
+      await client.query(genesisSql);
+      // Confirm actual schema columns, not just a successful statement response.
+      await client.query("SELECT id, content_hash, privacy_class, is_tombstone FROM memory_events LIMIT 0");
+      await client.query("SELECT id, action, actor, data_class, granted FROM family_consent_logs LIMIT 0");
+      await client.query("SELECT id, core_traits, locked FROM core_personality LIMIT 0");
+      await client.query("SELECT id, status, actor_context FROM learning_candidates LIMIT 0");
+      await client.query("COMMIT");
+      committed = true;
+      console.log("[DB] Schema initialized and verified with non-destructive PostgreSQL readback.");
+    } catch (error) {
+      if (!committed) {
+        try { await client.query("ROLLBACK"); } catch { /* original error takes precedence */ }
+      }
+      console.error("[DB] Startup schema verification failed; refusing ready state.");
+      throw error;
+    } finally {
       client.release();
-      console.log('[DB] Hardened PostgreSQL schema & pgvector HNSW index initialized.');
-    } catch (err: any) {
-      console.warn('[DB] Failed to initialize PostgreSQL schema:', err.message);
     }
   };
 
-  // Try to init DB on startup if URI is present
   if (process.env.DB_URI) {
-    try {
-      getPool();
-      initDb();
-    } catch (e) {}
+    getPool();
+    await initDb();
+  } else if (process.env.NODE_ENV === "production") {
+    throw new Error("DB_URI is required for the production N+1 server");
   }
 
   // Vector API Routes
