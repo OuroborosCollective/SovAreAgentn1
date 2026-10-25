@@ -328,7 +328,7 @@ async function startServer() {
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'lax',
       signed: true,
       maxAge: 10 * 60 * 1000 // 10 minutes max
     });
@@ -349,7 +349,7 @@ async function startServer() {
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'lax',
       signed: true,
       maxAge: 10 * 60 * 1000
     });
@@ -411,7 +411,7 @@ async function startServer() {
         res.cookie("n1_sync_auth", tokenData.access_token, { 
           httpOnly: true, 
           secure: true, 
-          sameSite: 'none',
+          sameSite: 'lax',
           signed: true,
           maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
@@ -618,21 +618,9 @@ async function startServer() {
     }
   });
 
-  // Infrastructure Nodes & Topology
-  app.get("/api/system/nodes", async (req, res) => {
-    try {
-      // Static infrastructure nodes (simulated but could be real if we had a monitoring agent)
-      const infraNodes = [
-        { id: 'core-01', group: 1, label: 'N1_AXIOM_CORE', status: 'active', load: 35 },
-        { id: 'edge-01', group: 2, label: 'EDGE_INFERENCE_A', status: 'active', load: 18 },
-        { id: 'db-01', group: 4, label: 'DATABASE_PRIMARY', status: 'active', load: 22 },
-        { id: 'git-01', group: 6, label: 'NEXUS_BRIDGE_SYNC', status: 'active', load: 12 },
-      ];
-
-      res.json({ nodes: infraNodes });
-    } catch (error: any) {
-      res.status(500).json({ status: "error", message: error.message });
-    }
+  // A declaration of potential nodes is not proof of live infrastructure.
+  app.get("/api/system/nodes", (_req, res) => {
+    res.status(501).json({ status: "error", code: "RUNTIME_TOPOLOGY_EVIDENCE_UNAVAILABLE" });
   });
 
   // PostgreSQL bootstrap: one transaction, no destructive schema resets,
@@ -736,8 +724,8 @@ async function startServer() {
   });
 
   app.post("/api/vectors/search", async (req, res) => {
-  app.post("/api/vector/reflect-canvas", async (req, res) => {
-    res.json({ status: "success", message: "Canvas reflected to vectors" });
+  app.post("/api/vector/reflect-canvas", (_req, res) => {
+    res.status(501).json({ status: "error", code: "VECTOR_CANVAS_EFFECT_UNAVAILABLE" });
   });
 
     const { embedding, tenantId = 'default', limit = 5 } = req.body;
@@ -2544,7 +2532,11 @@ echo "Run: tsx server.ts or npm run dev"
   }
 
   // Start the AREKappa persistent monitoring daemon
-  AREKappaBackgroundService.startDaemon();
+  if (process.env.N1_ENABLE_AREKAPPA_BACKGROUND_SCAN === "1") {
+    AREKappaBackgroundService.startDaemon();
+  } else {
+    console.info("[AREKappa] Background scanning disabled unless explicitly opted in.");
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
