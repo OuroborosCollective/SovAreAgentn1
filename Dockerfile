@@ -48,12 +48,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Copy compiled dist artifacts from builder stage (including sbom.json)
 COPY --from=builder /app/dist ./dist
 
-# Create necessary directories and set ownership for the node user
-RUN mkdir -p /app/ssl /app/data /tmp && chown -R nplus1:nplus1 /app /tmp
-
-# Switch to non-root user
-RUN addgroup -g 10000 nplus1 && adduser -D -u 10000 -G nplus1 nplus1
-RUN chown -R nplus1:nplus1 /app /tmp
+# Create the non-root identity BEFORE setting ownership.
+RUN addgroup -g 10000 nplus1 && adduser -D -u 10000 -G nplus1 nplus1 \
+    && mkdir -p /app/ssl /app/data /tmp \
+    && chown -R nplus1:nplus1 /app /tmp
 USER nplus1
 
 # Expose default HTTP port
