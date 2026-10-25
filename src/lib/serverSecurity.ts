@@ -35,6 +35,7 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   // Health Probes
   { pathPattern: "/api/health/liveness", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Liveness probe" },
   { pathPattern: "/api/health/readiness", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Readiness probe" },
+  { pathPattern: "/api/health/dependency", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Measured dependency probe" },
   { pathPattern: "/api/health", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Health probe alias" },
 
   // Personality & Memory Routes
@@ -66,7 +67,7 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   { pathPattern: "/api/agent-command/chat", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 60, description: "Public Voice Agent conversational dialogue contract" },
   { pathPattern: "/api/tts", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Text To Speech voice synthesis API" },
   { pathPattern: "/api/push/stream", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push SSE stream endpoint" },
-  { pathPattern: "/api/push/send", methods: ["POST"], role: "public", effect: "MUTATING", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push notification broadcast endpoint" },
+  { pathPattern: "/api/push/send", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push notification broadcast endpoint" },
   { pathPattern: "/api/wolfram/solve", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Wolfram research sandbox execution" },
   { pathPattern: "/api/github/continuous-ai/issues", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "GitHub continuous AI issues probe" },
 
@@ -182,7 +183,451 @@ export function findPolicy(path: string, method: string): EndpointPolicy | null 
       return policy;
     }
     if (policy.pathPattern.includes(':') || policy.pathPattern.endsWith('/')) {
-      const regexPattern = '^' + policy.pathPattern.replace(/:[^\/]+/g, '[^/]+') + '(/.*)?$';
+      const regexPattern = '^' + policy.pathPattern.replace(/:[^\/]+/g, '[^/]+') + (policy.pathPattern.endsWith('/') ? '.*
+      if (new RegExp(regexPattern).test(normalizedPath)) {
+        return policy;
+      }
+    }
+  }
+  return null;
+}
+
+// Actor Identity & Role Resolver
+export interface ResolvedActor {
+  actor: string;
+  role: RoleLevel;
+}
+
+// Privileged access requires an explicitly configured high-entropy secret, not a
+// token-shaped string, unsigned provider data, or a signed OAuth cookie.
+export function matchesConfiguredSecret(candidate: unknown, expected: string | undefined): boolean {
+  if (typeof candidate !== "string" || typeof expected !== "string" || expected.length < 32) return false;
+  const a = Buffer.from(candidate, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export function resolveActorAndRole(req: Request): ResolvedActor {
+  const authorization = req.headers.authorization;
+  const headerToken = typeof authorization === "string"
+    ? (authorization.startsWith("Bearer ") ? authorization.slice(7)
+      : authorization.startsWith("token ") ? authorization.slice(6) : null)
+    : null;
+  const adminSecretHeader = req.headers["x-admin-key"] || req.headers["x-n1-admin-secret"];
+
+  const isOwnerToken = matchesConfiguredSecret(headerToken, process.env.N1_SYNC_TOKEN?.trim());
+  const isAdminHeader = matchesConfiguredSecret(adminSecretHeader, process.env.N1_ADMIN_SECRET);
+  if (isOwnerToken || isAdminHeader) {
+    return { actor: isOwnerToken ? "Owner-SystemToken" : "Owner-AdminHeader", role: "owner-admin" };
+  }
+
+  // A signed cookie can only establish a lower-privilege session. Its issuance
+  // must follow successful provider verification (never the keyless endpoint).
+  const syncCookie = req.signedCookies?.n1_sync_auth;
+  if (typeof syncCookie === "string" && syncCookie.length > 0) {
+    return { actor: "VerifiedGitHubSession", role: "family" };
+  }
+
+  return { actor: "anonymous", role: "public" };
+}
+
+// Voice Client Contract Validator
+export function isVoiceContractViolation(body: any): boolean {
+  if (!body) return false;
+
+  const forbiddenKeys = [
+    'execCmd', 'commandExecute', 'gitPush', 'pushManifest',
+    'autofix', 'modifyFiles', 'registerKey', 'archiveZip',
+    'sql', 'query', 'deleteDatabase', 'npmInstall'
+  ];
+
+  const bodyString = JSON.stringify(body).toLowerCase();
+  for (const forbidden of forbiddenKeys) {
+    if (bodyString.includes(forbidden.toLowerCase())) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Central Security & Deny-By-Default Middleware
+export function securityRbacMiddleware(req: Request, res: Response, next: NextFunction) {
+  // Only apply security controls to /api/ endpoints and /install.sh
+  if (!req.path.startsWith('/api/') && req.path !== '/install.sh' && !req.path.startsWith('/v1/')) {
+    return next();
+  }
+
+  const method = req.method;
+  const path = req.path;
+  const policy = findPolicy(path, method);
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const userAgent = (req.headers['user-agent'] || '').slice(0, 150);
+
+  // Deny-By-Default Guard
+  if (!policy) {
+    auditLogger.log({
+      actor: "anonymous",
+      role: "public",
+      method,
+      path,
+      effect: "READ",
+      status: "DENIED",
+      statusCode: 403,
+      ip: clientIp,
+      userAgent,
+      details: "Deny-by-default: Unregistered or unclassified API route access attempt"
+    });
+
+    return res.status(403).json({
+      status: "error",
+      code: "EVIDENCE_UNAVAILABLE",
+      message: "Deny-by-default: Access attempt to unclassified or restricted API endpoint is forbidden."
+    });
+  }
+
+  // Check Rate Limits
+  if (isRateLimited(clientIp, policy.pathPattern, policy.rateLimitPerMin)) {
+    auditLogger.log({
+      actor: "anonymous",
+      role: policy.role,
+      method,
+      path,
+      effect: policy.effect,
+      status: "DENIED",
+      statusCode: 429,
+      ip: clientIp,
+      userAgent,
+      details: "Rate limit exceeded"
+    });
+
+    return res.status(429).json({
+      status: "error",
+      code: "RATE_LIMIT_EXCEEDED",
+      message: `Rate limit exceeded. Maximum ${policy.rateLimitPerMin} requests per minute allowed.`
+    });
+  }
+
+  // Disabled Policy Guard
+  if (policy.role === "disabled") {
+    return res.status(501).json({
+      status: "error",
+      code: "FEATURE_DISABLED",
+      message: "This API endpoint is currently disabled."
+    });
+  }
+
+  // Resolve Caller Role
+  const { actor, role: callerRole } = resolveActorAndRole(req);
+
+  // Role Hierarchy Enforcement
+  const roleHierarchy: Record<RoleLevel, number> = {
+    "public": 1,
+    "family": 2,
+    "internal-service": 3,
+    "owner-admin": 4,
+    "disabled": 0
+  };
+
+  const requiredLevel = roleHierarchy[policy.role];
+  const callerLevel = roleHierarchy[callerRole];
+
+  if (callerLevel < requiredLevel) {
+    const isAuthMissing = callerRole === "public" && policy.role !== "public";
+    const statusCode = isAuthMissing ? 401 : 403;
+    const errorCode = isAuthMissing ? "UNAUTHORIZED" : "INSUFFICIENT_PRIVILEGES";
+    const message = isAuthMissing 
+      ? `Authentication required for ${policy.role} access.`
+      : `Insufficient privileges. Endpoint requires ${policy.role} role level.`;
+
+    auditLogger.log({
+      actor,
+      role: callerRole,
+      method,
+      path,
+      effect: policy.effect,
+      status: "DENIED",
+      statusCode,
+      ip: clientIp,
+      userAgent,
+      details: `Failed role check: required ${policy.role}, got ${callerRole}`
+    });
+
+    return res.status(statusCode).json({
+      status: "error",
+      code: errorCode,
+      message
+    });
+  }
+
+  // Voice App Contract Violation Check
+  if (path === "/api/agent-command/chat" && callerRole === "public") {
+    if (isVoiceContractViolation(req.body)) {
+      auditLogger.log({
+        actor,
+        role: callerRole,
+        method,
+        path,
+        effect: policy.effect,
+        status: "DENIED",
+        statusCode: 403,
+        ip: clientIp,
+        userAgent,
+        details: "Voice contract violation: attempted system action via public voice interface"
+      });
+
+      return res.status(403).json({
+        status: "error",
+        code: "VOICE_CONTRACT_VIOLATION",
+        message: "Voice client contract is strictly isolated to conversational agent commands."
+      });
+    }
+  }
+
+  // Hook Mutating Effects for Audit Logging
+  if (policy.effect === "MUTATING" || policy.effect === "SYSTEM_CHANGE" || policy.effect === "AUTH_HANDSHAKE") {
+    res.on('finish', () => {
+      const isSuccess = res.statusCode >= 200 && res.statusCode < 400;
+      auditLogger.log({
+        actor,
+        role: callerRole,
+        method,
+        path,
+        effect: policy.effect,
+        status: isSuccess ? "SUCCESS" : "ERROR",
+        statusCode: res.statusCode,
+        ip: clientIp,
+        userAgent,
+        details: `Effect execution ${isSuccess ? 'completed' : 'failed'} with status ${res.statusCode}`
+      });
+    });
+  }
+
+  next();
+}
+ : '
+      if (new RegExp(regexPattern).test(normalizedPath)) {
+        return policy;
+      }
+    }
+  }
+  return null;
+}
+
+// Actor Identity & Role Resolver
+export interface ResolvedActor {
+  actor: string;
+  role: RoleLevel;
+}
+
+// Privileged access requires an explicitly configured high-entropy secret, not a
+// token-shaped string, unsigned provider data, or a signed OAuth cookie.
+export function matchesConfiguredSecret(candidate: unknown, expected: string | undefined): boolean {
+  if (typeof candidate !== "string" || typeof expected !== "string" || expected.length < 32) return false;
+  const a = Buffer.from(candidate, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+export function resolveActorAndRole(req: Request): ResolvedActor {
+  const authorization = req.headers.authorization;
+  const headerToken = typeof authorization === "string"
+    ? (authorization.startsWith("Bearer ") ? authorization.slice(7)
+      : authorization.startsWith("token ") ? authorization.slice(6) : null)
+    : null;
+  const adminSecretHeader = req.headers["x-admin-key"] || req.headers["x-n1-admin-secret"];
+
+  const isOwnerToken = matchesConfiguredSecret(headerToken, process.env.N1_SYNC_TOKEN?.trim());
+  const isAdminHeader = matchesConfiguredSecret(adminSecretHeader, process.env.N1_ADMIN_SECRET);
+  if (isOwnerToken || isAdminHeader) {
+    return { actor: isOwnerToken ? "Owner-SystemToken" : "Owner-AdminHeader", role: "owner-admin" };
+  }
+
+  // A signed cookie can only establish a lower-privilege session. Its issuance
+  // must follow successful provider verification (never the keyless endpoint).
+  const syncCookie = req.signedCookies?.n1_sync_auth;
+  if (typeof syncCookie === "string" && syncCookie.length > 0) {
+    return { actor: "VerifiedGitHubSession", role: "family" };
+  }
+
+  return { actor: "anonymous", role: "public" };
+}
+
+// Voice Client Contract Validator
+export function isVoiceContractViolation(body: any): boolean {
+  if (!body) return false;
+
+  const forbiddenKeys = [
+    'execCmd', 'commandExecute', 'gitPush', 'pushManifest',
+    'autofix', 'modifyFiles', 'registerKey', 'archiveZip',
+    'sql', 'query', 'deleteDatabase', 'npmInstall'
+  ];
+
+  const bodyString = JSON.stringify(body).toLowerCase();
+  for (const forbidden of forbiddenKeys) {
+    if (bodyString.includes(forbidden.toLowerCase())) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Central Security & Deny-By-Default Middleware
+export function securityRbacMiddleware(req: Request, res: Response, next: NextFunction) {
+  // Only apply security controls to /api/ endpoints and /install.sh
+  if (!req.path.startsWith('/api/') && req.path !== '/install.sh' && !req.path.startsWith('/v1/')) {
+    return next();
+  }
+
+  const method = req.method;
+  const path = req.path;
+  const policy = findPolicy(path, method);
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const userAgent = (req.headers['user-agent'] || '').slice(0, 150);
+
+  // Deny-By-Default Guard
+  if (!policy) {
+    auditLogger.log({
+      actor: "anonymous",
+      role: "public",
+      method,
+      path,
+      effect: "READ",
+      status: "DENIED",
+      statusCode: 403,
+      ip: clientIp,
+      userAgent,
+      details: "Deny-by-default: Unregistered or unclassified API route access attempt"
+    });
+
+    return res.status(403).json({
+      status: "error",
+      code: "EVIDENCE_UNAVAILABLE",
+      message: "Deny-by-default: Access attempt to unclassified or restricted API endpoint is forbidden."
+    });
+  }
+
+  // Check Rate Limits
+  if (isRateLimited(clientIp, policy.pathPattern, policy.rateLimitPerMin)) {
+    auditLogger.log({
+      actor: "anonymous",
+      role: policy.role,
+      method,
+      path,
+      effect: policy.effect,
+      status: "DENIED",
+      statusCode: 429,
+      ip: clientIp,
+      userAgent,
+      details: "Rate limit exceeded"
+    });
+
+    return res.status(429).json({
+      status: "error",
+      code: "RATE_LIMIT_EXCEEDED",
+      message: `Rate limit exceeded. Maximum ${policy.rateLimitPerMin} requests per minute allowed.`
+    });
+  }
+
+  // Disabled Policy Guard
+  if (policy.role === "disabled") {
+    return res.status(501).json({
+      status: "error",
+      code: "FEATURE_DISABLED",
+      message: "This API endpoint is currently disabled."
+    });
+  }
+
+  // Resolve Caller Role
+  const { actor, role: callerRole } = resolveActorAndRole(req);
+
+  // Role Hierarchy Enforcement
+  const roleHierarchy: Record<RoleLevel, number> = {
+    "public": 1,
+    "family": 2,
+    "internal-service": 3,
+    "owner-admin": 4,
+    "disabled": 0
+  };
+
+  const requiredLevel = roleHierarchy[policy.role];
+  const callerLevel = roleHierarchy[callerRole];
+
+  if (callerLevel < requiredLevel) {
+    const isAuthMissing = callerRole === "public" && policy.role !== "public";
+    const statusCode = isAuthMissing ? 401 : 403;
+    const errorCode = isAuthMissing ? "UNAUTHORIZED" : "INSUFFICIENT_PRIVILEGES";
+    const message = isAuthMissing 
+      ? `Authentication required for ${policy.role} access.`
+      : `Insufficient privileges. Endpoint requires ${policy.role} role level.`;
+
+    auditLogger.log({
+      actor,
+      role: callerRole,
+      method,
+      path,
+      effect: policy.effect,
+      status: "DENIED",
+      statusCode,
+      ip: clientIp,
+      userAgent,
+      details: `Failed role check: required ${policy.role}, got ${callerRole}`
+    });
+
+    return res.status(statusCode).json({
+      status: "error",
+      code: errorCode,
+      message
+    });
+  }
+
+  // Voice App Contract Violation Check
+  if (path === "/api/agent-command/chat" && callerRole === "public") {
+    if (isVoiceContractViolation(req.body)) {
+      auditLogger.log({
+        actor,
+        role: callerRole,
+        method,
+        path,
+        effect: policy.effect,
+        status: "DENIED",
+        statusCode: 403,
+        ip: clientIp,
+        userAgent,
+        details: "Voice contract violation: attempted system action via public voice interface"
+      });
+
+      return res.status(403).json({
+        status: "error",
+        code: "VOICE_CONTRACT_VIOLATION",
+        message: "Voice client contract is strictly isolated to conversational agent commands."
+      });
+    }
+  }
+
+  // Hook Mutating Effects for Audit Logging
+  if (policy.effect === "MUTATING" || policy.effect === "SYSTEM_CHANGE" || policy.effect === "AUTH_HANDSHAKE") {
+    res.on('finish', () => {
+      const isSuccess = res.statusCode >= 200 && res.statusCode < 400;
+      auditLogger.log({
+        actor,
+        role: callerRole,
+        method,
+        path,
+        effect: policy.effect,
+        status: isSuccess ? "SUCCESS" : "ERROR",
+        statusCode: res.statusCode,
+        ip: clientIp,
+        userAgent,
+        details: `Effect execution ${isSuccess ? 'completed' : 'failed'} with status ${res.statusCode}`
+      });
+    });
+  }
+
+  next();
+}
+);
       if (new RegExp(regexPattern).test(normalizedPath)) {
         return policy;
       }
