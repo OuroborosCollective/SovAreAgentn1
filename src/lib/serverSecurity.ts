@@ -126,7 +126,7 @@ class AuditLogger {
       ...entry,
       id: crypto.randomBytes(8).toString("hex"),
       timestamp: new Date().toISOString(),
-      revision: process.env.GIT_COMMIT || "main@d51c8b7ce98a8564e7ffc8e3e03e9d11a58658e1"
+      revision: process.env.GIT_REVISION || process.env.GIT_COMMIT || "unverified"
     };
     this.logs.unshift(logEntry);
     if (this.logs.length > this.maxEntries) {
@@ -197,45 +197,37 @@ export interface ResolvedActor {
   role: RoleLevel;
 }
 
+// Privileged access requires an explicitly configured high-entropy secret, not a
+// token-shaped string, unsigned provider data, or a signed OAuth cookie.
+export function matchesConfiguredSecret(candidate: unknown, expected: string | undefined): boolean {
+  if (typeof candidate !== "string" || typeof expected !== "string" || expected.length < 32) return false;
+  const a = Buffer.from(candidate, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 export function resolveActorAndRole(req: Request): ResolvedActor {
-  const authHeader = req.headers['authorization'];
-  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (authHeader?.startsWith('token ') ? authHeader.slice(6) : authHeader);
+  const authorization = req.headers.authorization;
+  const headerToken = typeof authorization === "string"
+    ? (authorization.startsWith("Bearer ") ? authorization.slice(7)
+      : authorization.startsWith("token ") ? authorization.slice(6) : null)
+    : null;
+  const adminSecretHeader = req.headers["x-admin-key"] || req.headers["x-n1-admin-secret"];
+
+  const isOwnerToken = matchesConfiguredSecret(headerToken, process.env.N1_SYNC_TOKEN?.trim());
+  const isAdminHeader = matchesConfiguredSecret(adminSecretHeader, process.env.N1_ADMIN_SECRET);
+  if (isOwnerToken || isAdminHeader) {
+    return { actor: isOwnerToken ? "Owner-SystemToken" : "Owner-AdminHeader", role: "owner-admin" };
+  }
+
+  // A signed cookie can only establish a lower-privilege session. Its issuance
+  // must follow successful provider verification (never the keyless endpoint).
   const syncCookie = req.signedCookies?.n1_sync_auth;
-  const googleCookie = req.signedCookies?.n1_google_auth || req.cookies?.n1_google_auth;
-  const adminSecretHeader = req.headers['x-admin-key'] || req.headers['x-n1-admin-secret'];
-
-  // 1. Owner-Admin Check
-  const isOwnerToken = !!(headerToken && ((process.env.N1_SYNC_TOKEN && headerToken === process.env.N1_SYNC_TOKEN.trim()) || headerToken.length >= 8));
-  const isAdminHeader = !!(adminSecretHeader && (adminSecretHeader === process.env.N1_COOKIE_SECRET || adminSecretHeader === process.env.N1_RUNTIME_SECRET || adminSecretHeader === process.env.N1_ADMIN_SECRET));
-  const hasSyncCookie = !!syncCookie;
-
-  if (isOwnerToken || isAdminHeader || hasSyncCookie) {
-    return {
-      actor: isOwnerToken ? "Owner-SystemToken" : (hasSyncCookie ? "Owner-SessionCookie" : "Owner-AdminHeader"),
-      role: "owner-admin"
-    };
+  if (typeof syncCookie === "string" && syncCookie.length > 0) {
+    return { actor: "VerifiedGitHubSession", role: "family" };
   }
 
-  // 2. Family Check
-  if (googleCookie || headerToken) {
-    let username = "FamilyUser";
-    if (googleCookie) {
-      try {
-        const parsed = typeof googleCookie === 'string' ? JSON.parse(googleCookie) : googleCookie;
-        if (parsed?.email) username = parsed.email;
-      } catch (e) {}
-    }
-    return {
-      actor: username,
-      role: "family"
-    };
-  }
-
-  // 3. Public Default
-  return {
-    actor: "anonymous",
-    role: "public"
-  };
+  return { actor: "anonymous", role: "public" };
 }
 
 // Voice Client Contract Validator
