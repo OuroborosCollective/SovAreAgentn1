@@ -35,6 +35,9 @@ test('Ensure no live Puck alias drift in codebase', () => {
         file.includes('migrationValidator.ts') || 
         file.includes('alias-drift.test.ts') ||
         file.includes('identity.ts') ||
+        // Gemini Live uses the provider's literal voice preset "Puck", not as an N+1 identity alias.
+        file.includes('geminiLiveVoiceService.ts') ||
+        file.includes('geminiLiveVoiceService.test.ts') ||
         file.includes('voiceService.ts') ||
         file.includes('ttsService.ts') ||
         file.includes('api/tts.ts')) {
