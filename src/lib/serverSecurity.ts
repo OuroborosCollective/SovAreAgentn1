@@ -207,6 +207,29 @@ export function matchesConfiguredSecret(candidate: unknown, expected: string | u
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// Family authorization is allowlist-bound to the GitHub user IDs verified
+// when the server minted a v2 signed cookie. Legacy raw-token cookies fail closed.
+export function isAllowedFamilyGitHubId(id: unknown): boolean {
+  if (typeof id !== "number" && typeof id !== "string") return false;
+  const value = String(id);
+  if (!/^[0-9]+$/.test(value)) return false;
+  const allowed = (process.env.N1_FAMILY_GITHUB_IDS || "")
+    .split(",").map(v => v.trim()).filter(v => /^[0-9]+$/.test(v));
+  return allowed.includes(value);
+}
+
+export function readBoundFamilySession(raw: unknown): { githubId: string; token: string } | null {
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.version !== 2 || typeof parsed?.token !== "string"
+      || parsed.token.length < 20 || !isAllowedFamilyGitHubId(parsed.githubId)) return null;
+    return { githubId: String(parsed.githubId), token: parsed.token };
+  } catch {
+    return null;
+  }
+}
+
 export function resolveActorAndRole(req: Request): ResolvedActor {
   const authorization = req.headers.authorization;
   const headerToken = typeof authorization === "string"
@@ -223,9 +246,9 @@ export function resolveActorAndRole(req: Request): ResolvedActor {
 
   // A signed cookie can only establish a lower-privilege session. Its issuance
   // must follow successful provider verification (never the keyless endpoint).
-  const syncCookie = req.signedCookies?.n1_sync_auth;
-  if (typeof syncCookie === "string" && syncCookie.length > 0) {
-    return { actor: "VerifiedGitHubSession", role: "family" };
+  const familySession = readBoundFamilySession(req.signedCookies?.n1_sync_auth);
+  if (familySession) {
+    return { actor: "GitHubFamilyUser:" + familySession.githubId, role: "family" };
   }
 
   return { actor: "anonymous", role: "public" };
