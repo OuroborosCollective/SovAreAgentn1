@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { once } from "node:events";
 import express, { Router } from "express";
 import { createMemoryRouter } from "../../src/api/memory";
 import { createPrivacyRouter } from "../../src/api/privacy";
@@ -10,6 +11,7 @@ async function exercise(prefix: string, router: Router, route: string, method: "
   app.use(prefix, router);
   const listener = app.listen(0, "127.0.0.1");
   try {
+    await once(listener, "listening");
     const address = listener.address();
     if (!address || typeof address === "string") throw new Error("No TCP listener");
     const response = await fetch(`http://127.0.0.1:${address.port}${prefix}${route}`, {
@@ -18,7 +20,9 @@ async function exercise(prefix: string, router: Router, route: string, method: "
     });
     return { status: response.status, body: await response.json() as any };
   } finally {
-    await new Promise<void>((resolve, reject) => listener.close(err => err ? reject(err) : resolve()));
+    if (listener.listening) {
+      await new Promise<void>((resolve, reject) => listener.close(err => err ? reject(err) : resolve()));
+    }
   }
 }
 
