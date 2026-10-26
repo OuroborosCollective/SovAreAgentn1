@@ -47,7 +47,17 @@ ENV NODE_ENV=production \
 COPY package.json package-lock.json ./
 # Match the builder's workspace structure before the production npm ci.
 COPY --from=builder /app/packages ./packages
-RUN npm ci --omit=dev && npm cache clean --force
+# The deployed server only runs Node. Bundled npm CLI is not used at runtime
+# and carries independently reported CVEs in its dependency tree.
+# Remove that package tree after installing production dependencies. The
+# builder stage and GitHub CI still retain npm for builds and updates.
+RUN npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx \
+    && test ! -e /usr/local/lib/node_modules/npm \
+    && test ! -e /usr/local/bin/npm \
+    && test ! -e /usr/local/bin/npx \
+    && node --version > /dev/null
 
 # Copy compiled dist artifacts from builder stage (including sbom.json)
 COPY --from=builder /app/dist ./dist

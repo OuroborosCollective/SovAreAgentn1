@@ -142,6 +142,17 @@ jobs:
           echo "N1_SYNC_TOKEN=$machine" >> "$GITHUB_ENV"
       - name: Build actual production container
         run: docker compose build --build-arg GIT_REVISION="${{ github.sha }}" --build-arg VERSION=ci
+      - name: Verify minimal runtime image and Node entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint /bin/sh "n1-ci:${{ github.sha }}" -ec '
+            node --version
+            test -f /app/dist/server.cjs
+            test ! -e /usr/local/lib/node_modules/npm
+            test ! -e /usr/local/bin/npm
+            test ! -e /usr/local/bin/npx
+          '
       - name: Start ephemeral PostgreSQL and API
         run: docker compose up -d --no-build
       - name: Await measured HTTP readiness (bounded)
