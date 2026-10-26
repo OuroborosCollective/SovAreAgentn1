@@ -429,3 +429,18 @@ export function securityRbacMiddleware(req: Request, res: Response, next: NextFu
 
   next();
 }
+
+/**
+ * CORS controls response readability; it does not prevent a browser from sending
+ * a simple cross-origin form POST. Reject disallowed Origin headers before any
+ * state-changing API handler executes. Requests without Origin are handled by
+ * existing authentication/CSRF policy and are not treated as browser-trusted.
+ */
+export function shouldRejectCrossOriginMutation(method: string, path: string, origin: string | undefined, allowedOrigins: readonly string[]): boolean {
+  if (!origin) return false;
+  const verb = method.toUpperCase();
+  if (verb === "GET" || verb === "HEAD" || verb === "OPTIONS") return false;
+  if (!path.startsWith("/api/")) return false;
+  if (origin === "null") return true;
+  return !allowedOrigins.includes(origin);
+}
