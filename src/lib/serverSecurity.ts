@@ -436,11 +436,21 @@ export function securityRbacMiddleware(req: Request, res: Response, next: NextFu
  * state-changing API handler executes. Requests without Origin are handled by
  * existing authentication/CSRF policy and are not treated as browser-trusted.
  */
-export function shouldRejectCrossOriginMutation(method: string, path: string, origin: string | undefined, allowedOrigins: readonly string[]): boolean {
+export function shouldRejectCrossOriginMutation(method: string, path: string, origin: string | undefined, allowedOrigins: readonly string[], requestHost?: string): boolean {
   if (!origin) return false;
   const verb = method.toUpperCase();
   if (verb === "GET" || verb === "HEAD" || verb === "OPTIONS") return false;
   if (!path.startsWith("/api/")) return false;
   if (origin === "null") return true;
+  // Same-site browser forms must continue to work even without an explicit
+  // ALLOWED_ORIGINS entry for the public host. Compare exact host+port, not
+  // suffixes (which would incorrectly allow attacker-controlled subdomains).
+  if (requestHost) {
+    try {
+      const parsed = new URL(origin);
+      if ((parsed.protocol === "https:" || parsed.protocol === "http:") &&
+          parsed.host.toLowerCase() === requestHost.toLowerCase()) return false;
+    } catch { /* Malformed Origin is rejected below. */ }
+  }
   return !allowedOrigins.includes(origin);
 }

@@ -91,7 +91,7 @@ async function startServer() {
   // Enforce cross-origin write restrictions before parsing bodies or executing APIs.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (shouldRejectCrossOriginMutation(req.method, req.path, origin, allowedOrigins)) {
+    if (shouldRejectCrossOriginMutation(req.method, req.path, origin, allowedOrigins, req.get('host'))) {
       return res.status(403).json({ status: "error", code: "CROSS_ORIGIN_WRITE_FORBIDDEN" });
     }
     next();

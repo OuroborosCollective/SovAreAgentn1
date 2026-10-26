@@ -10,6 +10,11 @@ describe('cross-origin write boundary', () => {
     expect(shouldRejectCrossOriginMutation('POST', '/api/privacy/forget', 'null', allowed)).toBe(true);
     expect(shouldRejectCrossOriginMutation('DELETE', '/api/partners/connections', 'https://evil.example.test', allowed)).toBe(true);
   });
+  it('permits exact same-host browser POST but rejects suffix tricks', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test', [], 'n1.example.test')).toBe(false);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test.attacker.test', [], 'n1.example.test')).toBe(true);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test:9999', [], 'n1.example.test')).toBe(true);
+  });
   it('does not block allowed origins or existing authenticated non-browser clients', () => {
     expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', allowed[0], allowed)).toBe(false);
     expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', undefined, allowed)).toBe(false);
