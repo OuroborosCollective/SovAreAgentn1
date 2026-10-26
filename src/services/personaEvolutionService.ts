@@ -1,6 +1,4 @@
 import { SemanticVectorNode, PersonaState, ChildEmotion } from '../hooks/useChildPersona';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from './firebasePersonaSync';
 
 export interface DevelopmentalStage {
   stageId: string;
@@ -177,10 +175,8 @@ export class PersonaEvolutionService {
       const state = getPersonaState();
       const metrics = this.analyzeLinguisticEvolution(state);
       
-      // Save metrics snapshot to cloud
-      this.persistEvolutionSnapshot(metrics).catch(e => {
-        console.warn('Firebase Persona Evolution Sync Notice:', e);
-      });
+      // These UI metrics are ephemeral. Do not upload an unverified family
+      // persona or imply that timer-generated counters are persisted memories.
 
       onEvolve(metrics);
     }, intervalMs);
@@ -194,21 +190,11 @@ export class PersonaEvolutionService {
   }
 
   /**
-   * Persists evolution milestones to Firebase Firestore
+   * Fail closed until an authenticated, consent-scoped persistent backend
+   * supplies a real durable write receipt. This is not a local/cloud backup.
    */
-  public async persistEvolutionSnapshot(metrics: PersonaEvolutionMetrics): Promise<boolean> {
-    try {
-      const docRef = doc(db, 'n1_persona_evolution', `evolution_snap_${Date.now()}`);
-      await setDoc(docRef, {
-        metrics,
-        timestamp: Date.now(),
-        nodeId: 'hardware_node_main'
-      }, { merge: true });
-      return true;
-    } catch (error) {
-      console.warn('Persona Evolution Cloud Sync fallback to local:', error);
-      return false;
-    }
+  public async persistEvolutionSnapshot(_metrics: PersonaEvolutionMetrics): Promise<boolean> {
+    return false;
   }
 }
 

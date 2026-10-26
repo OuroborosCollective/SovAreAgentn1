@@ -1,9 +1,39 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 afterEach(() => vi.unstubAllEnvs());
-import { findPolicy, resolveActorAndRole, isVoiceContractViolation, API_ENDPOINT_MATRIX, isRateLimited } from '../../src/lib/serverSecurity';
+import { findPolicy, resolveActorAndRole, isVoiceContractViolation, API_ENDPOINT_MATRIX, isRateLimited, shouldRejectCrossOriginMutation } from '../../src/lib/serverSecurity';
+
+describe('cross-origin write boundary', () => {
+  const allowed = ['https://family.example.test'];
+  it('blocks form-style cross-origin POST even if no CORS preflight occurs', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(true);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/privacy/forget', 'null', allowed)).toBe(true);
+    expect(shouldRejectCrossOriginMutation('DELETE', '/api/partners/connections', 'https://evil.example.test', allowed)).toBe(true);
+  });
+  it('permits exact same-host browser POST but rejects suffix tricks', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test', [], 'n1.example.test')).toBe(false);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test.attacker.test', [], 'n1.example.test')).toBe(true);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test:9999', [], 'n1.example.test')).toBe(true);
+  });
+  it('does not block allowed origins or existing authenticated non-browser clients', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', allowed[0], allowed)).toBe(false);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', undefined, allowed)).toBe(false);
+  });
+  it('keeps safe reads and preflight under existing CORS policy', () => {
+    expect(shouldRejectCrossOriginMutation('GET', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(false);
+    expect(shouldRejectCrossOriginMutation('OPTIONS', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(false);
+  });
+});
 
 describe('serverSecurity - findPolicy', () => {
+  it('limits persisted memory audit to authenticated family readers', () => {
+    const policy = findPolicy('/api/memory/audit', 'GET');
+    expect(policy?.role).toBe('family');
+    expect(policy?.effect).toBe('READ');
+    expect(policy?.dataClassification).toBe('INTERNAL');
+    expect(findPolicy('/api/memory/audit', 'POST')).toBeNull();
+  });
+
   it('should find exact path match', () => {
     const policy = findPolicy('/api/health/liveness', 'GET');
     expect(policy).toBeDefined();

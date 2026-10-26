@@ -20,7 +20,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChildPersona, ChildEmotion } from '../hooks/useChildPersona';
 import { voiceService } from '../services/voiceService';
-import { syncPersonaToCloud } from '../services/firebasePersonaSync';
 
 export interface ProactiveCandidate {
   id: string;
@@ -122,15 +121,13 @@ export const ProactiveLearningEngine: React.FC = () => {
     if (isApproved) {
       // HAPPY / Joyful on approve
       triggerEmotionStimulus(`Ahaa Bestätigung von ${role}: Richtig!`, 'playfulness');
-      const happyText = `Juhu! Danke ${role}! Ich habe diese Erkenntnis glücklich in meinem Vektor-Gedächtnis gespeichert!`;
+      const happyText = `Juhu! Danke ${role}! Ich hab mir diese Idee als Lernkandidat vorgemerkt. Ob sie dauerhaft gespeichert wird, muss noch bestätigt werden!`;
       setLastSpeechStatus(`Approved! Hia is Happy (${persona.currentEmotion})`);
       voiceService.speak(happyText, 'N+1', 'playful', 1.38, 1.15, true);
 
       setCandidates(prev => prev.map(c => c.id === candId ? { ...c, status: 'accepted', resolved_at: Date.now() } : c));
       setActiveAhaCandidate(null);
       
-      // Save snapshot to Firebase
-      syncPersonaToCloud('hardware_node_main', persona).catch(() => {});
     } else {
       // UNHAPPY / Disappointed on reject & kindly re-ask
       triggerEmotionStimulus(`Korrektur erforderlich von ${role}`, 'study');

@@ -16,7 +16,7 @@ import { createPersonalityRouter } from "./src/api/personality.ts";
 import { createPrivacyRouter } from "./src/api/privacy.ts";
 import { createBackupRouter } from "./src/api/backup.ts";
 import { createTtsRouter } from "./src/api/tts.ts";
-import { securityRbacMiddleware, auditLogger, isAllowedFamilyGitHubId, readBoundFamilySession } from "./src/lib/serverSecurity";
+import { securityRbacMiddleware, auditLogger, isAllowedFamilyGitHubId, readBoundFamilySession, shouldRejectCrossOriginMutation } from "./src/lib/serverSecurity";
 import { AREKappaBackgroundService } from "./src/services/arekappaBackgroundService";
 import { AREKappaStaticAnalyzer } from "./src/services/arekappaStaticAnalyzer";
 import { AREKappaLedgerService } from "./src/services/arekappaLedgerService";
@@ -87,6 +87,15 @@ async function startServer() {
     },
     credentials: true
   }));
+
+  // Enforce cross-origin write restrictions before parsing bodies or executing APIs.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (shouldRejectCrossOriginMutation(req.method, req.path, origin, allowedOrigins, req.get('host'))) {
+      return res.status(403).json({ status: "error", code: "CROSS_ORIGIN_WRITE_FORBIDDEN" });
+    }
+    next();
+  });
 
   app.use(express.json());
   app.use(cookieParser(activeCookieSecret));

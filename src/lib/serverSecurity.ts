@@ -41,6 +41,7 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   // Personality & Memory Routes
   { pathPattern: "/api/memory/events", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage memory events" },
   { pathPattern: "/api/memory/migrate", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Migrate memory events" },
+  { pathPattern: "/api/memory/audit", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 30, description: "Count persisted memory events without exposing contents" },
   { pathPattern: "/api/personality/core", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Get core personality" },
   { pathPattern: "/api/personality/candidates", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage learning candidates" },
   { pathPattern: "/api/personality/candidates/:id/resolve", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Resolve candidate" },
@@ -427,4 +428,29 @@ export function securityRbacMiddleware(req: Request, res: Response, next: NextFu
   }
 
   next();
+}
+
+/**
+ * CORS controls response readability; it does not prevent a browser from sending
+ * a simple cross-origin form POST. Reject disallowed Origin headers before any
+ * state-changing API handler executes. Requests without Origin are handled by
+ * existing authentication/CSRF policy and are not treated as browser-trusted.
+ */
+export function shouldRejectCrossOriginMutation(method: string, path: string, origin: string | undefined, allowedOrigins: readonly string[], requestHost?: string): boolean {
+  if (!origin) return false;
+  const verb = method.toUpperCase();
+  if (verb === "GET" || verb === "HEAD" || verb === "OPTIONS") return false;
+  if (!path.startsWith("/api/")) return false;
+  if (origin === "null") return true;
+  // Same-site browser forms must continue to work even without an explicit
+  // ALLOWED_ORIGINS entry for the public host. Compare exact host+port, not
+  // suffixes (which would incorrectly allow attacker-controlled subdomains).
+  if (requestHost) {
+    try {
+      const parsed = new URL(origin);
+      if ((parsed.protocol === "https:" || parsed.protocol === "http:") &&
+          parsed.host.toLowerCase() === requestHost.toLowerCase()) return false;
+    } catch { /* Malformed Origin is rejected below. */ }
+  }
+  return !allowedOrigins.includes(origin);
 }
