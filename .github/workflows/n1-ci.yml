@@ -1,148 +1,196 @@
-name: N+1 System CI/CD
+name: N+1 evidence-gated CI
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n1-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  security-and-audit:
-    name: Security, SAST & Audit
+  proof-and-tests:
+    name: Type, contract, regression and evidence policy
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-      - name: Setup Node.js Runtime
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
+          cache: npm
+      - name: Install dependency lockfile without fallback
         run: npm ci
-      - name: Dependency Audit
-        run: npm audit --audit-level=critical
-      - name: Generate SBOM
-        run: npm sbom --sbom-format cyclonedx > sbom.json
-      - name: Generate Checksums
-        run: sha256sum sbom.json > checksums.txt
-      - name: Upload SBOM & Checksums
+      - name: Assert no fake success or publish route
+        run: npm run check:proof
+      - name: TypeScript compile-only gate
+        run: npm run typecheck
+      - name: Real implementation regression tests
+        run: npm run test:unit
+      - name: In-process HTTP integration tests
+        run: npm run test:integration
+      - name: Voice and API contract tests
+        run: npm run test:contract
+      - name: Artifact revision receipt
+        run: |
+          mkdir -p evidence
+          printf '%s\n' "${{ github.sha }}" > evidence/commit.sha
+          sha256sum package-lock.json > evidence/lockfile.sha256
+      - name: Upload test receipts, even after failure
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: security-artifacts-${{ github.sha }}
-          path: |
-            sbom.json
-            checksums.txt
-      - name: Secret Scan (Placeholder)
-        run: echo "Secret Scan passed"
-      - name: SAST (Placeholder)
-        run: echo "SAST passed"
-
-  typecheck-and-lint:
-    name: Type Check & Linting
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm ci
-      - run: npm run lint
-
-  unit-and-integration:
-    name: Unit & Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm ci
-      - run: npm run test:unit
-      - run: npm run test:integration
-      - name: Upload Test Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-integration-reports-${{ github.sha }}
+          name: unit-contract-evidence-${{ github.sha }}
+          if-no-files-found: warn
           path: |
             unit-report.json
             integration-report.json
+            contract-report.json
+            evidence/
 
-  contract-tests:
-    name: Contract Tests
+  dependency-and-sbom:
+    name: Dependency audit and SBOM
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - run: npm ci
-      - run: npm run test:contract
-      - name: Upload Contract Reports
+      - name: Block high and critical dependencies
+        run: npm audit --audit-level=high
+      - name: Generate actual dependency SBOM
+        run: |
+          mkdir -p evidence
+          npm sbom --sbom-format cyclonedx > evidence/sbom.json
+          sha256sum evidence/sbom.json > evidence/sbom.sha256
+          printf '%s\n' "${{ github.sha }}" > evidence/commit.sha
+      - name: Save SBOM receipt
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: contract-reports-${{ github.sha }}
-          path: contract-report.json
+          name: sbom-${{ github.sha }}
+          if-no-files-found: warn
+          path: evidence/
 
-  e2e-tests:
-    name: UI E2E Tests
+  secret-scan:
+    name: Git history secret scanner
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm ci
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
-      - run: npm run test:e2e
-      # Playwright typically outputs to playwright-report/
-
-  docker-compose-test:
-    name: Docker Compose Integration
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build and Start Compose
-        run: |
-          docker compose build --build-arg GIT_REVISION=${{ github.sha }} --build-arg BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=test
-          docker compose up -d
-      - name: Wait for Readiness
-        run: |
-          echo "Waiting for app to be ready..."
-          timeout 60s bash -c 'until curl -s http://localhost:3000/api/health/readiness | grep -q "\"status\":\"ready\""; do sleep 2; done'
-      - name: Container Scan (Placeholder)
-        run: echo "Container Scan passed"
-      - name: Dump logs on failure
-        if: failure()
-        run: docker compose logs
-      - name: Tear down
-        run: docker compose down
-
-  publish:
-    name: Release & Publish
-    needs: [security-and-audit, typecheck-and-lint, unit-and-integration, contract-tests, e2e-tests, docker-compose-test]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - name: Publish to NPM Registry
+          fetch-depth: 0
+      - name: Run actual Gitleaks scanner
+        uses: gitleaks/gitleaks-action@v2
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
-      - name: Docker Publish (Fail Closed)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL JavaScript / TypeScript SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  docker-real-runtime:
+    name: Docker + PostgreSQL + actual HTTP/runtime E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GIT_REVISION: ${{ github.sha }}
+      POSTGRES_DB: n1_ci
+      POSTGRES_USER: n1_ci
+      VERSION: ci
+      N1_BASE_URL: http://127.0.0.1:3000
+      N1_CI_INTEGRATION: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Locked application and browser dependencies
         run: |
-          echo "Docker publish is fail-closed until release issue."
-          exit 1
-      - name: APK/AAB Publish (Fail Closed)
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Generate isolated test-only credentials
+        shell: bash
         run: |
-          echo "APK/AAB publish is fail-closed until release issue."
+          set -euo pipefail
+          password="$(openssl rand -hex 32)"
+          signing="$(openssl rand -hex 48)"
+          machine="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$signing"
+          echo "::add-mask::$machine"
+          echo "POSTGRES_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "DB_URI=postgres://n1_ci:$password@db:5432/n1_ci" >> "$GITHUB_ENV"
+          echo "N1_COOKIE_SECRET=$signing" >> "$GITHUB_ENV"
+          echo "N1_SYNC_TOKEN=$machine" >> "$GITHUB_ENV"
+      - name: Build actual production container
+        run: docker compose build --build-arg GIT_REVISION="${{ github.sha }}" --build-arg VERSION=ci
+      - name: Verify minimal runtime image and Node entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint /bin/sh "n1-ci:${{ github.sha }}" -ec '
+            node --version
+            test -f /app/dist/server.cjs
+            test ! -e /usr/local/lib/node_modules/npm
+            test ! -e /usr/local/bin/npm
+            test ! -e /usr/local/bin/npx
+          '
+      - name: Start ephemeral PostgreSQL and API
+        run: docker compose up -d --no-build
+      - name: Await measured HTTP readiness (bounded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/api/health/readiness > /dev/null; then
+              echo "Readiness returned HTTP 200"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Runtime did not become ready" >&2
           exit 1
+      - name: Test real container API, security and DB state
+        run: npm run test:runtime
+      - name: Real browser and API E2E tests
+        run: npm run test:e2e
+      - name: Re-check DB data persists across app restart
+        run: node scripts/test-runtime-persistence.mjs
+      - name: Scan the built image for high and critical CVEs
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: n1-ci:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+      - name: Capture failure evidence
+        if: failure()
+        shell: bash
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200 app db
+      - name: Stop and delete CI-only containers and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+# Deliberately no npm, Docker registry, or Android publishing step.
+# Release requires #31-#34 plus artifact/device/runtime readback.
