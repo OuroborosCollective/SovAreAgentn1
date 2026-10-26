@@ -35,8 +35,8 @@ test.describe('N+1 real browser and privacy boundaries', () => {
   test('keeps authenticated family data inaccessible to anonymous visitors', async ({ request }) => {
     const memories = await request.get('/api/memory/events');
     const consent = await request.get('/api/privacy/consent');
-    expect(memories.status()).toBe(403);
-    expect(consent.status()).toBe(403);
+    expect(memories.status()).toBe(401);
+    expect(consent.status()).toBe(401);
     expect(await memories.text()).not.toContain('insightContent');
   });
 
@@ -49,7 +49,7 @@ test.describe('N+1 real browser and privacy boundaries', () => {
     const privateMemory = await request.get('/api/memory/events', {
       headers: { Origin: 'https://attacker.invalid' },
     });
-    expect(privateMemory.status()).toBe(403);
+    expect(privateMemory.status()).toBe(401);
     expect(privateMemory.headers()['access-control-allow-origin']).toBeUndefined();
   });
 });
