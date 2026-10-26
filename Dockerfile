@@ -7,6 +7,8 @@ WORKDIR /app
 
 # Copy package manifests
 COPY package.json package-lock.json ./
+# npm workspaces must exist before npm ci creates their node_modules links.
+COPY packages ./packages
 
 # Install all dependencies using ci for reproducible builds
 RUN npm ci
@@ -43,6 +45,8 @@ ENV NODE_ENV=production \
 
 # Install production-only dependencies using ci
 COPY package.json package-lock.json ./
+# Match the builder's workspace structure before the production npm ci.
+COPY --from=builder /app/packages ./packages
 RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled dist artifacts from builder stage (including sbom.json)

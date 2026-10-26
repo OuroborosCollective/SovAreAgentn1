@@ -54,7 +54,7 @@ export class VoiceService {
       volumeLevel: 0,
       metrics: this.latestMetrics
     });
-    return () => this.listeners.delete(callback);
+    return () => { this.listeners.delete(callback); };
   }
 
   private notify(state: Partial<VoicePlaybackState>) {
