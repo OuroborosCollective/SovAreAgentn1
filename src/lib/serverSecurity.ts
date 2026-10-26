@@ -41,6 +41,7 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   // Personality & Memory Routes
   { pathPattern: "/api/memory/events", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage memory events" },
   { pathPattern: "/api/memory/migrate", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Migrate memory events" },
+  { pathPattern: "/api/memory/audit", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 30, description: "Count persisted memory events without exposing contents" },
   { pathPattern: "/api/personality/core", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Get core personality" },
   { pathPattern: "/api/personality/candidates", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage learning candidates" },
   { pathPattern: "/api/personality/candidates/:id/resolve", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Resolve candidate" },
