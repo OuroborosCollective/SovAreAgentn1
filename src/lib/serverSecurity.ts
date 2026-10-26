@@ -35,11 +35,13 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   // Health Probes
   { pathPattern: "/api/health/liveness", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Liveness probe" },
   { pathPattern: "/api/health/readiness", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Readiness probe" },
+  { pathPattern: "/api/health/dependency", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Measured dependency probe" },
   { pathPattern: "/api/health", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Health probe alias" },
 
   // Personality & Memory Routes
   { pathPattern: "/api/memory/events", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage memory events" },
   { pathPattern: "/api/memory/migrate", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Migrate memory events" },
+  { pathPattern: "/api/memory/audit", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 30, description: "Count persisted memory events without exposing contents" },
   { pathPattern: "/api/personality/core", methods: ["GET"], role: "family", effect: "READ", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Get core personality" },
   { pathPattern: "/api/personality/candidates", methods: ["GET", "POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Manage learning candidates" },
   { pathPattern: "/api/personality/candidates/:id/resolve", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "INTERNAL", rateLimitPerMin: 60, description: "Resolve candidate" },
@@ -66,7 +68,7 @@ export const API_ENDPOINT_MATRIX: EndpointPolicy[] = [
   { pathPattern: "/api/agent-command/chat", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 60, description: "Public Voice Agent conversational dialogue contract" },
   { pathPattern: "/api/tts", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Text To Speech voice synthesis API" },
   { pathPattern: "/api/push/stream", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push SSE stream endpoint" },
-  { pathPattern: "/api/push/send", methods: ["POST"], role: "public", effect: "MUTATING", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push notification broadcast endpoint" },
+  { pathPattern: "/api/push/send", methods: ["POST"], role: "family", effect: "MUTATING", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Push notification broadcast endpoint" },
   { pathPattern: "/api/wolfram/solve", methods: ["POST"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "Wolfram research sandbox execution" },
   { pathPattern: "/api/github/continuous-ai/issues", methods: ["GET"], role: "public", effect: "READ", dataClassification: "PUBLIC", rateLimitPerMin: 120, description: "GitHub continuous AI issues probe" },
 
@@ -126,7 +128,7 @@ class AuditLogger {
       ...entry,
       id: crypto.randomBytes(8).toString("hex"),
       timestamp: new Date().toISOString(),
-      revision: process.env.GIT_COMMIT || "main@d51c8b7ce98a8564e7ffc8e3e03e9d11a58658e1"
+      revision: process.env.GIT_REVISION || process.env.GIT_COMMIT || "unverified"
     };
     this.logs.unshift(logEntry);
     if (this.logs.length > this.maxEntries) {
@@ -182,7 +184,7 @@ export function findPolicy(path: string, method: string): EndpointPolicy | null 
       return policy;
     }
     if (policy.pathPattern.includes(':') || policy.pathPattern.endsWith('/')) {
-      const regexPattern = '^' + policy.pathPattern.replace(/:[^\/]+/g, '[^/]+') + '(/.*)?$';
+      const regexPattern = "^" + policy.pathPattern.replace(/:[a-zA-Z_][a-zA-Z0-9_]*/g, "[^/]+") + (policy.pathPattern.endsWith("/") ? ".*$" : "$");
       if (new RegExp(regexPattern).test(normalizedPath)) {
         return policy;
       }
@@ -197,45 +199,60 @@ export interface ResolvedActor {
   role: RoleLevel;
 }
 
+// Privileged access requires an explicitly configured high-entropy secret, not a
+// token-shaped string, unsigned provider data, or a signed OAuth cookie.
+export function matchesConfiguredSecret(candidate: unknown, expected: string | undefined): boolean {
+  if (typeof candidate !== "string" || typeof expected !== "string" || expected.length < 32) return false;
+  const a = Buffer.from(candidate, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Family authorization is allowlist-bound to the GitHub user IDs verified
+// when the server minted a v2 signed cookie. Legacy raw-token cookies fail closed.
+export function isAllowedFamilyGitHubId(id: unknown): boolean {
+  if (typeof id !== "number" && typeof id !== "string") return false;
+  const value = String(id);
+  if (!/^[0-9]+$/.test(value)) return false;
+  const allowed = (process.env.N1_FAMILY_GITHUB_IDS || "")
+    .split(",").map(v => v.trim()).filter(v => /^[0-9]+$/.test(v));
+  return allowed.includes(value);
+}
+
+export function readBoundFamilySession(raw: unknown): { githubId: string; token: string } | null {
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.version !== 2 || typeof parsed?.token !== "string"
+      || parsed.token.length < 20 || !isAllowedFamilyGitHubId(parsed.githubId)) return null;
+    return { githubId: String(parsed.githubId), token: parsed.token };
+  } catch {
+    return null;
+  }
+}
+
 export function resolveActorAndRole(req: Request): ResolvedActor {
-  const authHeader = req.headers['authorization'];
-  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (authHeader?.startsWith('token ') ? authHeader.slice(6) : authHeader);
-  const syncCookie = req.signedCookies?.n1_sync_auth;
-  const googleCookie = req.signedCookies?.n1_google_auth || req.cookies?.n1_google_auth;
-  const adminSecretHeader = req.headers['x-admin-key'] || req.headers['x-n1-admin-secret'];
+  const authorization = req.headers.authorization;
+  const headerToken = typeof authorization === "string"
+    ? (authorization.startsWith("Bearer ") ? authorization.slice(7)
+      : authorization.startsWith("token ") ? authorization.slice(6) : null)
+    : null;
+  const adminSecretHeader = req.headers["x-admin-key"] || req.headers["x-n1-admin-secret"];
 
-  // 1. Owner-Admin Check
-  const isOwnerToken = !!(headerToken && ((process.env.N1_SYNC_TOKEN && headerToken === process.env.N1_SYNC_TOKEN.trim()) || headerToken.length >= 8));
-  const isAdminHeader = !!(adminSecretHeader && (adminSecretHeader === process.env.N1_COOKIE_SECRET || adminSecretHeader === process.env.N1_RUNTIME_SECRET || adminSecretHeader === process.env.N1_ADMIN_SECRET));
-  const hasSyncCookie = !!syncCookie;
-
-  if (isOwnerToken || isAdminHeader || hasSyncCookie) {
-    return {
-      actor: isOwnerToken ? "Owner-SystemToken" : (hasSyncCookie ? "Owner-SessionCookie" : "Owner-AdminHeader"),
-      role: "owner-admin"
-    };
+  const isOwnerToken = matchesConfiguredSecret(headerToken, process.env.N1_SYNC_TOKEN?.trim());
+  const isAdminHeader = matchesConfiguredSecret(adminSecretHeader, process.env.N1_ADMIN_SECRET);
+  if (isOwnerToken || isAdminHeader) {
+    return { actor: isOwnerToken ? "Owner-SystemToken" : "Owner-AdminHeader", role: "owner-admin" };
   }
 
-  // 2. Family Check
-  if (googleCookie || headerToken) {
-    let username = "FamilyUser";
-    if (googleCookie) {
-      try {
-        const parsed = typeof googleCookie === 'string' ? JSON.parse(googleCookie) : googleCookie;
-        if (parsed?.email) username = parsed.email;
-      } catch (e) {}
-    }
-    return {
-      actor: username,
-      role: "family"
-    };
+  // A signed cookie can only establish a lower-privilege session. Its issuance
+  // must follow successful provider verification (never the keyless endpoint).
+  const familySession = readBoundFamilySession(req.signedCookies?.n1_sync_auth);
+  if (familySession) {
+    return { actor: "GitHubFamilyUser:" + familySession.githubId, role: "family" };
   }
 
-  // 3. Public Default
-  return {
-    actor: "anonymous",
-    role: "public"
-  };
+  return { actor: "anonymous", role: "public" };
 }
 
 // Voice Client Contract Validator
@@ -411,4 +428,29 @@ export function securityRbacMiddleware(req: Request, res: Response, next: NextFu
   }
 
   next();
+}
+
+/**
+ * CORS controls response readability; it does not prevent a browser from sending
+ * a simple cross-origin form POST. Reject disallowed Origin headers before any
+ * state-changing API handler executes. Requests without Origin are handled by
+ * existing authentication/CSRF policy and are not treated as browser-trusted.
+ */
+export function shouldRejectCrossOriginMutation(method: string, path: string, origin: string | undefined, allowedOrigins: readonly string[], requestHost?: string): boolean {
+  if (!origin) return false;
+  const verb = method.toUpperCase();
+  if (verb === "GET" || verb === "HEAD" || verb === "OPTIONS") return false;
+  if (!path.startsWith("/api/")) return false;
+  if (origin === "null") return true;
+  // Same-site browser forms must continue to work even without an explicit
+  // ALLOWED_ORIGINS entry for the public host. Compare exact host+port, not
+  // suffixes (which would incorrectly allow attacker-controlled subdomains).
+  if (requestHost) {
+    try {
+      const parsed = new URL(origin);
+      if ((parsed.protocol === "https:" || parsed.protocol === "http:") &&
+          parsed.host.toLowerCase() === requestHost.toLowerCase()) return false;
+    } catch { /* Malformed Origin is rejected below. */ }
+  }
+  return !allowedOrigins.includes(origin);
 }

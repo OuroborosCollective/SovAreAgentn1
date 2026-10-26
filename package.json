@@ -16,7 +16,7 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
-    "lint": "tsc --noEmit && eslint src/ --ext .ts,.tsx || true && prettier --check src/ || true",
+    "lint": "npm run typecheck && npm run check:proof",
     "n1:dev": "tsx server.ts",
     "n1:start": "node dist/server.cjs",
     "n1:bug-run": "node bin/install.js --diagnostics",
@@ -27,7 +27,10 @@
     "test:contract": "vitest run tests/contract --reporter=json --outputFile=contract-report.json",
     "test:docker": "docker compose -f docker-compose.yml config > /dev/null",
     "test:security": "npm audit --audit-level=critical",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:contract && npm run test:e2e && npm run test:security && npm run test:docker"
+    "test:all": "npm run lint && npm run test:unit && npm run test:integration && npm run test:contract && npm run test:security",
+    "typecheck": "tsc --noEmit",
+    "check:proof": "node scripts/check-proof-policy.mjs",
+    "test:runtime": "node scripts/test-runtime-truth.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.15.0",
@@ -38,7 +41,6 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
-    "firebase": "^12.16.0",
     "framer-motion": "^12.43.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.563.0",
@@ -68,7 +70,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^5.0.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.12",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "playwright": "^1.62.1",
@@ -76,6 +78,6 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   }
 }

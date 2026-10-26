@@ -1,6 +1,6 @@
 import { createHealthRouter } from "./apps/backend/src/routes/health.ts";
 import express from "express";
-import { createServer as createViteServer } from "vite";
+// Vite is a dev-only dependency; do not load it at production startup.
 import pg from "pg";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -16,7 +16,7 @@ import { createPersonalityRouter } from "./src/api/personality.ts";
 import { createPrivacyRouter } from "./src/api/privacy.ts";
 import { createBackupRouter } from "./src/api/backup.ts";
 import { createTtsRouter } from "./src/api/tts.ts";
-import { securityRbacMiddleware, auditLogger } from "./src/lib/serverSecurity";
+import { securityRbacMiddleware, auditLogger, isAllowedFamilyGitHubId, readBoundFamilySession, shouldRejectCrossOriginMutation } from "./src/lib/serverSecurity";
 import { AREKappaBackgroundService } from "./src/services/arekappaBackgroundService";
 import { AREKappaStaticAnalyzer } from "./src/services/arekappaStaticAnalyzer";
 import { AREKappaLedgerService } from "./src/services/arekappaLedgerService";
@@ -33,12 +33,16 @@ if (!process.env.N1_SYNC_URL || process.env.N1_SYNC_URL.includes("YOUR-REMOTE-RE
 const getNexusToken = (req?: express.Request): string | null => {
   if (req) {
     const authHeader = req.headers['authorization'];
-    const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (authHeader?.startsWith('token ') ? authHeader.slice(6) : authHeader);
-    const cookieToken = req.signedCookies?.n1_sync_auth;
-    if (cookieToken) return cookieToken;
-    if (headerToken) return headerToken;
+    const headerToken = typeof authHeader === 'string'
+      ? (authHeader.startsWith('Bearer ') ? authHeader.slice(7)
+        : authHeader.startsWith('token ') ? authHeader.slice(6) : null)
+      : null;
+    const familySession = readBoundFamilySession(req.signedCookies?.n1_sync_auth);
+    if (familySession) return familySession.token;
+    // Never provide the server's machine PAT to an unauthenticated request.
+    return headerToken || null;
   }
-  if (process.env.N1_SYNC_TOKEN && process.env.N1_SYNC_TOKEN !== "N1_SYNC_TOKEN=" && process.env.N1_SYNC_TOKEN.trim().length > 0) {
+  if (process.env.N1_SYNC_TOKEN && process.env.N1_SYNC_TOKEN !== "N1_SYNC_TOKEN=" && process.env.N1_SYNC_TOKEN.trim().length >= 32) {
     return process.env.N1_SYNC_TOKEN.trim();
   }
   return null;
@@ -55,12 +59,13 @@ async function startServer() {
   const PORT = 3000;
   let freeLLMFailoverCount = 0;
 
-  // Cookie Signing Secret: Load strictly from environment or generate random runtime secret
+  // A persistent signing key is required in production; ephemeral keys may only
+  // be used by an explicitly non-production development process.
   const cookieSecret = process.env.N1_COOKIE_SECRET || process.env.COOKIE_SECRET || process.env.SESSION_SECRET;
-  if (!cookieSecret && process.env.NODE_ENV === "production") {
-    console.warn("[SECURITY WARN] N1_COOKIE_SECRET environment variable is missing in production mode!");
+  if (process.env.NODE_ENV === "production" && (!cookieSecret || cookieSecret.length < 32)) {
+    throw new Error("N1_COOKIE_SECRET must be configured with at least 32 characters for production.");
   }
-  const activeCookieSecret = cookieSecret || (process.env.N1_RUNTIME_SECRET ||= crypto.randomBytes(32).toString("hex"));
+  const activeCookieSecret = cookieSecret || crypto.randomBytes(32).toString("hex");
 
   // CORS Origin Allowlist Configuration
   const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -70,18 +75,27 @@ async function startServer() {
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      const isAllowed = allowedOrigins.includes(origin) ||
-        origin.endsWith('.run.app') ||
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1');
+      const isAllowed = allowedOrigins.includes(origin);
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS violation: origin ${origin} is not permitted`));
+        // No Access-Control-Allow-Origin for unapproved sites. Browsers will
+        // deny cross-site reads; same-origin requests must remain usable.
+        // Authentication and API role checks still run independently.
+        callback(null, false);
       }
     },
     credentials: true
   }));
+
+  // Enforce cross-origin write restrictions before parsing bodies or executing APIs.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (shouldRejectCrossOriginMutation(req.method, req.path, origin, allowedOrigins, req.get('host'))) {
+      return res.status(403).json({ status: "error", code: "CROSS_ORIGIN_WRITE_FORBIDDEN" });
+    }
+    next();
+  });
 
   app.use(express.json());
   app.use(cookieParser(activeCookieSecret));
@@ -303,10 +317,10 @@ async function startServer() {
     const clientId = process.env.N1_OAUTH_ID || "";
     const hasSecret = !!process.env.N1_OAUTH_SECRET;
     const hasToken = !!getNexusToken(req);
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI || null;
 
     res.json({
-      configured: !!(clientId && hasSecret),
+      configured: !!(clientId && hasSecret && redirectUri && process.env.N1_FAMILY_GITHUB_IDS),
       clientId: clientId ? `${clientId.slice(0, 6)}...${clientId.slice(-4)}` : null,
       rawClientId: clientId,
       hasSecret,
@@ -317,20 +331,16 @@ async function startServer() {
   });
 
   app.get("/api/auth/nexus/url", (req, res) => {
-    const clientId = (req.query.client_id as string) || process.env.N1_OAUTH_ID;
-    if (!clientId) {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "N1_OAUTH_ID not configured in environment" 
-      });
+    const clientId = process.env.N1_OAUTH_ID;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri || !process.env.N1_FAMILY_GITHUB_IDS) {
+      return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
     }
-
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
     const state = crypto.randomBytes(16).toString("hex");
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'lax',
       signed: true,
       maxAge: 10 * 60 * 1000 // 10 minutes max
     });
@@ -343,14 +353,15 @@ async function startServer() {
 
   app.get("/api/auth/nexus/login", (req, res) => {
     const clientId = process.env.N1_OAUTH_ID;
-    if (!clientId) return res.status(500).json({ status: "error", message: "N1_OAUTH_ID not configured" });
-    
-    const redirectUri = `https://${req.get('host')}/api/auth/nexus/callback`;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
+    if (!clientId || !process.env.N1_OAUTH_SECRET || !redirectUri || !process.env.N1_FAMILY_GITHUB_IDS) {
+      return res.status(503).json({ status: "error", code: "OAUTH_UNCONFIGURED" });
+    }
     const state = crypto.randomBytes(16).toString("hex");
     res.cookie("nexus_oauth_state", state, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none',
+      sameSite: 'lax',
       signed: true,
       maxAge: 10 * 60 * 1000
     });
@@ -371,7 +382,11 @@ async function startServer() {
 
     const clientId = process.env.N1_OAUTH_ID;
     const clientSecret = process.env.N1_OAUTH_SECRET;
+    const redirectUri = process.env.N1_OAUTH_REDIRECT_URI;
 
+    if (!clientId || !clientSecret || !redirectUri) {
+      return res.status(503).send("OAuth is not configured");
+    }
     if (!code) return res.status(400).send("No authorization code provided");
 
     try {
@@ -385,31 +400,34 @@ async function startServer() {
           client_id: clientId,
           client_secret: clientSecret,
           code,
+          redirect_uri: redirectUri,
         }),
       });
 
       const tokenData = await tokenResponse.json();
       if (tokenData.access_token) {
-        // Fetch user profile from GitHub API
-        let userData = { login: "NexusUser", avatar_url: "https://github.com/identicons/n1.png", id: "nexus-user" };
-        try {
-          const userRes = await fetch("https://api.github.com/user", {
-            headers: {
-              Authorization: `Bearer ${tokenData.access_token}`,
-              "User-Agent": "N1-System-App"
-            }
-          });
-          if (userRes.ok) {
-            userData = await userRes.json();
+        // A valid exchange token is insufficient: verify the provider identity
+        // before issuing a signed application session.
+        const userRes = await fetch("https://api.github.com/user", {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "User-Agent": "N1-System-App"
           }
-        } catch (e) {
-          console.warn("Could not fetch user info in callback:", e);
+        });
+        if (!userRes.ok) throw new Error("GitHub identity verification failed");
+        const userData = await userRes.json();
+        if (typeof userData.login !== "string" || !userData.login
+          || !isAllowedFamilyGitHubId(userData.id)) {
+          return res.status(403).send("GitHub identity is not authorized for N+1 family access");
         }
 
-        res.cookie("n1_sync_auth", tokenData.access_token, { 
+        // Prior raw-token signed cookies are not valid N+1 family sessions.
+        res.cookie("n1_sync_auth", JSON.stringify({
+          version: 2, githubId: String(userData.id), token: tokenData.access_token,
+        }), { 
           httpOnly: true, 
           secure: true, 
-          sameSite: 'none',
+          sameSite: 'lax',
           signed: true,
           maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
@@ -451,119 +469,43 @@ async function startServer() {
     }
   });
 
-  // Direct Handshake Exchange API (verifies code server-side and sets signed HttpOnly cookie)
-  app.post("/api/auth/nexus/handshake", async (req, res) => {
-    const { code } = req.body;
-    const idToUse = process.env.N1_OAUTH_ID;
-    const secretToUse = process.env.N1_OAUTH_SECRET;
-
-    if (!code) {
-      return res.status(400).json({ status: "error", message: "Missing authorization code for handshake" });
-    }
-
-    if (!idToUse || !secretToUse) {
-      return res.status(400).json({ status: "error", message: "N1_OAUTH_ID and N1_OAUTH_SECRET are required for OAuth code exchange" });
-    }
-
-    try {
-      const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          client_id: idToUse,
-          client_secret: secretToUse,
-          code,
-        }),
-      });
-
-      const tokenData = await tokenResponse.json();
-
-      if (tokenData.access_token) {
-        const client = new Octokit({ auth: tokenData.access_token });
-        const { data } = await client.rest.users.getAuthenticated();
-
-        res.cookie("n1_sync_auth", tokenData.access_token, { 
-          httpOnly: true, 
-          secure: true, 
-          sameSite: 'none',
-          signed: true,
-          maxAge: 7 * 24 * 60 * 60 * 1000
-        });
-
-        res.json({
-          status: "success",
-          scope: tokenData.scope || "repo,user",
-          user: { login: data.login, avatar_url: data.avatar_url, id: data.id },
-          handshakeMethod: "FULL_CLIENT_HANDSHAKE"
-        });
-      } else {
-        res.status(400).json({ status: "error", message: tokenData.error_description || tokenData.error || "OAuth exchange failed" });
-      }
-    } catch (err: any) {
-      res.status(500).json({ status: "error", message: "Handshake error: " + err.message });
-    }
+  // Legacy code-only exchange has no state/PKCE binding; leave unavailable
+  // until a one-time, state-verified exchange contract is implemented.
+  app.post("/api/auth/nexus/handshake", (_req, res) => {
+    res.status(501).json({ status: "error", code: "OAUTH_PROOF_REQUIRED" });
   });
 
   // Google OAuth Routes
   app.get("/api/auth/google/config", (req, res) => {
     const googleClientId = process.env.GOOGLE_OAUTH_CLIENT_ID || "";
-    const redirectUri = `https://${req.get('host')}/api/auth/google/callback`;
+    const redirectUri = null;
 
     res.json({
-      configured: !!googleClientId,
+      configured: false, // A client ID is not a working server-verified OAuth flow.
       clientId: googleClientId ? `${googleClientId.slice(0, 10)}...` : null,
       redirectUri,
-      keylessSupported: true,
+      keylessSupported: false,
       provider: "Google Identity OAuth"
     });
   });
 
-  app.get("/api/auth/google/keyless", (req, res) => {
-    const userEmail = process.env.USER_EMAIL || "Rastamanweeste@gmail.com";
-    const googleUser = {
-      id: "google-usr-keyless-n1",
-      email: userEmail,
-      name: userEmail.split("@")[0].replace(/\./g, " ").toUpperCase(),
-      picture: "https://lh3.googleusercontent.com/a/default-user",
-      authMethod: "KEYLESS_GOOGLE_OAUTH_HANDSHAKE",
-      connectedAt: new Date().toISOString(),
-      scopes: ["https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"]
-    };
-
-    res.cookie("n1_google_auth", JSON.stringify(googleUser), {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      signed: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    res.json({
-      status: "success",
-      user: googleUser,
-      handshakeMethod: "KEYLESS_GOOGLE_OAUTH"
-    });
+  app.get("/api/auth/google/keyless", (_req, res) => {
+    res.status(501).json({ status: "error", code: "PROVIDER_VERIFICATION_REQUIRED" });
   });
 
-  app.get("/api/auth/github/me", (req, res) => {
+  app.get("/api/auth/github/me", async (req, res) => {
     const token = getNexusToken(req);
-    res.json({ authenticated: !!token });
+    if (!token) return res.json({ authenticated: false });
+    try {
+      const { data } = await new Octokit({ auth: token }).rest.users.getAuthenticated();
+      res.json({ authenticated: true, user: { login: data.login, id: data.id } });
+    } catch {
+      res.json({ authenticated: false });
+    }
   });
 
-  app.get("/api/auth/google/me", (req, res) => {
-    const rawCookie = req.signedCookies.n1_google_auth || req.cookies.n1_google_auth;
-    if (rawCookie) {
-      try {
-        const user = typeof rawCookie === 'string' ? JSON.parse(rawCookie) : rawCookie;
-        return res.json({ authenticated: true, user });
-      } catch (e) {
-        // ignore
-      }
-    }
-    res.json({ authenticated: false });
+  app.get("/api/auth/google/me", (_req, res) => {
+    res.json({ authenticated: false, user: null });
   });
 
   app.post("/api/auth/google/logout", (req, res) => {
@@ -692,29 +634,20 @@ async function startServer() {
     }
   });
 
-  // Infrastructure Nodes & Topology
-  app.get("/api/system/nodes", async (req, res) => {
-    try {
-      // Static infrastructure nodes (simulated but could be real if we had a monitoring agent)
-      const infraNodes = [
-        { id: 'core-01', group: 1, label: 'N1_AXIOM_CORE', status: 'active', load: 35 },
-        { id: 'edge-01', group: 2, label: 'EDGE_INFERENCE_A', status: 'active', load: 18 },
-        { id: 'db-01', group: 4, label: 'DATABASE_PRIMARY', status: 'active', load: 22 },
-        { id: 'git-01', group: 6, label: 'NEXUS_BRIDGE_SYNC', status: 'active', load: 12 },
-      ];
-
-      res.json({ nodes: infraNodes });
-    } catch (error: any) {
-      res.status(500).json({ status: "error", message: error.message });
-    }
+  // A declaration of potential nodes is not proof of live infrastructure.
+  app.get("/api/system/nodes", (_req, res) => {
+    res.status(501).json({ status: "error", code: "RUNTIME_TOPOLOGY_EVIDENCE_UNAVAILABLE" });
   });
 
-  // PostgreSQL initialization helper
+  // PostgreSQL bootstrap: one transaction, no destructive schema resets,
+  // and no successful server start unless schema readback succeeds.
   const initDb = async () => {
-    if (!pool) return;
+    if (!pool) throw new Error("Database pool is not configured");
+    const client = await pool.connect();
+    let committed = false;
     try {
-      const client = await pool.connect();
-      await client.query('CREATE EXTENSION IF NOT EXISTS vector');
+      await client.query("BEGIN");
+      await client.query("CREATE EXTENSION IF NOT EXISTS vector");
       await client.query(`
         CREATE TABLE IF NOT EXISTS knowledge_vectors (
           id TEXT PRIMARY KEY,
@@ -727,7 +660,7 @@ async function startServer() {
         )
       `);
       await client.query(`
-        CREATE INDEX IF NOT EXISTS knowledge_vectors_hnsw_idx 
+        CREATE INDEX IF NOT EXISTS knowledge_vectors_hnsw_idx
         ON knowledge_vectors USING hnsw (embedding vector_cosine_ops)
       `);
       await client.query(`
@@ -740,27 +673,38 @@ async function startServer() {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
-      // Issue #11 & #12: Core Personality & Memory Models
-      const schemaSql = fs.readFileSync(path.join(process.cwd(), 'db_schema.sql'), 'utf8');
-      await client.query(schemaSql);
-      
-      const genesisSql = fs.readFileSync(path.join(process.cwd(), 'genesis_core.sql'), 'utf8');
-      await client.query(genesisSql);
 
+      const schemaSql = fs.readFileSync(path.join(process.cwd(), "db_schema.sql"), "utf8");
+      if (/\bDROP\s+(TABLE|SCHEMA|DATABASE)\b/i.test(schemaSql)) {
+        throw new Error("Destructive DDL is forbidden during N+1 startup");
+      }
+      await client.query(schemaSql);
+      const genesisSql = fs.readFileSync(path.join(process.cwd(), "genesis_core.sql"), "utf8");
+      await client.query(genesisSql);
+      // Confirm actual schema columns, not just a successful statement response.
+      await client.query("SELECT id, content_hash, privacy_class, is_tombstone FROM memory_events LIMIT 0");
+      await client.query("SELECT id, action, actor, data_class, granted FROM family_consent_logs LIMIT 0");
+      await client.query("SELECT id, core_traits, locked FROM core_personality LIMIT 0");
+      await client.query("SELECT id, status, actor_context FROM learning_candidates LIMIT 0");
+      await client.query("COMMIT");
+      committed = true;
+      console.log("[DB] Schema initialized and verified with non-destructive PostgreSQL readback.");
+    } catch (error) {
+      if (!committed) {
+        try { await client.query("ROLLBACK"); } catch { /* original error takes precedence */ }
+      }
+      console.error("[DB] Startup schema verification failed; refusing ready state.");
+      throw error;
+    } finally {
       client.release();
-      console.log('[DB] Hardened PostgreSQL schema & pgvector HNSW index initialized.');
-    } catch (err: any) {
-      console.warn('[DB] Failed to initialize PostgreSQL schema:', err.message);
     }
   };
 
-  // Try to init DB on startup if URI is present
   if (process.env.DB_URI) {
-    try {
-      getPool();
-      initDb();
-    } catch (e) {}
+    getPool();
+    await initDb();
+  } else if (process.env.NODE_ENV === "production") {
+    throw new Error("DB_URI is required for the production N+1 server");
   }
 
   // Vector API Routes
@@ -796,8 +740,8 @@ async function startServer() {
   });
 
   app.post("/api/vectors/search", async (req, res) => {
-  app.post("/api/vector/reflect-canvas", async (req, res) => {
-    res.json({ status: "success", message: "Canvas reflected to vectors" });
+  app.post("/api/vector/reflect-canvas", (_req, res) => {
+    res.status(501).json({ status: "error", code: "VECTOR_CANVAS_EFFECT_UNAVAILABLE" });
   });
 
     const { embedding, tenantId = 'default', limit = 5 } = req.body;
@@ -2590,6 +2534,7 @@ echo "Run: tsx server.ts or npm run dev"
 
   // Vite middleware for development or static file serving for production
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -2604,11 +2549,18 @@ echo "Run: tsx server.ts or npm run dev"
   }
 
   // Start the AREKappa persistent monitoring daemon
-  AREKappaBackgroundService.startDaemon();
+  if (process.env.N1_ENABLE_AREKAPPA_BACKGROUND_SCAN === "1") {
+    AREKappaBackgroundService.startDaemon();
+  } else {
+    console.info("[AREKappa] Background scanning disabled unless explicitly opted in.");
+  }
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((error) => {
+  console.error("[N+1 startup failed]", error);
+  process.exitCode = 1;
+});
