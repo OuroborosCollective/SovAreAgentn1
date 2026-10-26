@@ -25,12 +25,14 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Install declared locked dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
       - name: Use npm 11 Arborist with fixed peer-graph handling
         run: |
           npm install --global npm@11.21.1 --ignore-scripts
           npm --version
+      - name: Resolve declared requirements to the lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Reinstall reproducibly from the refreshed lockfile
+        run: npm ci --ignore-scripts --no-audit
       - name: Produce an auditable package-lock-only proposal
         id: repair
         shell: bash
