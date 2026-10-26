@@ -64,4 +64,45 @@ verify("anonymous unrestricted SQL blocked", (await request("/api/db/query", {
   body: JSON.stringify({ query: "DROP TABLE users" }),
 })).status, 401);
 
+// Real HTTP regression: a browser's simple form POST must be denied before
+// RBAC or state-changing handlers, even when CORS would merely hide the reply.
+const offsitePost = await request("/api/memory/events", {
+  method: "POST",
+  headers: {
+    Origin: "https://untrusted-attacker.example.invalid",
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  body: "title=untrusted"
+});
+verify("deny off-site form POST before auth", offsitePost.status, 403);
+verify("denied origin has explicit error code", offsitePost.body.code, "CROSS_ORIGIN_WRITE_FORBIDDEN");
+
+const opaqueOriginPost = await request("/api/privacy/forget", {
+  method: "POST",
+  headers: { Origin: "null", "Content-Type": "application/x-www-form-urlencoded" },
+  body: "scope=all"
+});
+verify("deny opaque Origin mutation", opaqueOriginPost.status, 403);
+verify("opaque Origin denial code", opaqueOriginPost.body.code, "CROSS_ORIGIN_WRITE_FORBIDDEN");
+
+const sameOriginPost = await request("/api/memory/events", {
+  method: "POST",
+  headers: {
+    Origin: new URL(baseUrl).origin,
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  body: "title=without-auth"
+});
+verify("own Origin stays under real family auth gate", sameOriginPost.status, 401);
+
+const suffixOriginPost = await request("/api/memory/events", {
+  method: "POST",
+  headers: {
+    Origin: "https://127.0.0.1.attacker.example.invalid",
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  body: "title=host-suffix"
+});
+verify("deny host-suffix Origin", suffixOriginPost.status, 403);
+
 process.stdout.write(`All live N+1 boundary probes passed for commit ${sha}\n`);
