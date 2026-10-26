@@ -79,7 +79,10 @@ async function startServer() {
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS violation: origin ${origin} is not permitted`));
+        // No Access-Control-Allow-Origin for unapproved sites. Browsers will
+        // deny cross-site reads; same-origin requests must remain usable.
+        // Authentication and API role checks still run independently.
+        callback(null, false);
       }
     },
     credentials: true
