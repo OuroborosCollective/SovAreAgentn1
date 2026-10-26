@@ -4,6 +4,14 @@ afterEach(() => vi.unstubAllEnvs());
 import { findPolicy, resolveActorAndRole, isVoiceContractViolation, API_ENDPOINT_MATRIX, isRateLimited } from '../../src/lib/serverSecurity';
 
 describe('serverSecurity - findPolicy', () => {
+  it('limits persisted memory audit to authenticated family readers', () => {
+    const policy = findPolicy('/api/memory/audit', 'GET');
+    expect(policy?.role).toBe('family');
+    expect(policy?.effect).toBe('READ');
+    expect(policy?.dataClassification).toBe('INTERNAL');
+    expect(findPolicy('/api/memory/audit', 'POST')).toBeNull();
+  });
+
   it('should find exact path match', () => {
     const policy = findPolicy('/api/health/liveness', 'GET');
     expect(policy).toBeDefined();
