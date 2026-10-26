@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { once } from "node:events";
 import express from "express";
 import { createHealthRouter } from "../../apps/backend/src/routes/health";
 
@@ -10,14 +11,17 @@ async function probe(path: string) {
   }));
   const listener = app.listen(0, "127.0.0.1");
   try {
+    await once(listener, "listening");
     const address = listener.address();
     if (!address || typeof address === "string") throw new Error("No actual TCP listener available");
     const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
     return { status: response.status, body: await response.json() as Record<string, any> };
   } finally {
-    await new Promise<void>((resolve, reject) =>
-      listener.close(error => error ? reject(error) : resolve())
-    );
+    if (listener.listening) {
+      await new Promise<void>((resolve, reject) =>
+        listener.close(error => error ? reject(error) : resolve())
+      );
+    }
   }
 }
 
