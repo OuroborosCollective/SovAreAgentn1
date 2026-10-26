@@ -1,6 +1,6 @@
 import { createHealthRouter } from "./apps/backend/src/routes/health.ts";
 import express from "express";
-import { createServer as createViteServer } from "vite";
+// Vite is a dev-only dependency; do not load it at production startup.
 import pg from "pg";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -2522,6 +2522,7 @@ echo "Run: tsx server.ts or npm run dev"
 
   // Vite middleware for development or static file serving for production
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
