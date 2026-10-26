@@ -33,8 +33,8 @@ describe("authorization truth boundary (issue #5 regression)", () => {
     expect(resolveActorAndRole(make("admin-" + "d".repeat(48))).role).toBe("owner-admin");
   });
 
-  it("never grants owner access merely because a signed OAuth cookie exists", () => {
-    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: "provider-token" })).role).toBe("family");
+  it("never grants family or owner access merely because a raw signed OAuth token exists", () => {
+    expect(resolveActorAndRole(request(undefined, { n1_sync_auth: "provider-token" })).role).toBe("public");
   });
 
   it("rejects unsigned Google cookies as family authentication", () => {
