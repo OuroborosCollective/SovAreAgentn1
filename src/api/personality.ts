@@ -1,9 +1,11 @@
+import { rateLimit } from 'express-rate-limit';
 import { Router } from "express";
 import pg from "pg";
 import crypto from "crypto";
 
 export function createPersonalityRouter(getPool: () => pg.Pool | null) {
   const router = Router();
+  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
   const unavailable = (res: any) =>
     res.status(503).json({ status: "error", code: "PERSISTENCE_UNAVAILABLE" });
 

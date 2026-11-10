@@ -78,7 +78,7 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
   ) {
     try {
       const mathResult = WolframResearchSandbox.evaluateSymbolicResearch(userQuery, "HiaVoiceKernel");
-      return `Wolfram Kernel Symbolik ausgeführt! Das verifizierte Ergebnis lautet: ${mathResult.exactResult}. Ausführungsdauer: ${mathResult.durationMs} Millisekunden mit Status ${mathResult.status}.`;
+      return `Lokales Wolfram-Lehrbeispiel, kein externer Kernel-Nachweis: ${mathResult.exactResult}. Status: ${mathResult.status}.`;
     } catch (err: any) {
       return `Wolfram-Sandbox Sicherheitsrichtlinie aktiv: ${err?.message || 'Reine Leseoperationen sind erlaubt.'}`;
     }

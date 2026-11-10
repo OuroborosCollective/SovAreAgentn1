@@ -26,6 +26,9 @@ export class WolframResearchSandbox {
    * Enforces a read-only policy for production data stores.
    */
   public static evaluateSymbolicResearch(expression: string, moduleName: string): SymbolicResearchResult {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(moduleName)) {
+      throw new Error('INVALID_MODULE_NAME');
+    }
     const startTime = performance.now();
     // 1. Policy Enforcement: Check for unauthorized write operations
     const writeKeywords = ['Write', 'Put', 'Export', 'Save', 'Set', 'Delete', 'Drop'];
@@ -59,7 +62,7 @@ export class WolframResearchSandbox {
       numericalResult = '1.0';
     } else {
       // Generic fallback
-      canonicalAST = `RawExpression["${expression}"]`;
+      canonicalAST = `RawExpression[${JSON.stringify(expression)}]`;
       kernelResult = '{{}}';
       exactResult = expression;
       numericalResult = '{}';
@@ -83,21 +86,21 @@ export class WolframResearchSandbox {
       kernelResult,
       exactResult,
       numericalResult,
-      kernelVersion: '14.3.x',
-      executionMode: 'symbolic-exact',
+      kernelVersion: 'none-local-example',
+      executionMode: 'local-example',
       requestHash,
       resultHash,
-      runtimeRevision: 'sha256:8b4c27...e9f2a1', // Simulated read back digest
+      runtimeRevision: 'unverified', // No external Wolfram kernel was executed.
       exitCode: 0,
       durationMs: Math.round(endTime - startTime),
-      status: 'VERIFIED',
+      status: 'SIMULATED',
       exportedKernelModule: kernelModule
     };
   }
 
   private static exportKernelModule(moduleName: string, canonicalAST: string, signatureHash: string): string {
     return `// ==========================================
-// AREKappa & WolframEngine 14.3 Exported Kernel Module
+// AREKappa local example - not a verified Wolfram Engine export
 // Module Name: ${moduleName}
 // Timestamp: ${new Date().toISOString()}
 // Architecture: F0-F6 Immutable Truth Substrate
@@ -119,7 +122,7 @@ public class ${moduleName.replace(/\s+/g, '')}KernelModule {
      * Canonical Wolfram Research AST Proof Expression
      */
     public static String evaluateSymbolicProof() {
-        String expression = "${canonicalAST.replace(/"/g, '\\"')}";
+        String expression = ${JSON.stringify(canonicalAST)};
         return ZeroFloatSubstrate.executeExact(expression);
     }
 }

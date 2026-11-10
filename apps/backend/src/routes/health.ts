@@ -1,3 +1,4 @@
+import { rateLimit } from 'express-rate-limit';
 import { Router } from "express";
 import fs from "fs";
 
@@ -29,6 +30,7 @@ async function probeDatabase(pool: any): Promise<ProbeStatus> {
 
 export function createHealthRouter(dependencies: { getPool: () => any; getMemcached: () => any }) {
   const router = Router();
+  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
   router.get(["/liveness", "/"], (_req, res) => {
     res.json({

@@ -1,3 +1,4 @@
+import { rateLimit } from 'express-rate-limit';
 import { Router } from "express";
 import pg from "pg";
 import crypto from "crypto";
@@ -12,6 +13,7 @@ function stableHash(payload: unknown): string {
 
 export function createMemoryRouter(getPool: () => pg.Pool | null) {
   const router = Router();
+  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
   router.get("/events", async (_req, res) => {
     const pool = getPool();

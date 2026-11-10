@@ -1,0 +1,41 @@
+name: N1 isolated PostgreSQL development tools
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/n1-postgres-devtools.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.event.pull_request.number == 37 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export executables and libraries, never databases or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=pgvector/pgvector:pg16
+          docker pull "$image"
+          mkdir -p portable/usr/lib/postgresql portable/usr/share/postgresql portable/lib evidence
+          docker image inspect "$image" --format '{{json .RepoDigests}}' > evidence/image-digests.json
+          cid=$(docker create "$image")
+          trap 'docker rm -f "$cid" >/dev/null' EXIT
+          docker cp "$cid:/usr/lib/postgresql/16" portable/usr/lib/postgresql/
+          docker cp "$cid:/usr/share/postgresql/16" portable/usr/share/postgresql/
+          docker run --rm --entrypoint /bin/sh "$image" -c 'ldd /usr/lib/postgresql/16/bin/postgres /usr/lib/postgresql/16/bin/psql /usr/lib/postgresql/16/bin/initdb /usr/lib/postgresql/16/bin/pg_ctl' > evidence/ldd.txt
+          awk '/=> \/.* \(/ {print $3}' evidence/ldd.txt | sort -u | while read -r lib; do
+            case "$lib" in */libc.so.*|*/libm.so.*|*/libpthread.so.*|*/libdl.so.*|*/librt.so.*) continue;; esac
+            docker cp -L "$cid:$lib" "portable/lib/$(basename "$lib")"
+          done
+          tar -czf evidence/postgres-development.tar.gz portable
+          sha256sum evidence/postgres-development.tar.gz > evidence/SHA256SUMS
+          git rev-parse HEAD > evidence/source.sha
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n1-postgres-development-${{ github.sha }}
+          path: evidence/
+          retention-days: 1
+          if-no-files-found: error
+# Only upstream binaries are exported. No database volume is started or copied.
