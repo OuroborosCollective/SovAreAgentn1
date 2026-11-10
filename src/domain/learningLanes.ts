@@ -32,7 +32,8 @@ export interface VerifiedViewerContext {
 
 const validViewers = (viewers: unknown): viewers is readonly string[] =>
   Array.isArray(viewers) && viewers.length > 0 && viewers.length <= 32
-  && viewers.every(v => typeof v === 'string' && v.length > 0 && v.length <= 128);
+  && viewers.every(v => typeof v === 'string' && v.length > 0 && v.length <= 128)
+  && new Set(viewers).size === viewers.length;
 
 /** Must be called BEFORE a memory can enter a model prompt or ranker context. */
 export function allowedMemoriesForContext<T extends AudienceBoundMemory>(
