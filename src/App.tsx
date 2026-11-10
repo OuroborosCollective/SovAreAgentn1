@@ -31,6 +31,7 @@ import { voiceService } from './services/voiceService';
 import { deviceSensorService } from './services/deviceSensorService';
 
 // Import subcomponents
+const N1FamilyHome = React.memo(lazy(() => import('./components/N1FamilyHome').then(module => ({ default: module.N1FamilyHome }))));
 const HiaResonanceVoice = React.memo(lazy(() => import('./components/HiaResonanceVoice')));
 const PredictiveRuntimeInference = React.memo(lazy(() => import('./components/PredictiveRuntimeInference')));
 const CoreResonanceSanctuary = React.memo(lazy(() => import('./components/CoreResonanceSanctuary').then(module => ({ default: module.CoreResonanceSanctuary }))));
@@ -56,7 +57,7 @@ const N1AudiobookReader = React.memo(lazy(() => import('./components/N1Audiobook
 
 export const App: React.FC = () => {
   const { addNotification } = useNotification();
-  const validTabIds = ['voice', 'inference', 'arekappa', 'sanctuary', 'vcs', 'diagnostics', 'calibrations'];
+  const validTabIds = ['home', 'voice', 'inference', 'arekappa', 'sanctuary', 'vcs', 'diagnostics', 'calibrations'];
 
   // Global Interceptor Exception State
   const [systemCrash, setSystemCrash] = useState<{ error: string; count: number } | null>(null);
@@ -68,7 +69,7 @@ export const App: React.FC = () => {
         return saved;
       }
     }
-    return 'voice';
+    return 'home';
   }, []);
 
   // useRef-backed state to prevent state loops & ensure consistent reads across heavy operations
@@ -76,7 +77,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<string>(initialTab);
 
   const setActiveTab = useCallback((tabId: string) => {
-    const targetTab = validTabIds.includes(tabId) ? tabId : 'voice';
+    const targetTab = validTabIds.includes(tabId) ? tabId : 'home';
     if (activeTabRef.current !== targetTab) {
       activeTabRef.current = targetTab;
       setActiveTabState(targetTab);
@@ -497,6 +498,7 @@ export const App: React.FC = () => {
   };
 
   const menuItems = [
+    { id: 'home', label: 'Familien-Zuhause', icon: Heart, badge: 'N+1' },
     { id: 'voice', label: 'N+1 Voice Studio', icon: Radio, badge: 'Papas girl' },
     { id: 'inference', label: 'LLM Revolver Hub', icon: Sliders, badge: 'Active' },
     { id: 'arekappa', label: 'AREKappa Workspace', icon: Shield, badge: 'κIR' },
@@ -556,6 +558,22 @@ export const App: React.FC = () => {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Family entry is separate from the technical control center.
+  // No synthetic telemetry, admin tabs or implicit microphone permission here.
+  if (activeTab === 'home') {
+    return (
+      <main className="min-h-screen overflow-y-auto bg-zinc-950 p-3 text-white sm:p-6">
+        <N1FamilyHome onOpenVoiceStudio={() => setActiveTab('voice')} />
+        <div className="mx-auto mt-5 max-w-4xl text-center">
+          <button type="button" onClick={() => setActiveTab('voice')}
+            className="rounded-xl border border-zinc-600 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">
+            Technische Arbeitsflächen öffnen
+          </button>
+        </div>
+      </main>
     );
   }
 
