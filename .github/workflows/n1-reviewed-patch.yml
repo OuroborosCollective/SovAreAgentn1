@@ -1,0 +1,62 @@
+name: N1 one reviewed security patch
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/n1-reviewed-patch.yml]
+permissions:
+  contents: read
+concurrency:
+  group: n1-reviewed-security-patch
+  cancel-in-progress: false
+jobs:
+  apply-reviewed-patch:
+    if: github.event.pull_request.number == 36 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'security/n1-proof-boundaries-20261025'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify immutable patch and exact changed paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor 0caa5dcaea931a3babffb8cc015f7fd665172b72 HEAD
+          printf '%s\n' 'e0f6830b1699fc7ac70c409cb7e288f09c3cab4da6050d9b4af9659694c2c9f7  scripts/integration/n1-security-reviewed.patch' | sha256sum -c -
+          git apply --check --index scripts/integration/n1-security-reviewed.patch
+          git apply --index scripts/integration/n1-security-reviewed.patch
+          python3 - <<'PY'
+          import subprocess
+          expected = set('''apps/backend/src/routes/health.ts package.json package-lock.json server.ts src/api/googleApiKeys.ts src/api/memory.ts src/api/personality.ts src/api/privacy.ts src/services/geminiService.ts src/services/wolframResearchSandbox.ts tests/integration/rateLimitBoundary.test.ts tests/unit/kernelExportEncoding.test.ts tests/unit/voiceInteraction.test.ts tests/unit/wolframResearchSandbox.test.ts'''.split())
+          actual = set(subprocess.check_output(['git','diff','--cached','--name-only'], text=True).splitlines())
+          assert actual == expected, (actual, expected)
+          PY
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run test:contract
+      - run: npm audit --audit-level=high
+      - name: Retire transfer-only files and fast-forward the existing draft branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/n1-reviewed-patch.yml .github/workflows/n1-dependency-proposal.yml scripts/integration/n1-security-reviewed.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(security): enforce request budgets and truthful safely encoded kernel exports'
+          git fetch origin security/n1-proof-boundaries-20261025
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_HEAD"
+          git push origin HEAD:refs/heads/security/n1-proof-boundaries-20261025
+          git rev-parse HEAD
+# No force push, main mutation, deploy, scanner waiver or provider invocation.
+# An independent connector commit will trigger the full CI/CodeQL after bot readback.
