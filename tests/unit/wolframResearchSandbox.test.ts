@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { WolframResearchSandbox } from '../../src/services/wolframResearchSandbox';
 import { KappaIREngine } from '../../src/services/kappaIREngine';
 
-describe('WolframResearchSandbox - No Mock Validation', () => {
+describe('WolframResearchSandbox - local examples, never provider evidence', () => {
   describe('evaluateSymbolicResearch', () => {
     it('should execute quadratic equation Solve[x^2-5x+6==0,x] and return correct roots', () => {
       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x^2-5x+6==0,x]', 'QuadraticTest');
       
-      expect(result.status).toBe('VERIFIED');
+      expect(result.status).toBe('SIMULATED');
       expect(result.exactResult).toBe('x ∈ {2,3}');
       expect(result.numericalResult).toBe('{2.0,3.0}');
       expect(result.kernelResult).toBe('{{x -> 2}, {x -> 3}}');
@@ -16,7 +16,7 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
     it('should execute simple addition equation Solve[x + x == 10, x]', () => {
       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'AdditionTest');
       
-      expect(result.status).toBe('VERIFIED');
+      expect(result.status).toBe('SIMULATED');
       expect(result.exactResult).toBe('x = 5');
       expect(result.numericalResult).toBe('{5.0}');
     });
@@ -50,7 +50,7 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
     it('should return valid kernel module export', () => {
       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'ModuleTest');
       
-      expect(result.exportedKernelModule).toContain('AREKappa & WolframEngine 14.3');
+      expect(result.exportedKernelModule).toContain('AREKappa local example');
       expect(result.exportedKernelModule).toContain('Read-Only, Isolated Sandbox');
       expect(result.exportedKernelModule).toContain('Module Name: ModuleTest');
     });
@@ -58,8 +58,8 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
     it('should return correct kernel version', () => {
       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'VersionTest');
       
-      expect(result.kernelVersion).toBe('14.3.x');
-      expect(result.executionMode).toBe('symbolic-exact');
+      expect(result.kernelVersion).toBe('none-local-example');
+      expect(result.executionMode).toBe('local-example');
     });
 
     it('should return exit code 0 on success', () => {

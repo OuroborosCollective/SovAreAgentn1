@@ -1,3 +1,4 @@
+import { rateLimit } from 'express-rate-limit';
 import { createHealthRouter } from "./apps/backend/src/routes/health.ts";
 import express from "express";
 // Vite is a dev-only dependency; do not load it at production startup.
@@ -56,6 +57,8 @@ const getNexusCore = (req?: express.Request) => {
 
 async function startServer() {
   const app = express();
+  // Outer cap also covers authentication and file-serving routes; finer RBAC quotas remain active.
+  app.use(rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
   const PORT = 3000;
   let freeLLMFailoverCount = 0;
 
