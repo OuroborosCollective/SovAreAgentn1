@@ -1,10 +1,6 @@
-DROP TABLE IF EXISTS memory_vectors CASCADE;
-DROP TABLE IF EXISTS memory_summaries CASCADE;
-DROP TABLE IF EXISTS memory_events CASCADE;
-DROP TABLE IF EXISTS personality_mutations CASCADE;
-DROP TABLE IF EXISTS learning_candidates CASCADE;
-DROP TABLE IF EXISTS core_personality CASCADE;
-DROP TABLE IF EXISTS family_consent_logs CASCADE;
+-- Append-only bootstrap: never erase existing N+1 memory, consent, or personality.
+-- Existing schema changes require explicit, versioned, backup-verified migrations.
+-- Destructive DDL is forbidden during ordinary server startup.
 
 CREATE TABLE IF NOT EXISTS core_personality (
     id TEXT PRIMARY KEY,

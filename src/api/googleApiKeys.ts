@@ -1,3 +1,4 @@
+import { rateLimit } from 'express-rate-limit';
 /**
  * Google AI Studio API Key Management Router
  * 
@@ -9,6 +10,7 @@ import { Router } from "express";
 import crypto from "crypto";
 
 const router = Router();
+  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
 
 // In-memory store for server-side key management
 // In production, this should be stored in a database

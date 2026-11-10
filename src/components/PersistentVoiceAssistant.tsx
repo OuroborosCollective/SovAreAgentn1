@@ -22,7 +22,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChildPersona, ChildEmotion } from '../hooks/useChildPersona';
 import { voiceService } from '../services/voiceService';
-import { syncPersonaToCloud, fetchPersonaFromCloud, testFirestoreConnection } from '../services/firebasePersonaSync';
 import { generateHiaVoiceResponse } from '../services/geminiService';
 
 interface PersistentVoiceAssistantProps {
@@ -37,8 +36,6 @@ export const PersistentVoiceAssistant: React.FC<PersistentVoiceAssistantProps> =
   const [transcript, setTranscript] = useState('');
   const [lastResponse, setLastResponse] = useState<string>('"Hallo Papa! Ich höre dir überall zu, egal in welchem Menü wir sind!"');
   const [typedInput, setTypedInput] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string>('Firebase Cloud Synced');
   const [isAlwaysActiveVoice, setIsAlwaysActiveVoice] = useState(false);
 
   const recognitionRef = useRef<any>(null);
@@ -130,21 +127,6 @@ export const PersistentVoiceAssistant: React.FC<PersistentVoiceAssistantProps> =
     setTypedInput('');
     setTranscript(input);
     handleVoiceInput(input);
-  };
-
-  const handleCloudSync = async () => {
-    handleUnlockAudio();
-    setIsSyncing(true);
-    setSyncStatus('Syncing to Firebase...');
-    try {
-      await testFirestoreConnection();
-      await syncPersonaToCloud('node_hardware_main', persona);
-      setSyncStatus('Synced to N+1 Cloud');
-    } catch (e) {
-      setSyncStatus('Sync simulated / Saved locally');
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   const emotionColors: Record<ChildEmotion, string> = {
@@ -259,14 +241,10 @@ export const PersistentVoiceAssistant: React.FC<PersistentVoiceAssistantProps> =
 
             {/* Sync & Audio Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-800 text-[10px]">
-              <button
-                onClick={handleCloudSync}
-                disabled={isSyncing}
-                className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition-colors min-h-[40px]"
-              >
-                <CloudSync size={12} className={isSyncing ? 'animate-spin text-purple-400' : 'text-purple-400'} />
-                <span>{syncStatus}</span>
-              </button>
+              <div role="status" className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 text-amber-300 rounded-xl border border-amber-700/40 min-h-[40px]">
+                <CloudSync size={12} aria-hidden="true" />
+                <span>Langzeitgedächtnis nicht verbunden</span>
+              </div>
 
               <div className="flex items-center gap-2">
                 <button

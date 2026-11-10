@@ -75,11 +75,9 @@ vi.mock('@google/genai', () => {
   };
   
   return {
-    GoogleGenAI: vi.fn().mockImplementation(() => ({
-      live: {
-        connect: vi.fn().mockResolvedValue(mockSession)
-      }
-    })),
+    GoogleGenAI: class FakeGoogleGenAIForUnitTest {
+      live = { connect: vi.fn().mockResolvedValue(mockSession) };
+    },
     Live: {},
     Modality: { AUDIO: 'AUDIO' }
   };

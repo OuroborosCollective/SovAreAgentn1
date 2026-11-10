@@ -7,22 +7,23 @@ import {
 import { WolframResearchSandbox } from '../../src/services/wolframResearchSandbox';
 import { emotionEngine } from '../../src/services/emotionEngine';
 
-vi.mock('../../services/dialogOrchestrator', () => ({
+vi.mock('../../src/services/dialogOrchestrator', () => ({
   dialogOrchestrator: {
     processDialog: vi.fn().mockResolvedValue({
-      spokenOutput: 'Test response from dialog orchestrator',
+      spokenOutput: 'Hallo Papa! Testdouble fuer den externen Dialoganbieter',
       animationSignals: ['smile']
     })
   }
 }));
 
-vi.mock('../../services/emotionalMemoryService', () => ({
+vi.mock('../../src/services/emotionalMemoryService', () => ({
   emotionalMemoryService: {
     getAgentMoodContextPrompt: vi.fn().mockReturnValue({
       memoryReferences: [
         {
           id: 'mem-1',
           formattedTime: '12:00',
+          emotionalState: 'neugierig',
           conversationSnippet: 'Previous conversation',
           resonanceMetrics: { harmonicWarmth: 85, pitchResonance: 175 }
         }
@@ -32,18 +33,14 @@ vi.mock('../../services/emotionalMemoryService', () => ({
   }
 }));
 
-vi.mock('../../services/voiceService', () => ({
+vi.mock('../../src/services/voiceService', () => ({
   voiceService: {
     speak: vi.fn(),
     subscribe: vi.fn().mockReturnValue(vi.fn())
   }
 }));
 
-vi.mock('../../services/geminiService', () => ({
-  generateAgentAction: vi.fn(),
-  generateHiaVoiceResponse: vi.fn(),
-  generateHiaDetailedResponse: vi.fn()
-}));
+
 
 describe('Voice Interaction - Voice Action Reasoning', () => {
   describe('generateHiaVoiceResponse', () => {
@@ -90,7 +87,7 @@ describe('Voice Interaction - Voice Action Reasoning', () => {
     it('should execute Solve equation', () => {
       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x^2-5x+6==0,x]', 'Test');
       expect(result.exactResult).toBe('x ∈ {2,3}');
-      expect(result.status).toBe('VERIFIED');
+      expect(result.status).toBe('SIMULATED');
     });
 
     it('should handle simple addition', () => {

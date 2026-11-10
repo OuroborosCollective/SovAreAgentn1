@@ -7,6 +7,8 @@ WORKDIR /app
 
 # Copy package manifests
 COPY package.json package-lock.json ./
+# npm workspaces must exist before npm ci creates their node_modules links.
+COPY packages ./packages
 
 # Install all dependencies using ci for reproducible builds
 RUN npm ci
@@ -43,17 +45,29 @@ ENV NODE_ENV=production \
 
 # Install production-only dependencies using ci
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Match the builder's workspace structure before the production npm ci.
+COPY --from=builder /app/packages ./packages
+# The deployed server only runs Node. Bundled npm CLI is not used at runtime
+# and carries independently reported CVEs in its dependency tree.
+# Remove that package tree after installing production dependencies. The
+# builder stage and GitHub CI still retain npm for builds and updates.
+RUN npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx \
+    && test ! -e /usr/local/lib/node_modules/npm \
+    && test ! -e /usr/local/bin/npm \
+    && test ! -e /usr/local/bin/npx \
+    && node --version > /dev/null
 
 # Copy compiled dist artifacts from builder stage (including sbom.json)
 COPY --from=builder /app/dist ./dist
+# Bootstrap and genesis files are loaded by server.ts at runtime.
+COPY --from=builder /app/db_schema.sql /app/genesis_core.sql ./
 
-# Create necessary directories and set ownership for the node user
-RUN mkdir -p /app/ssl /app/data /tmp && chown -R nplus1:nplus1 /app /tmp
-
-# Switch to non-root user
-RUN addgroup -g 10000 nplus1 && adduser -D -u 10000 -G nplus1 nplus1
-RUN chown -R nplus1:nplus1 /app /tmp
+# Create the non-root identity BEFORE setting ownership.
+RUN addgroup -g 10000 nplus1 && adduser -D -u 10000 -G nplus1 nplus1 \
+    && mkdir -p /app/ssl /app/data /tmp \
+    && chown -R nplus1:nplus1 /app /tmp
 USER nplus1
 
 # Expose default HTTP port

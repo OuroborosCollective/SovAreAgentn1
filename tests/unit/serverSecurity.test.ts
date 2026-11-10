@@ -1,7 +1,39 @@
-import { describe, it, expect } from 'vitest';
-import { findPolicy, resolveActorAndRole, isVoiceContractViolation, API_ENDPOINT_MATRIX, isRateLimited } from '../../src/lib/serverSecurity';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+
+afterEach(() => vi.unstubAllEnvs());
+import { findPolicy, resolveActorAndRole, isVoiceContractViolation, API_ENDPOINT_MATRIX, isRateLimited, shouldRejectCrossOriginMutation } from '../../src/lib/serverSecurity';
+
+describe('cross-origin write boundary', () => {
+  const allowed = ['https://family.example.test'];
+  it('blocks form-style cross-origin POST even if no CORS preflight occurs', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(true);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/privacy/forget', 'null', allowed)).toBe(true);
+    expect(shouldRejectCrossOriginMutation('DELETE', '/api/partners/connections', 'https://evil.example.test', allowed)).toBe(true);
+  });
+  it('permits exact same-host browser POST but rejects suffix tricks', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test', [], 'n1.example.test')).toBe(false);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test.attacker.test', [], 'n1.example.test')).toBe(true);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', 'https://n1.example.test:9999', [], 'n1.example.test')).toBe(true);
+  });
+  it('does not block allowed origins or existing authenticated non-browser clients', () => {
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', allowed[0], allowed)).toBe(false);
+    expect(shouldRejectCrossOriginMutation('POST', '/api/memory/events', undefined, allowed)).toBe(false);
+  });
+  it('keeps safe reads and preflight under existing CORS policy', () => {
+    expect(shouldRejectCrossOriginMutation('GET', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(false);
+    expect(shouldRejectCrossOriginMutation('OPTIONS', '/api/memory/events', 'https://evil.example.test', allowed)).toBe(false);
+  });
+});
 
 describe('serverSecurity - findPolicy', () => {
+  it('limits persisted memory audit to authenticated family readers', () => {
+    const policy = findPolicy('/api/memory/audit', 'GET');
+    expect(policy?.role).toBe('family');
+    expect(policy?.effect).toBe('READ');
+    expect(policy?.dataClassification).toBe('INTERNAL');
+    expect(findPolicy('/api/memory/audit', 'POST')).toBeNull();
+  });
+
   it('should find exact path match', () => {
     const policy = findPolicy('/api/health/liveness', 'GET');
     expect(policy).toBeDefined();
@@ -53,8 +85,10 @@ describe('serverSecurity - resolveActorAndRole', () => {
   });
 
   it('should resolve owner-admin from bearer token', () => {
+    const ownerToken = "owner-" + "a".repeat(48);
+    vi.stubEnv("N1_SYNC_TOKEN", ownerToken);
     const req = {
-      headers: { 'authorization': 'Bearer mysecrettoken123' },
+      headers: { 'authorization': `Bearer ${ownerToken}` },
       signedCookies: {},
       cookies: {}
     } as any;
@@ -64,8 +98,10 @@ describe('serverSecurity - resolveActorAndRole', () => {
   });
 
   it('should resolve owner-admin from token header', () => {
+    const ownerToken = "owner-" + "b".repeat(48);
+    vi.stubEnv("N1_SYNC_TOKEN", ownerToken);
     const req = {
-      headers: { 'authorization': 'token mysecrettoken123' },
+      headers: { 'authorization': `token ${ownerToken}` },
       signedCookies: {},
       cookies: {}
     } as any;
@@ -73,30 +109,25 @@ describe('serverSecurity - resolveActorAndRole', () => {
     expect(result.role).toBe('owner-admin');
   });
 
-  it('should resolve owner-admin from admin key header when secret matches env', () => {
-    // The admin header check requires the value to match an environment variable
-    // This test documents the expected behavior when env vars are not set
+  it('requires a dedicated, sufficiently long admin secret', () => {
+    const adminSecret = "admin-" + "c".repeat(48);
+    vi.stubEnv("N1_ADMIN_SECRET", adminSecret);
     const req = {
-      headers: { 'x-admin-key': 'someadminsecret' },
+      headers: { "x-admin-key": adminSecret },
       signedCookies: {},
       cookies: {}
     } as any;
-    // Without matching env vars, this returns public - this is correct security behavior
-    const result = resolveActorAndRole(req);
-    // The function returns public when no admin secret matches
-    // In production with proper env vars set, this would return owner-admin
-    expect(['public', 'owner-admin']).toContain(result.role);
+    expect(resolveActorAndRole(req).role).toBe("owner-admin");
+    expect(resolveActorAndRole({ ...req, headers: { "x-admin-key": "other-secret" } }).role).toBe("public");
   });
 
-  it('should resolve family role from google auth cookie', () => {
+  it('rejects unverified Google identity cookies even when unsigned', () => {
     const req = {
       headers: {},
       signedCookies: {},
       cookies: { 'n1_google_auth': '{"email":"test@example.com"}' }
     } as any;
-    const result = resolveActorAndRole(req);
-    expect(result.role).toBe('family');
-    expect(result.actor).toBe('test@example.com');
+    expect(resolveActorAndRole(req).role).toBe("public");
   });
 });
 
