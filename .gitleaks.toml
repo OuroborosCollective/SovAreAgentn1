@@ -31,6 +31,12 @@ condition = "AND"
 commits = ["da35ad7d74024aa9dfa4d3f2dd4698e8dbcf3c00"]
 paths = ['^architecture-inventory\.json$']
 
+[[rules.allowlists]]
+description = "User-confirmed public Firebase web client key restricted to Firebase APIs/applications, generic detector only at the original config commit."
+condition = "AND"
+commits = ["eff3c399f1c0025712480dcc08bd97f3624dc544"]
+paths = ['^firebase-applet-config\.json$']
+
 [[rules]]
 id = "gcp-api-key"
 
