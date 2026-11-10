@@ -1,0 +1,41 @@
+title = "SovAreAgentn1 Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Each rule-specific allowlist requires one exact historical commit AND path.
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Synthetic key-shaped inputs in a historical TTS API-key test; no provider call is made."
+condition = "AND"
+commits = ["8988cf6aef77db7452a89e2c378d467600cadda1"]
+paths = ['^tests/integration/ttsApiKeyRotation\.test\.ts$']
+
+[[rules.allowlists]]
+description = "KNOWLEDGE_DB_KEY is a localStorage namespace, not an authentication credential."
+condition = "AND"
+commits = ["7b7f717a8bcf0edc5f13c5f9b5ec1e87f00ecaf7"]
+paths = ['^src/utils/memoryMigration\.ts$']
+
+[[rules.allowlists]]
+description = "Archived source copy of the same localStorage namespace, not an authentication credential."
+condition = "AND"
+commits = ["7b7f717a8bcf0edc5f13c5f9b5ec1e87f00ecaf7"]
+paths = ['^n-plus-one-migration-export/raw_sources/memoryMigration\.ts$']
+
+[[rules.allowlists]]
+description = "Architecture inventory repeats the localStorage namespace identifier, not an authentication credential."
+condition = "AND"
+commits = ["da35ad7d74024aa9dfa4d3f2dd4698e8dbcf3c00"]
+paths = ['^architecture-inventory\.json$']
+
+[[rules]]
+id = "gcp-api-key"
+
+[[rules.allowlists]]
+description = "User-confirmed public Firebase web client key restricted to Firebase APIs/applications, at its original config commit only."
+condition = "AND"
+commits = ["eff3c399f1c0025712480dcc08bd97f3624dc544"]
+paths = ['^firebase-applet-config\.json$']
