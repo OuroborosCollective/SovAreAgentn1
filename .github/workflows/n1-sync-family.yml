@@ -1,0 +1,62 @@
+name: N1 family security sync
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/n1-sync-family.yml]
+permissions:
+  contents: read
+concurrency:
+  group: n1-family-security-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.event.pull_request.number == 37 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feature/n1-family-learning-lanes-20261026'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Merge the exact security commit without force
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin security/n1-proof-boundaries-20261025
+          test "$(git rev-parse FETCH_HEAD)" = c583dac469a554cf9d7631da57a3f7b238ef8fea
+          git merge --no-ff --no-edit c583dac469a554cf9d7631da57a3f7b238ef8fea
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run test:contract
+      - name: Retire sync workflow and export exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/n1-sync-family.yml
+          git commit -m 'chore: retire one-shot security sync after verified merge'
+          git fetch origin feature/n1-family-learning-lanes-20261026
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_HEAD"
+          git push origin HEAD:refs/heads/feature/n1-family-learning-lanes-20261026
+          mkdir -p family-source
+          git rev-parse HEAD > family-source/commit.sha
+          git archive --format=tar.gz HEAD > family-source/source.tar.gz
+          sha256sum family-source/source.tar.gz > family-source/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n1-family-source-${{ github.sha }}
+          path: family-source/
+          retention-days: 7
+          if-no-files-found: error
+# No changes to main, deployment, secrets, provider billing or validation gates.
