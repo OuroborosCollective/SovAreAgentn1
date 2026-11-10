@@ -1,239 +1,124 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedMemoriesForContext,
-  type FamilyMemoryCandidate,
-  type LearningCandidate,
-  type VerifiedKnowledgeCandidate,
-  type VirtualSkillCandidate,
+  assessLearningCandidate,
 } from "../../src/domain/learningLanes";
 
-const familyMemory = (
-  overrides: Partial<FamilyMemoryCandidate> = {},
-): FamilyMemoryCandidate => ({
-  id: "synthetic-family-event",
-  lane: "family_memory",
-  provenance: {
-    status: "current",
-    sourceRef: "synthetic:event-1",
-    sourceKind: "conversation",
-  },
-  audience: { kind: "restricted", authorizedAudienceSets: [["speaker-1"]] },
-  speakerVerification: { speakerId: "speaker-1", serverVerified: true },
-  consent: {
-    state: "confirmed",
-    revocable: true,
-    consentId: "synthetic-consent",
-  },
-  dbReadback: {
-    independentlyVerified: true,
-    eventId: "synthetic:event-1",
-    hash: "synthetic-hash",
-  },
-  ...overrides,
-});
+const publicMemory = {
+  id: "synthetic-public-memory",
+  status: "current" as const,
+  provenanceComplete: true,
+  audience: { kind: "public" as const },
+};
 
-const knowledge = (
-  overrides: Partial<VerifiedKnowledgeCandidate> = {},
-): VerifiedKnowledgeCandidate => ({
-  id: "synthetic-document-fact",
-  lane: "verified_knowledge",
-  provenance: {
-    status: "current",
-    sourceRef: "https://example.test/guide",
-    sourceKind: "https_document",
-  },
-  audience: { kind: "public" },
-  sourceUrl: "https://example.test/guide",
-  contentVerified: true,
-  ...overrides,
-});
+const restrictedMemory = {
+  id: "synthetic-family-memory",
+  status: "current" as const,
+  provenanceComplete: true,
+  audience: { kind: "restricted" as const, viewers: ["parent", "child"] },
+};
 
-const virtualSkill = (
-  actionCount = 2,
-  overrides: Partial<VirtualSkillCandidate> = {},
-): VirtualSkillCandidate => ({
-  id: "synthetic-sandbox-skill",
+const virtualCandidate = (actions: string[]) => ({
+  id: "synthetic-virtual-skill",
   lane: "virtual_skills",
-  provenance: {
-    status: "current",
-    sourceRef: "synthetic:sandbox-run",
-    sourceKind: "virtual_sandbox",
-  },
-  audience: { kind: "public" },
-  sandboxed: true,
-  actions: Array.from({ length: actionCount }, (_, index) => ({
-    actionId: `synthetic-action-${index + 1}`,
-    allowlisted: true,
-  })),
-  effects: {
-    trainsModel: false,
-    downloadsModel: false,
-    autonomousExecution: false,
-    updatesWeights: false,
-  },
-  ...overrides,
+  source: { kind: "simulation", ref: "synthetic:simulation-1" },
+  actions,
 });
 
 describe("learning-lane contract (synthetic inputs only)", () => {
-  it("keeps family memory unavailable unless conversation, consent, verified speaker and DB receipt all exist", () => {
-    const valid = familyMemory();
+  it("rejects duplicate viewer identities and fails unresolved contexts closed", () => {
     expect(
-      allowedMemoriesForContext([valid], { viewerIds: ["speaker-1"] }),
-    ).toEqual([valid]);
-
-    const revoked = familyMemory({
-      consent: {
-        state: "revoked",
-        revocable: true,
-        consentId: "synthetic-consent",
-      },
-    });
-    const unverifiedSpeaker = familyMemory({
-      speakerVerification: { speakerId: "speaker-1", serverVerified: false },
-    });
-    const missingReadback = familyMemory({ dbReadback: undefined });
-    const wrongSource = familyMemory({
-      provenance: {
-        status: "current",
-        sourceRef: "synthetic:import",
-        sourceKind: "https_document",
-      } as FamilyMemoryCandidate["provenance"],
-    });
-    expect(
-      allowedMemoriesForContext(
-        [revoked, unverifiedSpeaker, missingReadback, wrongSource],
-        { viewerIds: ["speaker-1"] },
-      ),
-    ).toEqual([]);
-  });
-
-  it("requires HTTPS and separate content verification; a link alone is not truth", () => {
-    const http = knowledge({ sourceUrl: "http://example.test/guide" });
-    const unverified = knowledge({ contentVerified: false });
-    const credentialUrl = knowledge({
-      sourceUrl: "https://user:pass@example.test/guide",
-    });
-    expect(
-      allowedMemoriesForContext([http, unverified, credentialUrl], {
-        viewerIds: null,
+      allowedMemoriesForContext([restrictedMemory], {
+        verifiedViewers: ["parent", "parent"],
+        unresolved: false,
       }),
     ).toEqual([]);
-    const verified = knowledge();
-    expect(allowedMemoriesForContext([verified], { viewerIds: null })).toEqual([
-      verified,
-    ]);
+
+    expect(
+      allowedMemoriesForContext([publicMemory, restrictedMemory], {
+        verifiedViewers: ["parent"],
+        unresolved: true,
+      }),
+    ).toEqual([publicMemory]);
   });
 
-  it("admits only bounded, allowlisted virtual candidates and forbids model or autonomous effects", () => {
-    const boundaries = [virtualSkill(1), virtualSkill(12)];
-    expect(allowedMemoriesForContext(boundaries, { viewerIds: null })).toEqual(
-      boundaries,
-    );
-
-    const invalid = [
-      virtualSkill(0),
-      virtualSkill(13),
-      virtualSkill(1, { sandboxed: false }),
-      virtualSkill(1, {
-        actions: [{ actionId: "synthetic-action", allowlisted: false }],
-      }),
-      virtualSkill(1, {
-        effects: {
-          trainsModel: true,
-          downloadsModel: false,
-          autonomousExecution: false,
-          updatesWeights: false,
-        },
-      }),
-      virtualSkill(1, {
-        effects: {
-          trainsModel: false,
-          downloadsModel: true,
-          autonomousExecution: false,
-          updatesWeights: false,
-        },
-      }),
-      virtualSkill(1, {
-        effects: {
-          trainsModel: false,
-          downloadsModel: false,
-          autonomousExecution: true,
-          updatesWeights: false,
-        },
-      }),
-      virtualSkill(1, {
-        effects: {
-          trainsModel: false,
-          downloadsModel: false,
-          autonomousExecution: false,
-          updatesWeights: true,
-        },
-      }),
-    ];
-    expect(allowedMemoriesForContext(invalid, { viewerIds: null })).toEqual([]);
-  });
-
-  it("fails closed for unknown viewers except explicitly public candidates with current provenance", () => {
-    const publicCurrent = knowledge();
-    const stalePublic = knowledge({
-      provenance: {
-        status: "stale",
-        sourceRef: "https://example.test/guide",
-        sourceKind: "https_document",
-      },
+  it("keeps family and knowledge proposals pending despite client-supplied approval claims", () => {
+    const familyProposal = {
+      id: "synthetic-family-proposal",
+      lane: "family_memory",
+      source: { kind: "conversation", ref: "synthetic:conversation-1" },
+      consent: { state: "confirmed", consentId: "synthetic-consent" },
+      speakerVerification: { serverVerified: true },
+      dbReadback: { independentlyVerified: true },
+    };
+    expect(assessLearningCandidate(familyProposal)).toEqual({
+      status: "pending",
+      gate: "CONSENT_IDENTITY_AND_DURABLE_READBACK",
     });
-    const privateMemory = familyMemory();
-    const mixed: LearningCandidate[] = [
-      publicCurrent,
-      stalePublic,
-      privateMemory,
-    ];
-    expect(allowedMemoriesForContext(mixed, { viewerIds: null })).toEqual([
-      publicCurrent,
-    ]);
-    expect(allowedMemoriesForContext(mixed, { viewerIds: [] })).toEqual([
-      publicCurrent,
-    ]);
+
+    const knowledgeProposal = {
+      id: "synthetic-knowledge-proposal",
+      lane: "verified_knowledge",
+      source: { kind: "document", ref: "https://example.test/guide" },
+      contentVerified: true,
+      reviewApproved: true,
+    };
+    expect(assessLearningCandidate(knowledgeProposal)).toEqual({
+      status: "pending",
+      gate: "INDEPENDENT_SOURCE_REVIEW",
+    });
   });
 
-  it("requires the whole multi-viewer request to match one authorized audience set, never a union", () => {
-    const separateGrants = familyMemory({
-      audience: {
-        kind: "restricted",
-        authorizedAudienceSets: [["parent"], ["child"]],
-      },
-    });
-    const oneGroup = familyMemory({
-      audience: {
-        kind: "restricted",
-        authorizedAudienceSets: [["parent", "child"]],
-      },
-    });
-    expect(
-      allowedMemoriesForContext([separateGrants], {
-        viewerIds: ["parent", "child"],
-      }),
-    ).toEqual([]);
-    expect(
-      allowedMemoriesForContext([oneGroup], { viewerIds: ["child", "parent"] }),
-    ).toEqual([oneGroup]);
-    expect(
-      allowedMemoriesForContext([oneGroup], {
-        viewerIds: ["parent", "parent", "child"],
-      }),
-    ).toEqual([]);
-    expect(
-      allowedMemoriesForContext([oneGroup], { viewerIds: ["parent", ""] }),
-    ).toEqual([]);
+  it("rejects insecure or credential-bearing knowledge URLs", () => {
+    for (const ref of [
+      "http://example.test/guide",
+      "file:///private/source",
+      "https://user:pass@example.test/guide",
+    ]) {
+      expect(
+        assessLearningCandidate({
+          id: "synthetic-invalid-source",
+          lane: "verified_knowledge",
+          source: { kind: "document", ref },
+        }),
+      ).toEqual({ status: "rejected", gate: "INVALID_PROPOSAL" });
+    }
   });
 
-  it("does not mutate the caller-owned candidate list or candidate records", () => {
-    const item = knowledge();
-    const list = Object.freeze([
-      Object.freeze(item),
-    ]) as readonly LearningCandidate[];
-    const result = allowedMemoriesForContext(list, { viewerIds: null });
+  it("admits bounded allowlisted simulations only into the sandbox gate", () => {
+    for (const count of [1, 12]) {
+      expect(
+        assessLearningCandidate(
+          virtualCandidate(Array.from({ length: count }, () => "wave")),
+        ),
+      ).toEqual({
+        status: "sandbox_only",
+        gate: "FRESH_EVALUATION_AND_CHECKPOINT",
+      });
+    }
+
+    for (const actions of [
+      [],
+      Array.from({ length: 13 }, () => "wave"),
+      ["run_shell"],
+    ]) {
+      expect(assessLearningCandidate(virtualCandidate(actions))).toEqual({
+        status: "rejected",
+        gate: "INVALID_PROPOSAL",
+      });
+    }
+  });
+
+  it("does not mutate caller-owned memories or return the original array", () => {
+    const item = Object.freeze({ ...publicMemory });
+    const memories = Object.freeze([item]);
+    const result = allowedMemoriesForContext(memories, {
+      verifiedViewers: [],
+      unresolved: false,
+    });
+
     expect(result).toEqual([item]);
-    expect(result).not.toBe(list);
+    expect(result).not.toBe(memories);
+    expect(item.status).toBe("current");
   });
 });
