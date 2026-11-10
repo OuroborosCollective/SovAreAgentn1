@@ -100,10 +100,30 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+      - name: Bind analysis to checked-out source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p codeql-evidence
+          git rev-parse HEAD > codeql-evidence/commit.sha
+          git rev-parse HEAD^{tree} > codeql-evidence/tree.sha
+          git archive --format=tar.gz HEAD > codeql-evidence/source.tar.gz
+          sha256sum codeql-evidence/source.tar.gz > codeql-evidence/source.sha256
       - uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
       - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
+          output: codeql-evidence/sarif
+      - name: Preserve complete CodeQL results for independent review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-evidence-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: codeql-evidence/
 
   docker-real-runtime:
     name: Docker + PostgreSQL + actual HTTP/runtime E2E
