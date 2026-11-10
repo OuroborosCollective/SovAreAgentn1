@@ -1,0 +1,416 @@
+diff --git a/apps/backend/src/routes/health.ts b/apps/backend/src/routes/health.ts
+index f9642b3..e8c90e2 100644
+--- a/apps/backend/src/routes/health.ts
++++ b/apps/backend/src/routes/health.ts
+@@ -1,3 +1,4 @@
++import { rateLimit } from 'express-rate-limit';
+ import { Router } from "express";
+ import fs from "fs";
+ 
+@@ -29,6 +30,7 @@ async function probeDatabase(pool: any): Promise<ProbeStatus> {
+ 
+ export function createHealthRouter(dependencies: { getPool: () => any; getMemcached: () => any }) {
+   const router = Router();
++  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+ 
+   router.get(["/liveness", "/"], (_req, res) => {
+     res.json({
+diff --git a/package-lock.json b/package-lock.json
+index 82aa28e..b00208e 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -19,6 +19,7 @@
+         "d3": "^7.9.0",
+         "dotenv": "^17.3.1",
+         "express": "^5.2.1",
++        "express-rate-limit": "8.7.3",
+         "file-saver": "^2.0.5",
+         "framer-motion": "^12.43.0",
+         "jszip": "^3.10.1",
+@@ -4040,6 +4041,25 @@
+         "url": "https://opencollective.com/express"
+       }
+     },
++    "node_modules/express-rate-limit": {
++      "version": "8.7.3",
++      "resolved": "https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.7.3.tgz",
++      "integrity": "sha512-zPLqDI2f0gV2WmGnacLf9XSSqn4VldRyP5LCzOwx0BKH40mO6+2PCFkoSsRO2jePx87/Kf6NUF6P2QOTKXHbQA==",
++      "license": "MIT",
++      "dependencies": {
++        "debug": "^4.4.3",
++        "ip-address": "^10.2.0"
++      },
++      "engines": {
++        "node": ">= 16"
++      },
++      "funding": {
++        "url": "https://github.com/sponsors/express-rate-limit"
++      },
++      "peerDependencies": {
++        "express": ">= 4.11"
++      }
++    },
+     "node_modules/express/node_modules/cookie-signature": {
+       "version": "1.2.2",
+       "license": "MIT",
+@@ -4516,6 +4536,15 @@
+         "node": ">=12"
+       }
+     },
++    "node_modules/ip-address": {
++      "version": "10.7.6",
++      "resolved": "https://registry.npmjs.org/ip-address/-/ip-address-10.7.6.tgz",
++      "integrity": "sha512-00LYkM6byILa9eQIx6qoaXCM40xTLd56AZ4vyaPW3YTyb49VZYPo5xsiAq4tuQ54GH4R7gVdYScJ1B7B77PuTg==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 12"
++      }
++    },
+     "node_modules/ipaddr.js": {
+       "version": "1.9.1",
+       "license": "MIT",
+diff --git a/package.json b/package.json
+index 410ab17..99b3e6e 100644
+--- a/package.json
++++ b/package.json
+@@ -40,6 +40,7 @@
+     "d3": "^7.9.0",
+     "dotenv": "^17.3.1",
+     "express": "^5.2.1",
++    "express-rate-limit": "8.7.3",
+     "file-saver": "^2.0.5",
+     "framer-motion": "^12.43.0",
+     "jszip": "^3.10.1",
+diff --git a/server.ts b/server.ts
+index 17877ee..96fd3f2 100644
+--- a/server.ts
++++ b/server.ts
+@@ -1,3 +1,4 @@
++import { rateLimit } from 'express-rate-limit';
+ import { createHealthRouter } from "./apps/backend/src/routes/health.ts";
+ import express from "express";
+ // Vite is a dev-only dependency; do not load it at production startup.
+@@ -56,6 +57,8 @@ const getNexusCore = (req?: express.Request) => {
+ 
+ async function startServer() {
+   const app = express();
++  // Outer cap also covers authentication and file-serving routes; finer RBAC quotas remain active.
++  app.use(rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
+   const PORT = 3000;
+   let freeLLMFailoverCount = 0;
+ 
+diff --git a/src/api/googleApiKeys.ts b/src/api/googleApiKeys.ts
+index d3836d5..0516ea8 100644
+--- a/src/api/googleApiKeys.ts
++++ b/src/api/googleApiKeys.ts
+@@ -1,3 +1,4 @@
++import { rateLimit } from 'express-rate-limit';
+ /**
+  * Google AI Studio API Key Management Router
+  * 
+@@ -9,6 +10,7 @@ import { Router } from "express";
+ import crypto from "crypto";
+ 
+ const router = Router();
++  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+ 
+ // In-memory store for server-side key management
+ // In production, this should be stored in a database
+diff --git a/src/api/memory.ts b/src/api/memory.ts
+index c0227d3..ecf5b20 100644
+--- a/src/api/memory.ts
++++ b/src/api/memory.ts
+@@ -1,3 +1,4 @@
++import { rateLimit } from 'express-rate-limit';
+ import { Router } from "express";
+ import pg from "pg";
+ import crypto from "crypto";
+@@ -12,6 +13,7 @@ function stableHash(payload: unknown): string {
+ 
+ export function createMemoryRouter(getPool: () => pg.Pool | null) {
+   const router = Router();
++  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+ 
+   router.get("/events", async (_req, res) => {
+     const pool = getPool();
+diff --git a/src/api/personality.ts b/src/api/personality.ts
+index 7250c0a..28f3f0d 100644
+--- a/src/api/personality.ts
++++ b/src/api/personality.ts
+@@ -1,9 +1,11 @@
++import { rateLimit } from 'express-rate-limit';
+ import { Router } from "express";
+ import pg from "pg";
+ import crypto from "crypto";
+ 
+ export function createPersonalityRouter(getPool: () => pg.Pool | null) {
+   const router = Router();
++  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+   const unavailable = (res: any) =>
+     res.status(503).json({ status: "error", code: "PERSISTENCE_UNAVAILABLE" });
+ 
+diff --git a/src/api/privacy.ts b/src/api/privacy.ts
+index e09a596..3761ee9 100644
+--- a/src/api/privacy.ts
++++ b/src/api/privacy.ts
+@@ -1,3 +1,4 @@
++import { rateLimit } from 'express-rate-limit';
+ import { Router } from "express";
+ import pg from "pg";
+ import crypto from "crypto";
+@@ -5,6 +6,7 @@ import { resolveActorAndRole } from "../lib/serverSecurity";
+ 
+ export function createPrivacyRouter(getPool: () => pg.Pool | null) {
+   const router = Router();
++  router.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-8', legacyHeaders: false }));
+   const unavailable = (res: any) =>
+     res.status(503).json({ status: "error", code: "PERSISTENCE_UNAVAILABLE" });
+ 
+diff --git a/src/services/geminiService.ts b/src/services/geminiService.ts
+index a6df5c4..15d3ee5 100644
+--- a/src/services/geminiService.ts
++++ b/src/services/geminiService.ts
+@@ -78,7 +78,7 @@ export async function generateHiaVoiceResponse(userQuery: string, personaState?:
+   ) {
+     try {
+       const mathResult = WolframResearchSandbox.evaluateSymbolicResearch(userQuery, "HiaVoiceKernel");
+-      return `Wolfram Kernel Symbolik ausgeführt! Das verifizierte Ergebnis lautet: ${mathResult.exactResult}. Ausführungsdauer: ${mathResult.durationMs} Millisekunden mit Status ${mathResult.status}.`;
++      return `Lokales Wolfram-Lehrbeispiel, kein externer Kernel-Nachweis: ${mathResult.exactResult}. Status: ${mathResult.status}.`;
+     } catch (err: any) {
+       return `Wolfram-Sandbox Sicherheitsrichtlinie aktiv: ${err?.message || 'Reine Leseoperationen sind erlaubt.'}`;
+     }
+diff --git a/src/services/wolframResearchSandbox.ts b/src/services/wolframResearchSandbox.ts
+index adf0e3c..f034193 100644
+--- a/src/services/wolframResearchSandbox.ts
++++ b/src/services/wolframResearchSandbox.ts
+@@ -26,6 +26,9 @@ export class WolframResearchSandbox {
+    * Enforces a read-only policy for production data stores.
+    */
+   public static evaluateSymbolicResearch(expression: string, moduleName: string): SymbolicResearchResult {
++    if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(moduleName)) {
++      throw new Error('INVALID_MODULE_NAME');
++    }
+     const startTime = performance.now();
+     // 1. Policy Enforcement: Check for unauthorized write operations
+     const writeKeywords = ['Write', 'Put', 'Export', 'Save', 'Set', 'Delete', 'Drop'];
+@@ -59,7 +62,7 @@ export class WolframResearchSandbox {
+       numericalResult = '1.0';
+     } else {
+       // Generic fallback
+-      canonicalAST = `RawExpression["${expression}"]`;
++      canonicalAST = `RawExpression[${JSON.stringify(expression)}]`;
+       kernelResult = '{{}}';
+       exactResult = expression;
+       numericalResult = '{}';
+@@ -83,21 +86,21 @@ export class WolframResearchSandbox {
+       kernelResult,
+       exactResult,
+       numericalResult,
+-      kernelVersion: '14.3.x',
+-      executionMode: 'symbolic-exact',
++      kernelVersion: 'none-local-example',
++      executionMode: 'local-example',
+       requestHash,
+       resultHash,
+-      runtimeRevision: 'sha256:8b4c27...e9f2a1', // Simulated read back digest
++      runtimeRevision: 'unverified', // No external Wolfram kernel was executed.
+       exitCode: 0,
+       durationMs: Math.round(endTime - startTime),
+-      status: 'VERIFIED',
++      status: 'SIMULATED',
+       exportedKernelModule: kernelModule
+     };
+   }
+ 
+   private static exportKernelModule(moduleName: string, canonicalAST: string, signatureHash: string): string {
+     return `// ==========================================
+-// AREKappa & WolframEngine 14.3 Exported Kernel Module
++// AREKappa local example - not a verified Wolfram Engine export
+ // Module Name: ${moduleName}
+ // Timestamp: ${new Date().toISOString()}
+ // Architecture: F0-F6 Immutable Truth Substrate
+@@ -119,7 +122,7 @@ public class ${moduleName.replace(/\s+/g, '')}KernelModule {
+      * Canonical Wolfram Research AST Proof Expression
+      */
+     public static String evaluateSymbolicProof() {
+-        String expression = "${canonicalAST.replace(/"/g, '\\"')}";
++        String expression = ${JSON.stringify(canonicalAST)};
+         return ZeroFloatSubstrate.executeExact(expression);
+     }
+ }
+diff --git a/tests/integration/rateLimitBoundary.test.ts b/tests/integration/rateLimitBoundary.test.ts
+new file mode 100644
+index 0000000..ecdcf1a
+--- /dev/null
++++ b/tests/integration/rateLimitBoundary.test.ts
+@@ -0,0 +1,34 @@
++import { describe, expect, it } from 'vitest';
++import express from 'express';
++import { once } from 'node:events';
++import { createMemoryRouter } from '../../src/api/memory';
++import { createHealthRouter } from '../../apps/backend/src/routes/health';
++
++// Real localhost transport; no provider or database success is fabricated.
++describe('standalone routers enforce bounded request rates', () => {
++  for (const kind of ['memory', 'health'] as const) {
++    it(`${kind} refuses requests above the window budget even without the outer application`, async () => {
++      const app = express();
++      const router = kind === 'memory' ? createMemoryRouter(() => null)
++        : createHealthRouter({ getPool: () => null, getMemcached: () => null });
++      app.use(router);
++      const server = app.listen(0, '127.0.0.1');
++      await once(server, 'listening');
++      const address = server.address();
++      if (!address || typeof address === 'string') throw new Error('TCP listener missing');
++      try {
++        const url = `http://127.0.0.1:${address.port}/${kind === 'memory' ? 'events' : 'liveness'}`;
++        let status = 0;
++        for (let i = 0; i < 121; i++) {
++          const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
++          await response.text();
++          status = response.status;
++          if (i === 0) expect(status).toBe(kind === 'memory' ? 503 : 200);
++        }
++        expect(status).toBe(429);
++      } finally {
++        await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve()));
++      }
++    });
++  }
++});
+diff --git a/tests/unit/kernelExportEncoding.test.ts b/tests/unit/kernelExportEncoding.test.ts
+new file mode 100644
+index 0000000..3d47919
+--- /dev/null
++++ b/tests/unit/kernelExportEncoding.test.ts
+@@ -0,0 +1,21 @@
++import { describe, expect, it } from 'vitest';
++import { WolframResearchSandbox } from '../../src/services/wolframResearchSandbox';
++
++describe('legacy kernel export uses data literals, not code interpolation', () => {
++  it('round-trips backslashes, quotes, newlines and controls in the exported literal', () => {
++    const source = 'x\\";\n\r\t\\u000a';
++    const result = WolframResearchSandbox.evaluateSymbolicResearch(source, 'EncodingTest');
++    const match = result.exportedKernelModule.match(/String expression = (.*);/);
++    expect(match).not.toBeNull();
++    expect(JSON.parse(match![1])).toBe(result.canonicalAST);
++  });
++  it('rejects a module name that can break out of a declaration or comment', () => {
++    expect(() => WolframResearchSandbox.evaluateSymbolicResearch('1+1', 'Bad\nclass Injected {}'))
++      .toThrow(/MODULE_NAME/);
++  });
++  it('does not label a local example as a verified external Wolfram kernel execution', () => {
++    const result = WolframResearchSandbox.evaluateSymbolicResearch('1+1', 'Example');
++    expect(result.status).toBe('SIMULATED');
++    expect(result.runtimeRevision).toBe('unverified');
++  });
++});
+diff --git a/tests/unit/voiceInteraction.test.ts b/tests/unit/voiceInteraction.test.ts
+index d8840ec..0171854 100644
+--- a/tests/unit/voiceInteraction.test.ts
++++ b/tests/unit/voiceInteraction.test.ts
+@@ -7,22 +7,23 @@ import {
+ import { WolframResearchSandbox } from '../../src/services/wolframResearchSandbox';
+ import { emotionEngine } from '../../src/services/emotionEngine';
+ 
+-vi.mock('../../services/dialogOrchestrator', () => ({
++vi.mock('../../src/services/dialogOrchestrator', () => ({
+   dialogOrchestrator: {
+     processDialog: vi.fn().mockResolvedValue({
+-      spokenOutput: 'Test response from dialog orchestrator',
++      spokenOutput: 'Hallo Papa! Testdouble fuer den externen Dialoganbieter',
+       animationSignals: ['smile']
+     })
+   }
+ }));
+ 
+-vi.mock('../../services/emotionalMemoryService', () => ({
++vi.mock('../../src/services/emotionalMemoryService', () => ({
+   emotionalMemoryService: {
+     getAgentMoodContextPrompt: vi.fn().mockReturnValue({
+       memoryReferences: [
+         {
+           id: 'mem-1',
+           formattedTime: '12:00',
++          emotionalState: 'neugierig',
+           conversationSnippet: 'Previous conversation',
+           resonanceMetrics: { harmonicWarmth: 85, pitchResonance: 175 }
+         }
+@@ -32,18 +33,14 @@ vi.mock('../../services/emotionalMemoryService', () => ({
+   }
+ }));
+ 
+-vi.mock('../../services/voiceService', () => ({
++vi.mock('../../src/services/voiceService', () => ({
+   voiceService: {
+     speak: vi.fn(),
+     subscribe: vi.fn().mockReturnValue(vi.fn())
+   }
+ }));
+ 
+-vi.mock('../../services/geminiService', () => ({
+-  generateAgentAction: vi.fn(),
+-  generateHiaVoiceResponse: vi.fn(),
+-  generateHiaDetailedResponse: vi.fn()
+-}));
++
+ 
+ describe('Voice Interaction - Voice Action Reasoning', () => {
+   describe('generateHiaVoiceResponse', () => {
+@@ -90,7 +87,7 @@ describe('Voice Interaction - Voice Action Reasoning', () => {
+     it('should execute Solve equation', () => {
+       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x^2-5x+6==0,x]', 'Test');
+       expect(result.exactResult).toBe('x ∈ {2,3}');
+-      expect(result.status).toBe('VERIFIED');
++      expect(result.status).toBe('SIMULATED');
+     });
+ 
+     it('should handle simple addition', () => {
+diff --git a/tests/unit/wolframResearchSandbox.test.ts b/tests/unit/wolframResearchSandbox.test.ts
+index 4ed26dc..74759c7 100644
+--- a/tests/unit/wolframResearchSandbox.test.ts
++++ b/tests/unit/wolframResearchSandbox.test.ts
+@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
+ import { WolframResearchSandbox } from '../../src/services/wolframResearchSandbox';
+ import { KappaIREngine } from '../../src/services/kappaIREngine';
+ 
+-describe('WolframResearchSandbox - No Mock Validation', () => {
++describe('WolframResearchSandbox - local examples, never provider evidence', () => {
+   describe('evaluateSymbolicResearch', () => {
+     it('should execute quadratic equation Solve[x^2-5x+6==0,x] and return correct roots', () => {
+       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x^2-5x+6==0,x]', 'QuadraticTest');
+       
+-      expect(result.status).toBe('VERIFIED');
++      expect(result.status).toBe('SIMULATED');
+       expect(result.exactResult).toBe('x ∈ {2,3}');
+       expect(result.numericalResult).toBe('{2.0,3.0}');
+       expect(result.kernelResult).toBe('{{x -> 2}, {x -> 3}}');
+@@ -16,7 +16,7 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
+     it('should execute simple addition equation Solve[x + x == 10, x]', () => {
+       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'AdditionTest');
+       
+-      expect(result.status).toBe('VERIFIED');
++      expect(result.status).toBe('SIMULATED');
+       expect(result.exactResult).toBe('x = 5');
+       expect(result.numericalResult).toBe('{5.0}');
+     });
+@@ -50,7 +50,7 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
+     it('should return valid kernel module export', () => {
+       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'ModuleTest');
+       
+-      expect(result.exportedKernelModule).toContain('AREKappa & WolframEngine 14.3');
++      expect(result.exportedKernelModule).toContain('AREKappa local example');
+       expect(result.exportedKernelModule).toContain('Read-Only, Isolated Sandbox');
+       expect(result.exportedKernelModule).toContain('Module Name: ModuleTest');
+     });
+@@ -58,8 +58,8 @@ describe('WolframResearchSandbox - No Mock Validation', () => {
+     it('should return correct kernel version', () => {
+       const result = WolframResearchSandbox.evaluateSymbolicResearch('Solve[x + x == 10, x]', 'VersionTest');
+       
+-      expect(result.kernelVersion).toBe('14.3.x');
+-      expect(result.executionMode).toBe('symbolic-exact');
++      expect(result.kernelVersion).toBe('none-local-example');
++      expect(result.executionMode).toBe('local-example');
+     });
+ 
+     it('should return exit code 0 on success', () => {
